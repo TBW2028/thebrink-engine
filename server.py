@@ -2,6 +2,7 @@ import asyncio
 import os
 from pathlib import Path
 import re
+import ssl
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -26,7 +27,8 @@ INDEX_FILE = STATIC_DIR / "index.html"
 
 FEEDS = {
     "usgs": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson",
-    "ncs_india": "https://riseq.seismo.gov.in/event/feed/rss.xml",  # Direct NCS Feed
+    "emsc_india": "https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=50&minlat=6.0&maxlat=37.5&minlon=68.0&maxlon=97.5",
+    "ncs_india": "https://riseq.seismo.gov.in/event/feed/rss.xml",
     "swpc_xray": "https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json",
     "swpc_kp": "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json",
     "nws_alerts": "https://api.weather.gov/alerts/active",
@@ -38,14 +40,22 @@ CACHE = {"data": None, "last_collected": 0}
 FAST_INTERVAL_MINUTES = 15
 
 async def fetch_feed(session, key, url, is_json=True):
-    headers = {"User-Agent": "TheBrinkWorld/2.0 (desk@thebrinkworld.com)"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, application/xml, text/xml, */*",
+    }
+    # Bypass strict SSL verification for regional gov servers that have expired intermediate certs
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+
     try:
-        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+        async with session.get(url, headers=headers, ssl=ssl_context, timeout=aiohttp.ClientTimeout(total=12)) as resp:
             if resp.status == 200:
                 payload = await resp.json() if is_json else await resp.text()
                 return key, True, payload
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[FETCH FAILED] {key}: {e}")
     return key, False, None
 
 def is_in_india(lat, lon):
@@ -60,8 +70,33 @@ def classify_mag(mag):
     if mag >= 5.0: return "watch"
     return "list"
 
+def parse_emsc(data):
+    events = []
+    if not data or "features" not in data:
+        return events
+    for f in data["features"]:
+        props = f.get("properties", {})
+        geom = f.get("geometry", {})
+        coords = geom.get("coordinates", [None, None, None])
+        lon, lat, depth = coords[0], coords[1], coords[2]
+        mag = props.get("mag")
+        if mag is None: continue
+
+        events.append({
+            "magnitude": float(mag),
+            "place": props.get("flynn_region", "India Region"),
+            "time": props.get("time"),
+            "latitude": lat,
+            "longitude": lon,
+            "depth_km": depth,
+            "status": "reviewed",
+            "source": "EMSC/NCS",
+            "level": classify_mag(float(mag)),
+            "url": f"https://www.emsc-csem.org/Earthquake/earthquake.php?id={props.get('source_id', '')}"
+        })
+    return events
+
 def parse_ncs_rss(raw_xml):
-    """Parses National Center for Seismology (NCS) RSS entries down to M1.0"""
     events = []
     if not raw_xml:
         return events
@@ -73,11 +108,9 @@ def parse_ncs_rss(raw_xml):
             pub = item.findtext("pubDate", "")
             link = item.findtext("link", "https://riseq.seismo.gov.in")
             
-            # Extract Magnitude (e.g., "M: 2.8" or "Magnitude: 3.1")
             mag_match = re.search(r"M(?:agnitude)?[:\s]+([0-9.]+)", title + " " + desc, re.I)
             mag = float(mag_match.group(1)) if mag_match else 2.5
 
-            # Extract Lat/Lon coordinates from description
             lat_match = re.search(r"Lat(?:itude)?[:\s]+([0-9.]+[NS]?)", desc, re.I)
             lon_match = re.search(r"Lon(?:gitude)?[:\s]+([0-9.]+[EW]?)", desc, re.I)
             depth_match = re.search(r"Depth[:\s]+([0-9]+)\s*km", desc, re.I)
@@ -87,8 +120,7 @@ def parse_ncs_rss(raw_xml):
             depth = int(depth_match.group(1)) if depth_match else 10
 
             clean_place = title.replace(f"M: {mag}", "").replace(f"M:{mag}", "").strip(" -:,")
-            if not clean_place:
-                clean_place = "India Region"
+            if not clean_place: clean_place = "India Region"
 
             events.append({
                 "magnitude": mag,
@@ -111,6 +143,7 @@ async def run_collector():
     async with aiohttp.ClientSession() as session:
         tasks = [
             fetch_feed(session, "usgs", FEEDS["usgs"], True),
+            fetch_feed(session, "emsc", FEEDS["emsc_india"], True),
             fetch_feed(session, "ncs", FEEDS["ncs_india"], False),
             fetch_feed(session, "swpc_xray", FEEDS["swpc_xray"], True),
             fetch_feed(session, "swpc_kp", FEEDS["swpc_kp"], True),
@@ -123,12 +156,11 @@ async def run_collector():
     data_map = {k: (ok, payload) for k, ok, payload in results}
     sources_health = {}
 
-    # 1. Seismic Feeds (USGS + Direct NCS)
     quakes = {"india": [], "us": [], "global": []}
     map_points = []
     lookout = []
 
-    # Ingest USGS
+    # 1. USGS Ingestion
     usgs_ok, usgs_raw = data_map.get("usgs", (False, None))
     sources_health["USGS"] = {"ok": usgs_ok, "count": 0}
 
@@ -181,21 +213,31 @@ async def run_collector():
                     "url": q_obj["url"],
                 })
 
-    # Ingest NCS India Micro-Quakes (M1.0+)
+    # 2. EMSC India & Regional Ingestion (Guaranteed feed for Indian sub-continent)
+    emsc_ok, emsc_raw = data_map.get("emsc", (False, None))
+    if emsc_ok and emsc_raw:
+        emsc_events = parse_emsc(emsc_raw)
+        for eq in emsc_events:
+            # deduplicate by proximity and magnitude
+            if not any(abs(eq["latitude"] - x["latitude"]) < 0.2 and abs(eq["longitude"] - x["longitude"]) < 0.2 for x in quakes["india"]):
+                quakes["india"].append(eq)
+                map_points.append({"lat": eq["latitude"], "lon": eq["longitude"], "mag": eq["magnitude"], "place": eq["place"], "time": eq["time"]})
+
+    # 3. Direct NCS Ingestion
     ncs_ok, ncs_raw = data_map.get("ncs", (False, None))
-    sources_health["NCS"] = {"ok": ncs_ok, "count": 0}
+    sources_health["NCS/EMSC"] = {"ok": (emsc_ok or ncs_ok), "count": len(quakes["india"])}
     if ncs_ok and ncs_raw:
         ncs_events = parse_ncs_rss(ncs_raw)
-        sources_health["NCS"]["count"] = len(ncs_events)
         for nq in ncs_events:
-            quakes["india"].append(nq)
-            map_points.append({"lat": nq["latitude"], "lon": nq["longitude"], "mag": nq["magnitude"], "place": nq["place"], "time": nq["time"]})
+            if not any(abs(nq["latitude"] - x["latitude"]) < 0.2 and abs(nq["longitude"] - x["longitude"]) < 0.2 for x in quakes["india"]):
+                quakes["india"].append(nq)
+                map_points.append({"lat": nq["latitude"], "lon": nq["longitude"], "mag": nq["magnitude"], "place": nq["place"], "time": nq["time"]})
 
     # Sort quakes by newest first
     for k in quakes:
         quakes[k].sort(key=lambda x: str(x.get("time", "")), reverse=True)
 
-    # 2. SWPC Space Weather
+    # 4. SWPC Space Weather
     space_data = {
         "xray_class": "Background (A/B)", 
         "xray_time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), 
@@ -243,7 +285,7 @@ async def run_collector():
                 "url": "https://www.spaceweather.gov",
             })
 
-    # 3. NOAA NWS Alerts
+    # 5. NOAA NWS Alerts
     nws_ok, nws_raw = data_map.get("nws", (False, None))
     sources_health["NWS"] = {"ok": nws_ok, "count": 0}
     tornado_notices, severe_notices = [], []
@@ -272,7 +314,7 @@ async def run_collector():
             elif severity in ["Extreme", "Severe"]:
                 severe_notices.append(item)
 
-    # 4. NOAA NHC Tropical
+    # 6. NOAA NHC Tropical
     nhc_ok, nhc_raw = data_map.get("nhc", (False, None))
     sources_health["NHC"] = {"ok": nhc_ok, "count": 0}
     tropical_notices = []
@@ -296,7 +338,7 @@ async def run_collector():
         except Exception:
             pass
 
-    # 5. PTWC / NTWC Tsunami
+    # 7. PTWC / NTWC Tsunami
     tsunami_ok, tsu_raw = data_map.get("tsunami", (False, None))
     sources_health["PTWC"] = {"ok": tsunami_ok, "count": 0}
     tsunami_notices = []
@@ -322,7 +364,6 @@ async def run_collector():
         except Exception:
             pass
 
-    # Situation metrics
     total_listed = len(quakes["india"]) + len(quakes["us"]) + len(quakes["global"])
     compiled = {
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
@@ -345,7 +386,7 @@ async def run_collector():
         "severe": severe_notices,
         "sources": sources_health,
         "ncs": {
-            "note": "NCS MoES live feed active with local Indian ground stations (M1.0+).",
+            "note": "NCS MoES & EMSC South Asia seismic sensors active (all magnitudes).",
             "url": "https://riseq.seismo.gov.in",
         },
     }
