@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from pathlib import Path
 import re
@@ -41,19 +42,22 @@ FAST_INTERVAL_MINUTES = 15
 
 async def fetch_feed(session, key, url, is_json=True):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json, application/xml, text/xml, */*",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*",
     }
-    # Bypass strict SSL verification for regional gov servers that have expired intermediate certs
     ssl_context = ssl.create_default_context()
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
 
     try:
-        async with session.get(url, headers=headers, ssl=ssl_context, timeout=aiohttp.ClientTimeout(total=12)) as resp:
+        async with session.get(url, headers=headers, ssl=ssl_context, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status == 200:
-                payload = await resp.json() if is_json else await resp.text()
-                return key, True, payload
+                text_data = await resp.text()
+                if is_json:
+                    return key, True, json.loads(text_data)
+                return key, True, text_data
+            else:
+                print(f"[HTTP {resp.status}] Failed on {key}")
     except Exception as e:
         print(f"[FETCH FAILED] {key}: {e}")
     return key, False, None
@@ -160,7 +164,7 @@ async def run_collector():
     map_points = []
     lookout = []
 
-    # 1. USGS Ingestion
+    # 1. USGS Processing
     usgs_ok, usgs_raw = data_map.get("usgs", (False, None))
     sources_health["USGS"] = {"ok": usgs_ok, "count": 0}
 
@@ -213,17 +217,16 @@ async def run_collector():
                     "url": q_obj["url"],
                 })
 
-    # 2. EMSC India & Regional Ingestion (Guaranteed feed for Indian sub-continent)
+    # 2. EMSC India Regional Processing
     emsc_ok, emsc_raw = data_map.get("emsc", (False, None))
     if emsc_ok and emsc_raw:
         emsc_events = parse_emsc(emsc_raw)
         for eq in emsc_events:
-            # deduplicate by proximity and magnitude
             if not any(abs(eq["latitude"] - x["latitude"]) < 0.2 and abs(eq["longitude"] - x["longitude"]) < 0.2 for x in quakes["india"]):
                 quakes["india"].append(eq)
                 map_points.append({"lat": eq["latitude"], "lon": eq["longitude"], "mag": eq["magnitude"], "place": eq["place"], "time": eq["time"]})
 
-    # 3. Direct NCS Ingestion
+    # 3. Direct NCS Processing
     ncs_ok, ncs_raw = data_map.get("ncs", (False, None))
     sources_health["NCS/EMSC"] = {"ok": (emsc_ok or ncs_ok), "count": len(quakes["india"])}
     if ncs_ok and ncs_raw:
@@ -233,7 +236,7 @@ async def run_collector():
                 quakes["india"].append(nq)
                 map_points.append({"lat": nq["latitude"], "lon": nq["longitude"], "mag": nq["magnitude"], "place": nq["place"], "time": nq["time"]})
 
-    # Sort quakes by newest first
+    # Sort all regions newest first
     for k in quakes:
         quakes[k].sort(key=lambda x: str(x.get("time", "")), reverse=True)
 
@@ -285,7 +288,7 @@ async def run_collector():
                 "url": "https://www.spaceweather.gov",
             })
 
-    # 5. NOAA NWS Alerts
+    # 5. NOAA NWS Severe
     nws_ok, nws_raw = data_map.get("nws", (False, None))
     sources_health["NWS"] = {"ok": nws_ok, "count": 0}
     tornado_notices, severe_notices = [], []
@@ -314,7 +317,7 @@ async def run_collector():
             elif severity in ["Extreme", "Severe"]:
                 severe_notices.append(item)
 
-    # 6. NOAA NHC Tropical
+    # 6. NHC Tropical
     nhc_ok, nhc_raw = data_map.get("nhc", (False, None))
     sources_health["NHC"] = {"ok": nhc_ok, "count": 0}
     tropical_notices = []
@@ -338,7 +341,7 @@ async def run_collector():
         except Exception:
             pass
 
-    # 7. PTWC / NTWC Tsunami
+    # 7. PTWC Tsunami
     tsunami_ok, tsu_raw = data_map.get("tsunami", (False, None))
     sources_health["PTWC"] = {"ok": tsunami_ok, "count": 0}
     tsunami_notices = []
@@ -386,7 +389,7 @@ async def run_collector():
         "severe": severe_notices,
         "sources": sources_health,
         "ncs": {
-            "note": "NCS MoES & EMSC South Asia seismic sensors active (all magnitudes).",
+            "note": "NCS MoES & EMSC South Asia seismic sensors active.",
             "url": "https://riseq.seismo.gov.in",
         },
     }
