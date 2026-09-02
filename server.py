@@ -1,18 +1,15 @@
 import asyncio
+import base64
 import io
 import json
 import os
 from pathlib import Path
 import re
-import smtplib
 import sqlite3
 import ssl
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
 import aiohttp
 from fastapi import FastAPI, Query, Form, UploadFile, File, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,13 +38,10 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 REPORTS_FILE = BASE_DIR / "crowd_reports.json"
 DB_FILE = BASE_DIR / "enterprise_vault.db"
 
+# Admin & Credentials
 ADMIN_PASSKEY = os.getenv("ADMIN_PASSKEY", "brink_admin_2026")
-ADMIN_NOTIFICATION_EMAIL = os.getenv("ADMIN_NOTIFICATION_EMAIL", "your_personal_email@gmail.com")
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASS = os.getenv("SMTP_PASS", "")
-
+ADMIN_NOTIFICATION_EMAIL = os.getenv("ADMIN_NOTIFICATION_EMAIL", "thebrink2028@gmail.com")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "https://thebrink-engine.onrender.com")
 
 FEEDS = {
@@ -117,6 +111,51 @@ def record_alert_dispatch(asset_id, threat_sig):
               (asset_id, threat_sig, datetime.now(timezone.utc).isoformat()))
     conn.commit()
     conn.close()
+
+# ================= HTTPS EMAIL SENDER (PORT 443 - NO SMTP BLOCKS) =================
+
+async def send_email_via_https(to_email: str, subject: str, text_body: str, pdf_bytes: bytes = None, filename: str = "TheBrink_Dossier.pdf"):
+    """
+    Sends email over HTTPS port 443 via Resend API to bypass Render outbound SMTP blocks.
+    """
+    if not RESEND_API_KEY:
+        print("[EMAIL ERROR] RESEND_API_KEY is missing in Render environment variables.")
+        return False
+
+    payload = {
+        "from": "The Brink Intelligence <onboarding@resend.dev>",
+        "to": [to_email],
+        "subject": subject,
+        "text": text_body
+    }
+
+    if pdf_bytes:
+        payload["attachments"] = [
+            {
+                "filename": filename,
+                "content": base64.b64encode(pdf_bytes).decode("utf-8")
+            }
+        ]
+
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        print(f"[HTTPS DISPATCH] Sending email to {to_email} via Resend HTTPS API...")
+        async with aiohttp.ClientSession() as session:
+            async with session.post("https://api.resend.com/emails", json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                resp_text = await resp.text()
+                if resp.status in (200, 201):
+                    print(f"[HTTPS DISPATCH SUCCESS] Delivered to {to_email}. Details: {resp_text}")
+                    return True
+                else:
+                    print(f"[HTTPS DISPATCH FAILED] Status {resp.status}: {resp_text}")
+                    return False
+    except Exception as e:
+        print(f"[HTTPS DISPATCH EXCEPTION] {type(e).__name__}: {str(e)}")
+        return False
 
 # ================= TELEMETRY UTILITIES =================
 
@@ -255,41 +294,6 @@ def calculate_swarms(events, max_km=75.0):
             swarms.append(cluster)
     return swarms
 
-# ================= AUTOMATED EMAIL DISPATCHER =================
-
-def send_automated_alert(email: str, asset_name: str, threat: dict):
-    if not SMTP_USER or not SMTP_PASS: return
-    try:
-        msg = MIMEMultipart()
-        msg["From"] = f"The Brink Intelligence <{SMTP_USER}>"
-        msg["To"] = email
-        msg["Subject"] = f"🚨 PERIMETER BREACH ALERT: {asset_name} [{threat.get('severity', 'ELEVATED').upper()}]"
-
-        body = f"""THE BRINK WORLD // AUTOMATED ASSET MONITORING DESK
----------------------------------------------------------
-An environmental hazard has breached your monitored perimeter.
-
-ASSET IDENTIFIER: {asset_name}
-HAZARD TYPE:      {threat.get('type')}
-EVENT SUMMARY:    {threat.get('title')}
-PROXIMITY:        {threat.get('distance_km')} km from designated coordinates
-EVENT TIMESTAMP:  {threat.get('time')}
-
-RECOMMENDATION:
-Initiate operational and continuity review for this sector.
-Live Telemetry: https://thebrinkworld.com/watch
-
-Automated Radar Engine — The Brink World
-"""
-        msg.attach(MIMEText(body, "plain"))
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=20)
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASS)
-        server.send_message(msg)
-        server.quit()
-    except Exception as e:
-        print(f"[PERIMETER ALERT SMTP ERROR] {e}")
-
 async def evaluate_client_geofences(intel):
     assets = get_monitored_assets()
     if not assets: return
@@ -318,7 +322,25 @@ async def evaluate_client_geofences(intel):
                 threat_copy["distance_km"] = round(dist, 1)
                 sig = f"{asset['id']}_{threat['id']}"
                 if not has_alert_dispatched(asset["id"], sig):
-                    send_automated_alert(asset["email"], asset["name"], threat_copy)
+                    body = f"""THE BRINK WORLD // ASSET PERIMETER BREACH ALERT
+---------------------------------------------------------
+An active hazard has breached your monitored operational perimeter.
+
+ASSET IDENTIFIER: {asset['name']}
+HAZARD TYPE:      {threat['type']}
+EVENT SUMMARY:    {threat['title']}
+PROXIMITY:        {round(dist, 1)} km from your coordinates
+EVENT TIMESTAMP:  {threat['time']}
+
+RECOMMENDATION:
+Initiate immediate continuity and logistics review for this corridor.
+Live Telemetry: https://thebrinkworld.com/watch
+"""
+                    await send_email_via_https(
+                        to_email=asset["email"],
+                        subject=f"🚨 PERIMETER BREACH: {asset['name']} [{threat.get('severity', 'ELEVATED').upper()}]",
+                        text_body=body
+                    )
                     record_alert_dispatch(asset["id"], sig)
 
 # ================= TELEMETRY COLLECTOR =================
@@ -713,24 +735,13 @@ async def capture_order_lead(
     # Compile the 5-page PDF dossier
     pdf_bytes = await generate_pdf_binary()
 
-    # Dispatch to YOUR email (Admin)
-    if not SMTP_USER or not SMTP_PASS:
-        print(f"[SMTP CONFIG MISSING] SMTP_USER or SMTP_PASS is empty in Render environment. Recipient intended: {ADMIN_NOTIFICATION_EMAIL}")
-    else:
-        try:
-            print(f"[SMTP ATTEMPT] Connecting to {SMTP_SERVER}:{SMTP_PORT} for recipient {ADMIN_NOTIFICATION_EMAIL}...")
-            msg = MIMEMultipart()
-            msg["From"] = f"The Brink Intelligence <{SMTP_USER}>"
-            msg["To"] = ADMIN_NOTIFICATION_EMAIL
-            
-            plan_label = "24/7 Asset Perimeter Radar ($199)" if plan == "asset_watch" else "Executive Threat Dossier ($49)"
-            msg["Subject"] = f"🔔 NEW LEAD & ORDER: {name} [{plan_label}]"
+    # Prepare and dispatch email via HTTPS API (Bypasses Render SMTP port blocking)
+    plan_label = "24/7 Asset Perimeter Radar ($199)" if plan == "asset_watch" else "Executive Threat Dossier ($49)"
+    activation_link = f"{BACKEND_BASE_URL}/api/radar/activate?asset_id={asset_id}&passkey={ADMIN_PASSKEY}" if asset_id else "N/A"
 
-            activation_link = f"{BACKEND_BASE_URL}/api/radar/activate?asset_id={asset_id}&passkey={ADMIN_PASSKEY}" if asset_id else "N/A"
-
-            body = f"""THE BRINK WORLD // NEW CLIENT INTAKE
+    body = f"""THE BRINK WORLD // NEW CLIENT INTAKE
 ----------------------------------------------------------------------
-A prospective client filled out their details and has been directed to Razorpay:
+A prospective client filled out their details and was directed to Razorpay:
 
 CLIENT DETAILS:
 - Full Name:        {name}
@@ -740,8 +751,8 @@ CLIENT DETAILS:
 - Operational Focus:{reason}
 - Timestamp:        {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}
 """
-            if plan == "asset_watch":
-                body += f"""
+    if plan == "asset_watch":
+        body += f"""
 MONITORED ASSET SPECS:
 - Facility/Corridor: {asset_name}
 - Coordinates:       Lat {lat}, Lon {lon}
@@ -752,28 +763,21 @@ Click this link to activate 24/7 background geofencing for {name}:
 {activation_link}
 ----------------------------------------------------------------------
 """
-            else:
-                body += f"""
+    else:
+        body += f"""
 FULFILLMENT INSTRUCTIONS (Option 2):
 Once Razorpay confirms payment, review the attached PDF dossier
 and forward this email directly to {email}.
 ----------------------------------------------------------------------
 """
-            msg.attach(MIMEText(body, "plain"))
 
-            # Attach compiled 5-page PDF
-            attachment = MIMEApplication(pdf_bytes, _subtype="pdf")
-            attachment.add_header('Content-Disposition', 'attachment', filename=f"TheBrink_Dossier_{int(time.time())}.pdf")
-            msg.attach(attachment)
-
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=25)
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
-            server.quit()
-            print(f"[LEAD DISPATCH SUCCESS] Emailed client profile and PDF to {ADMIN_NOTIFICATION_EMAIL}")
-        except Exception as e:
-            print(f"[SMTP DISPATCH EXCEPTION] Failed delivering to {ADMIN_NOTIFICATION_EMAIL}: {type(e).__name__} - {str(e)}")
+    await send_email_via_https(
+        to_email=ADMIN_NOTIFICATION_EMAIL,
+        subject=f"🔔 NEW LEAD & ORDER: {name} [{plan_label}]",
+        text_body=body,
+        pdf_bytes=pdf_bytes,
+        filename=f"TheBrink_Dossier_{int(time.time())}.pdf"
+    )
 
     return {"status": "success", "message": "Lead captured."}
 
@@ -797,15 +801,8 @@ async def activate_radar_asset(asset_id: int = Query(...), passkey: str = Query(
     conn.commit()
     conn.close()
 
-    # Dispatch Welcome Email to Client
-    if SMTP_USER and SMTP_PASS:
-        try:
-            msg = MIMEMultipart()
-            msg["From"] = f"The Brink Intelligence <{SMTP_USER}>"
-            msg["To"] = client_email
-            msg["Subject"] = f"✅ 24/7 Asset Perimeter Radar Activated: {asset_name}"
-            
-            client_body = f"""Hello {client_name},
+    # Dispatch Welcome Email to Client over HTTPS
+    client_body = f"""Hello {client_name},
 
 Your payment has been verified. Your asset perimeter is now actively monitored 24/7 by The Brink World Hazard Engine.
 
@@ -820,14 +817,11 @@ Our sensor arrays (USGS, EMSC, NOAA, GDACS) continuously evaluate this perimeter
 Thank you for choosing The Brink World.
 Enterprise Desk // https://thebrinkworld.com
 """
-            msg.attach(MIMEText(client_body, "plain"))
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=20)
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
-            server.quit()
-        except Exception as e:
-            print(f"[RADAR WELCOME SMTP ERROR] {e}")
+    await send_email_via_https(
+        to_email=client_email,
+        subject=f"✅ 24/7 Asset Perimeter Radar Activated: {asset_name}",
+        text_body=client_body
+    )
 
     return HTMLResponse(f"""
     <body style="background:#070b10;color:#e8eef5;font-family:sans-serif;padding:40px;text-align:center">
