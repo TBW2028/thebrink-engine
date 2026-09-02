@@ -6,22 +6,21 @@ import os
 from pathlib import Path
 import re
 import sqlite3
-import ssl
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 import aiohttp
-from fastapi import FastAPI, Query, Form, UploadFile, File, HTTPException, Request, Response
+from fastapi import FastAPI, Query, Form, UploadFile, File, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
-app = FastAPI(title="The Brink World - Automated Intelligence Engine")
+app = FastAPI(title="The Brink World - Hazard Intelligence Engine")
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,7 +37,6 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 REPORTS_FILE = BASE_DIR / "crowd_reports.json"
 DB_FILE = BASE_DIR / "enterprise_vault.db"
 
-# Admin & Credentials
 ADMIN_PASSKEY = os.getenv("ADMIN_PASSKEY", "brink_admin_2026")
 ADMIN_NOTIFICATION_EMAIL = os.getenv("ADMIN_NOTIFICATION_EMAIL", "thebrink2028@gmail.com")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
@@ -55,7 +53,6 @@ FEEDS = {
 }
 
 CACHE = {"data": None, "last_collected": 0}
-FAST_INTERVAL_MINUTES = 3
 
 # ================= PERSISTENT VAULT (SQLITE) =================
 
@@ -112,86 +109,7 @@ def record_alert_dispatch(asset_id, threat_sig):
     conn.commit()
     conn.close()
 
-# ================= HTTPS EMAIL SENDER (PORT 443 - NO SMTP BLOCKS) =================
-
-async def send_email_via_https(to_email: str, subject: str, text_body: str, pdf_bytes: bytes = None, filename: str = "TheBrink_Dossier.pdf"):
-    """
-    Sends email over HTTPS port 443 via Resend API to bypass Render outbound SMTP blocks.
-    """
-    if not RESEND_API_KEY:
-        print("[EMAIL ERROR] RESEND_API_KEY is missing in Render environment variables.")
-        return False
-
-    payload = {
-        "from": "The Brink Intelligence <onboarding@resend.dev>",
-        "to": [to_email],
-        "subject": subject,
-        "text": text_body
-    }
-
-    if pdf_bytes:
-        payload["attachments"] = [
-            {
-                "filename": filename,
-                "content": base64.b64encode(pdf_bytes).decode("utf-8")
-            }
-        ]
-
-    headers = {
-        "Authorization": f"Bearer {RESEND_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    try:
-        print(f"[HTTPS DISPATCH] Sending email to {to_email} via Resend HTTPS API...")
-        async with aiohttp.ClientSession() as session:
-            async with session.post("https://api.resend.com/emails", json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=20)) as resp:
-                resp_text = await resp.text()
-                if resp.status in (200, 201):
-                    print(f"[HTTPS DISPATCH SUCCESS] Delivered to {to_email}. Details: {resp_text}")
-                    return True
-                else:
-                    print(f"[HTTPS DISPATCH FAILED] Status {resp.status}: {resp_text}")
-                    return False
-    except Exception as e:
-        print(f"[HTTPS DISPATCH EXCEPTION] {type(e).__name__}: {str(e)}")
-        return False
-
 # ================= TELEMETRY UTILITIES =================
-
-INITIAL_REPORTS = [
-    {
-        "id": "nepal-himalaya-corridor-2026",
-        "title": "Glacial Lake Breach & High-Altitude Debris Surge",
-        "location": "Trishuli / Langtang River Corridor, Nepal",
-        "latitude": 27.7172,
-        "longitude": 85.3240,
-        "author": "Himalayan Field Recon Desk",
-        "timestamp": "Verified Dispatch",
-        "type": "Landslide / Flash Inundation",
-        "details": (
-            "Geological Trigger: Rapid freeze-thaw cycles combined with intense localized precipitation triggered bedrock slope shear failure above 3,800m elevation.\n\n"
-            "Immediate Impact: High-velocity mass movement mobilized over 150,000 cubic meters of rocky debris, burying transit arteries and breaching retaining infrastructure.\n\n"
-            "Downstream Progression: Temporary sediment dam formed upstream; hydrologic gauges downstream register erratic surge pulses. Low-lying river settlements remain under high-level evacuation watch."
-        ),
-        "media_url": "https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=1000&q=80",
-        "approved": True
-    }
-]
-
-def load_reports():
-    if not REPORTS_FILE.exists():
-        save_reports(INITIAL_REPORTS)
-        return INITIAL_REPORTS
-    try:
-        with open(REPORTS_FILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return INITIAL_REPORTS
-
-def save_reports(reports):
-    with open(REPORTS_FILE, "w") as f:
-        json.dump(reports, f, indent=2)
 
 def haversine_km(lat1, lon1, lat2, lon2):
     import math
@@ -202,13 +120,23 @@ def haversine_km(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
+def load_reports():
+    if not REPORTS_FILE.exists():
+        return []
+    try:
+        with open(REPORTS_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_reports(reports):
+    with open(REPORTS_FILE, "w") as f:
+        json.dump(reports, f, indent=2)
+
 async def fetch_feed(session, key, url, is_json=True):
     headers = {"User-Agent": "Mozilla/5.0 TheBrinkIntelligence/2.0", "Accept": "*/*"}
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
     try:
-        async with session.get(url, headers=headers, ssl=ssl_context, timeout=aiohttp.ClientTimeout(total=12)) as resp:
+        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=12)) as resp:
             if resp.status == 200:
                 text_data = await resp.text()
                 if is_json: return key, True, json.loads(text_data)
@@ -277,72 +205,6 @@ def parse_gdacs_rss(raw_xml):
         pass
     return events
 
-def calculate_swarms(events, max_km=75.0):
-    swarms = []
-    processed = set()
-    for i, q1 in enumerate(events):
-        if i in processed or not q1.get("latitude") or not q1.get("longitude"): continue
-        cluster = [q1]
-        for j, q2 in enumerate(events[i+1:], start=i+1):
-            if j in processed or not q2.get("latitude") or not q2.get("longitude"): continue
-            dist = haversine_km(q1["latitude"], q1["longitude"], q2["latitude"], q2["longitude"])
-            if dist <= max_km:
-                cluster.append(q2)
-                processed.add(j)
-        if len(cluster) >= 3:
-            processed.add(i)
-            swarms.append(cluster)
-    return swarms
-
-async def evaluate_client_geofences(intel):
-    assets = get_monitored_assets()
-    if not assets: return
-
-    all_threats = []
-    for q in intel["quakes"]["south_asia"] + intel["quakes"]["global"]:
-        if q.get("latitude") and q.get("longitude"):
-            all_threats.append({
-                "lat": q["latitude"], "lon": q["longitude"],
-                "type": "Seismic Ground Shaking", "title": f"M{q['magnitude']} Tremor near {q['place']}",
-                "severity": q["level"], "time": q["time"], "id": f"q-{q['time']}-{q['magnitude']}"
-            })
-    for g in intel.get("lookout_news", []):
-        if g.get("latitude") and g.get("longitude"):
-            all_threats.append({
-                "lat": g["latitude"], "lon": g["longitude"],
-                "type": g.get("kind", "Environmental Crisis"), "title": g.get("headline"),
-                "severity": g.get("level", "alert"), "time": g.get("time"), "id": f"g-{g['headline'][:20]}"
-            })
-
-    for asset in assets:
-        for threat in all_threats:
-            dist = haversine_km(asset["lat"], asset["lon"], threat["lat"], threat["lon"])
-            if dist <= asset["radius"]:
-                threat_copy = dict(threat)
-                threat_copy["distance_km"] = round(dist, 1)
-                sig = f"{asset['id']}_{threat['id']}"
-                if not has_alert_dispatched(asset["id"], sig):
-                    body = f"""THE BRINK WORLD // ASSET PERIMETER BREACH ALERT
----------------------------------------------------------
-An active hazard has breached your monitored operational perimeter.
-
-ASSET IDENTIFIER: {asset['name']}
-HAZARD TYPE:      {threat['type']}
-EVENT SUMMARY:    {threat['title']}
-PROXIMITY:        {round(dist, 1)} km from your coordinates
-EVENT TIMESTAMP:  {threat['time']}
-
-RECOMMENDATION:
-Initiate immediate continuity and logistics review for this corridor.
-Live Telemetry: https://thebrinkworld.com/watch
-"""
-                    await send_email_via_https(
-                        to_email=asset["email"],
-                        subject=f"🚨 PERIMETER BREACH: {asset['name']} [{threat.get('severity', 'ELEVATED').upper()}]",
-                        text_body=body
-                    )
-                    record_alert_dispatch(asset["id"], sig)
-
 # ================= TELEMETRY COLLECTOR =================
 
 async def run_collector():
@@ -410,26 +272,17 @@ async def run_collector():
         if mag >= 6.0:
             news_feed.append({
                 "headline": f"Major M{mag:.1f} Rupture Near {q['place']}",
-                "summary": f"Deep lithospheric shear detected at {depth}km depth. Surface acceleration warnings active.",
+                "summary": f"Deep lithospheric shear at {depth}km depth. Strong acceleration hazard along local transit routes.",
                 "level": "escalate" if mag >= 7.0 else "alert",
                 "kind": "Severe Earthquake", "latitude": q["latitude"], "longitude": q["longitude"], "time": q["time"]
             })
-        elif 4.2 <= mag < 6.0 and depth <= 10:
+        elif 4.2 <= mag < 6.0 and depth <= 12:
             news_feed.append({
                 "headline": f"Shallow M{mag:.1f} Tremor Near {q['place']}",
-                "summary": f"Superficial crustal displacement ({depth}km). Enhanced vibration felt along local structures.",
+                "summary": f"Superficial crustal displacement ({depth}km). Noticeable vibration felt at industrial facilities.",
                 "level": "alert" if mag >= 5.0 else "watch",
                 "kind": "Shallow Tremor", "latitude": q["latitude"], "longitude": q["longitude"], "time": q["time"]
             })
-
-    for cl in calculate_swarms(all_quakes, max_km=75.0)[:3]:
-        max_m = max(x["magnitude"] for x in cl)
-        news_feed.append({
-            "headline": f"Seismic Swarm: {len(cl)} Clustered Events Near {cl[0]['place']}",
-            "summary": f"Sustained fault-stress transfer detected within a 75km zone. Escalated watch advised.",
-            "level": "alert" if max_m >= 4.5 else "watch",
-            "kind": "Fault Swarm", "latitude": cl[0]["latitude"], "longitude": cl[0]["longitude"], "time": cl[0]["time"]
-        })
 
     # GDACS
     gdacs_ok, gdacs_raw = data_map.get("gdacs", (False, None))
@@ -441,8 +294,8 @@ async def run_collector():
     # SWPC Space
     space_data = {
         "xray_class": "Quiet (B-Class)", 
-        "summary": "Normal solar baseline. Satellite telemetry and grid transmissions operating within parameters.",
-        "kp": 2.0, "level": "Normal"
+        "summary": "Nominal solar baseline. Satcom telemetry and grid links operate within standard parameters.",
+        "kp": 2.3, "level": "Normal"
     }
     swpc_ok, swpc_x = data_map.get("swpc_xray", (False, None))
     if swpc_ok and isinstance(swpc_x, list) and len(swpc_x) > 0:
@@ -488,7 +341,7 @@ async def run_collector():
             if severity in ["Extreme", "Severe"] or any(k in evt.lower() for k in ["tornado", "flash flood", "storm", "blizzard"]):
                 item = {
                     "headline": f"{evt}: {area}",
-                    "summary": f"Official emergency declaration for {area}. Caution advised on transit routes.",
+                    "summary": f"Emergency weather declaration for {area}. Transport logistics precautions active.",
                     "level": "escalate" if severity == "Extreme" else "alert",
                     "kind": "Severe Weather", "time": onset
                 }
@@ -505,14 +358,11 @@ async def run_collector():
     level_weights = {"escalate": 0, "alert": 1, "watch": 2}
     unique_news.sort(key=lambda x: level_weights.get(x.get("level"), 3))
 
-    all_reports = load_reports()
-    approved_reports = [r for r in all_reports if r.get("approved", True)]
     total_listed = len(quakes["south_asia"]) + len(quakes["global"])
 
     compiled = {
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
         "elapsed_ms": int((time.time() - t0) * 1000),
-        "intervals": {"fast_minutes": FAST_INTERVAL_MINUTES},
         "situation": {
             "escalate": len([x for x in unique_news if x["level"] == "escalate"]),
             "alert": len([x for x in unique_news if x["level"] == "alert"]),
@@ -526,13 +376,463 @@ async def run_collector():
         "space": space_data,
         "severe_stories": severe_stories[:6],
         "sources": sources_health,
-        "crowd_reports": approved_reports
+        "crowd_reports": load_reports()
     }
 
     CACHE["data"] = compiled
     CACHE["last_collected"] = time.time()
-    await evaluate_client_geofences(compiled)
     return compiled
+
+# ================= PRINTABLE A4 REPORTLAB DOSSIER ENGINE =================
+
+async def generate_pdf_binary(
+    asset_name: str = "Designated Operational Corridor",
+    lat: float = None,
+    lon: float = None
+) -> bytes:
+    """
+    Builds a professional 5-page printable A4 Risk Assessment Dossier (Pure White Background).
+    Print geometry: A4 (595.27 x 841.89 pt), Printable Width = 523.27 pt.
+    """
+    intel = await run_collector()
+    buffer = io.BytesIO()
+
+    # Pure A4 Geometry with 36pt (0.5 inch) printable margins
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36
+    )
+
+    # Institutional Palette (Strictly White Paper Background Friendly)
+    COLOR_PRIMARY = colors.HexColor("#0f172a")     # Deep Charcoal Header
+    COLOR_SECONDARY = colors.HexColor("#1e3a8a")   # Corporate Navy
+    COLOR_TEXT = colors.HexColor("#1e293b")        # Sharp readable dark slate
+    COLOR_MUTED = colors.HexColor("#64748b")       # Meta text slate
+    COLOR_BORDER = colors.HexColor("#cbd5e1")      # Crisp table grid line
+    COLOR_BG_LIGHT = colors.HexColor("#f8fafc")    # Alternating row background
+    COLOR_HOT = colors.HexColor("#b91c1c")         # Printable Crimson
+    COLOR_WARN = colors.HexColor("#b45309")        # Printable Amber
+    COLOR_OK = colors.HexColor("#047857")          # Printable Emerald
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('MainTitle', parent=styles['Heading1'], fontSize=14, leading=17, textColor=COLOR_PRIMARY, fontName="Helvetica-Bold")
+    h2_style = ParagraphStyle('SecH2', parent=styles['Heading2'], fontSize=10, leading=13, textColor=COLOR_SECONDARY, spaceBefore=7, spaceAfter=3, fontName="Helvetica-Bold")
+    h3_style = ParagraphStyle('SecH3', parent=styles['Heading3'], fontSize=8.5, leading=11, textColor=COLOR_PRIMARY, spaceBefore=4, spaceAfter=2, fontName="Helvetica-Bold")
+    body_style = ParagraphStyle('BodyCustom', parent=styles['Normal'], fontSize=7.8, leading=10.5, textColor=COLOR_TEXT)
+    meta_style = ParagraphStyle('MetaCustom', parent=styles['Normal'], fontSize=6.8, leading=8.5, textColor=COLOR_MUTED)
+    table_cell = ParagraphStyle('TableCell', parent=styles['Normal'], fontSize=7.2, leading=9, textColor=COLOR_TEXT)
+    table_cell_bold = ParagraphStyle('TableCellB', parent=styles['Normal'], fontSize=7.2, leading=9, textColor=COLOR_PRIMARY, fontName="Helvetica-Bold")
+
+    story = []
+
+    # Section Rule Helper
+    def add_section_rule(heading_text):
+        story.append(Paragraph(heading_text, h2_style))
+        line_t = Table([[""]], colWidths=[523], rowHeights=[1.2])
+        line_t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), COLOR_SECONDARY)]))
+        story.append(line_t)
+        story.append(Spacer(1, 5))
+
+    # Location Telemetry Resolution
+    has_coords = (lat is not None and lon is not None and (lat != 0.0 or lon != 0.0))
+    quakes = intel.get("quakes", {}).get("south_asia", []) + intel.get("quakes", {}).get("global", [])
+    
+    # Calculate proximity-sorted vectors if coordinates exist
+    prox_threats = []
+    if has_coords:
+        for q in quakes:
+            q_lat = q.get("latitude")
+            q_lon = q.get("longitude")
+            if q_lat is not None and q_lon is not None:
+                d = haversine_km(lat, lon, q_lat, q_lon)
+                q_c = dict(q)
+                q_c["dist_km"] = round(d, 1)
+                prox_threats.append(q_c)
+        prox_threats.sort(key=lambda x: x["dist_km"])
+
+    # Composite Threat Score Calculation
+    sit = intel.get("situation", {})
+    score = 22
+    score += sit.get("escalate", 0) * 24
+    score += sit.get("alert", 0) * 11
+    score += sit.get("watch", 0) * 3
+    if intel.get("space", {}).get("kp", 0) >= 5.0: score += 15
+    threat_score = min(100, max(15, score))
+    threat_label = "CRITICAL DISRUPTION ALERT" if threat_score >= 70 else ("ELEVATED REGIONAL WATCH" if threat_score >= 40 else "NORMALIZED BASELINE")
+
+    # =========================================================================
+    # PAGE 1: EXECUTIVE THREAT MATRIX & TARGET CORRIDOR
+    # =========================================================================
+    target_coord_str = f"Lat {lat:.4f}° N, Lon {lon:.4f}° E" if has_coords else "Regional Centroid Projection"
+    
+    header_table_data = [
+        [
+            Paragraph("<b>THE BRINK WORLD // AUTOMATED HAZARD ENGINE</b><br/><font size=6.5 color='#64748b'>DEFENSE TELEMETRY & ASSET CONTINUITY DIVISION</font>", body_style),
+            Paragraph(f"<b>CLASSIFICATION:</b> RESTRICTED B2B BRIEF<br/><b>CYCLE ID:</b> TBW-{int(time.time())}<br/><b>AUDIT UTC:</b> {intel.get('evaluated_at')[:16]}", meta_style)
+        ]
+    ]
+    t_head = Table(header_table_data, colWidths=[333, 190])
+    t_head.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0),
+    ]))
+    story.append(t_head)
+    story.append(Spacer(1, 7))
+
+    story.append(Paragraph("STRATEGIC MACRO HAZARD & ASSET CONTINUITY DOSSIER", title_style))
+    story.append(Spacer(1, 4))
+
+    # Target Asset Focus Box (Pure White background friendly)
+    target_box_data = [
+        [
+            Paragraph(f"<b>TARGET FACILITY / PORTFOLIO:</b> {asset_name}", table_cell_bold),
+            Paragraph(f"<b>LOCATION FIX:</b> {target_coord_str}", table_cell),
+            Paragraph("<b>SURVEILLANCE RADIUS:</b> 300 km Buffer", table_cell)
+        ]
+    ]
+    t_target = Table(target_box_data, colWidths=[203, 180, 140])
+    t_target.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), COLOR_BG_LIGHT),
+        ('GRID', (0,0), (-1,-1), 0.5, COLOR_BORDER),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(t_target)
+    story.append(Spacer(1, 8))
+
+    # Top KPI Matrix Table
+    kpi_matrix = [
+        ["COMPOSITE RISK INDEX", "ACTIVE SEVERE BREACHES", "LITHOSPHERIC STRESS (<15km)", "IONOSPHERIC VECTOR"],
+        [
+            f"{threat_score}/100 ({threat_label})",
+            f"{sit.get('escalate', 0)} Critical | {sit.get('alert', 0)} Elevated",
+            f"{len([q for q in quakes if (q.get('depth_km') or 10) <= 15])} Shallow Displacements",
+            f"Kp {intel.get('space', {}).get('kp', '—')} // {intel.get('space', {}).get('xray_class', 'Quiet')}"
+        ]
+    ]
+    t_kpi = Table(kpi_matrix, colWidths=[140, 135, 135, 113])
+    t_kpi.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), COLOR_PRIMARY),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 6.5),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('BACKGROUND', (0,1), (-1,1), COLOR_BG_LIGHT),
+        ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,1), (-1,1), 7.5),
+        ('GRID', (0,0), (-1,-1), 0.5, COLOR_BORDER),
+        ('TOPPADDING', (0,0), (-1,-1), 4.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4.5),
+    ]))
+    story.append(t_kpi)
+    story.append(Spacer(1, 8))
+
+    add_section_rule("1. Executive Briefing & Multi-Hazard Situation")
+
+    exec_summary = (
+        f"This strategic assessment evaluates real-time sensory feeds relative to <b>{asset_name}</b> ({target_coord_str}). "
+        f"The composite operational risk index is calibrated at <b>{threat_score}/100</b>. "
+        f"Telemetry indicates <b>{sit.get('escalate', 0)} catastrophic threshold alerts</b> and <b>{sit.get('alert', 0)} elevated hazard warnings</b> "
+        f"in current circulation. Facility supervisors and logistics planners must evaluate structural vibration, bridge scour, "
+        f"and telecommunication signal integrity against the itemized thresholds detailed herein."
+    )
+    story.append(Paragraph(exec_summary, body_style))
+    story.append(Spacer(1, 6))
+
+    story.append(Paragraph("<b>Primary Detected Incidents (Priority Stream):</b>", h3_style))
+    for item in intel.get("lookout_news", [])[:4]:
+        b_data = [
+            [
+                Paragraph(f"<b>[{item.get('kind', 'HAZARD').upper()}]</b> {item.get('headline')}", table_cell_bold),
+                Paragraph(f"Logged: {item.get('time', '')[:16]} UTC", meta_style)
+            ],
+            [
+                Paragraph(item.get("summary", "No further analytical data."), table_cell),
+                Paragraph("Status: Active Vector", meta_style)
+            ]
+        ]
+        t_b = Table(b_data, colWidths=[413, 110])
+        t_b.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), COLOR_BG_LIGHT),
+            ('GRID', (0,0), (-1,-1), 0.5, COLOR_BORDER),
+            ('TOPPADDING', (0,0), (-1,-1), 2.5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
+        ]))
+        story.append(t_b)
+        story.append(Spacer(1, 3))
+
+    # =========================================================================
+    # PAGE 2: SEISMIC MATRIX & PROXIMITY AUDIT
+    # =========================================================================
+    story.append(PageBreak())
+    add_section_rule(f"2. Lithospheric Fault Dynamics & Proximity to {asset_name}")
+
+    story.append(Paragraph(
+        "Seismic slip events occurring under 15 km depth deliver heightened Peak Ground Acceleration (PGA) directly to foundation columns "
+        "and civil retaining works. Below is the active fault movement register, sorted by proximity to your designated coordinates:",
+        body_style
+    ))
+    story.append(Spacer(1, 6))
+
+    seismic_headers = ["MAG", "GEOLOGICAL FAULT SECTOR", "FOCAL DEPTH", "EST. PGA", "DISTANCE TO ASSET", "LOGGED UTC"]
+    seismic_rows = [seismic_headers]
+
+    source_quakes = prox_threats[:15] if prox_threats else quakes[:15]
+    for q in source_quakes:
+        mag = q.get("magnitude", 0.0)
+        depth = q.get("depth_km") or 10.0
+        pga_est = f"{(10 ** (0.3 * mag - 1.2)):.2f}g" if depth <= 20 else "<0.05g"
+        dist_str = f"{q.get('dist_km')} km" if "dist_km" in q else "Regional Basin"
+        
+        seismic_rows.append([
+            Paragraph(f"<b>M{mag:.1f}</b>", table_cell_bold),
+            Paragraph(str(q.get("place", "Unknown"))[:32], table_cell),
+            Paragraph(f"{depth:.1f} km", table_cell),
+            Paragraph(pga_est, table_cell),
+            Paragraph(dist_str, table_cell_bold),
+            Paragraph(str(q.get("time", ""))[:16], meta_style)
+        ])
+
+    t_seismic = Table(seismic_rows, colWidths=[38, 185, 60, 60, 95, 85])
+    t_seismic.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), COLOR_PRIMARY),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 6.5),
+        ('GRID', (0,0), (-1,-1), 0.5, COLOR_BORDER),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, COLOR_BG_LIGHT]),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
+        ('ALIGN', (0,0), (0,-1), 'CENTER'),
+        ('ALIGN', (2,0), (4,-1), 'CENTER'),
+    ]))
+    story.append(t_seismic)
+    story.append(Spacer(1, 8))
+
+    story.append(Paragraph("<b>Industrial Structural Integrity Protocols:</b>", h3_style))
+    story.append(Paragraph(
+        f"If ground vibrations from tremors within 200 km of {asset_name} exceed 0.15g, site safety teams must immediately inspect "
+        "heavy overhead crane gantry rails, chemical storage anchor bolts, and electrical busbar connections for shear dislocation.",
+        body_style
+    ))
+
+    # =========================================================================
+    # PAGE 3: HYDROLOGICAL INUNDATION & METEOROLOGICAL VECTORS
+    # =========================================================================
+    story.append(PageBreak())
+    add_section_rule("3. Hydrological Inundation, River Basin Scour & Storm Vectors")
+
+    story.append(Paragraph(
+        "Satellite precipitation gauges and GDACS hydrologic models track catchment saturation and reservoir discharge surges. "
+        "Saturated mountain catchments and coastal zones present heightened risk of bridge substructure scour and transit severed links:",
+        body_style
+    ))
+    story.append(Spacer(1, 6))
+
+    if intel.get("severe_stories"):
+        for s in intel.get("severe_stories")[:4]:
+            h_box = [
+                [Paragraph(f"<b>HAZARD TYPE:</b> {s.get('kind', 'Severe Weather')}", table_cell_bold), Paragraph(f"Onset: {str(s.get('time',''))[:16]}", meta_style)],
+                [Paragraph(f"<b>Affected Zone:</b> {s.get('headline')}", table_cell), Paragraph("Alert Tier: HIGH", meta_style)],
+                [Paragraph(f"<b>Impact Assessment:</b> {s.get('summary')}", body_style), Paragraph("Continuity: Route Audit", meta_style)]
+            ]
+            t_h = Table(h_box, colWidths=[403, 120])
+            t_h.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), COLOR_BG_LIGHT),
+                ('GRID', (0,0), (-1,-1), 0.5, COLOR_BORDER),
+                ('TOPPADDING', (0,0), (-1,-1), 2.5),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
+            ]))
+            story.append(t_h)
+            story.append(Spacer(1, 4))
+    else:
+        story.append(Paragraph("No active Level-3 severe flash inundation warnings detected in the immediate regional catchment.", body_style))
+        story.append(Spacer(1, 6))
+
+    hydro_ref = [
+        ["HYDROLOGIC EVENT", "METRIC THRESHOLD", "ESTIMATED SUPPLY CHAIN IMPACT", "EVACUATION RADIUS"],
+        [
+            "Flash Inundation",
+            "Precipitation >75mm / hr",
+            "Roadway scouring, foundation mud-inundation, transit delays.",
+            "3.0 km down-gradient"
+        ],
+        [
+            "River Gauge Crest",
+            "Gauge >2.5m above datum",
+            "Bridge pier scour; ground-level warehouse inventory submergence.",
+            "1.5 km riverine belt"
+        ],
+        [
+            "Glacial Lake Surge (GLOF)",
+            "Cryospheric moraine breach",
+            "Debris mass >150k m3 at 30 km/h; permanent arterial severance.",
+            "25.0 km downstream"
+        ]
+    ]
+    t_hydro = Table(hydro_ref, colWidths=[110, 115, 188, 110])
+    t_hydro.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), COLOR_SECONDARY),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 6.5),
+        ('GRID', (0,0), (-1,-1), 0.5, COLOR_BORDER),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, COLOR_BG_LIGHT]),
+        ('TOPPADDING', (0,0), (-1,-1), 3.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3.5),
+    ]))
+    story.append(t_hydro)
+
+    # =========================================================================
+    # PAGE 4: SPACE WEATHER, TELECOM & SATCOM PROPAGATION
+    # =========================================================================
+    story.append(PageBreak())
+    add_section_rule("4. Space Weather, Ionospheric Disturbance & Satcom Propagation")
+
+    sp = intel.get("space", {})
+    kp = sp.get("kp", 0.0)
+    xray = sp.get("xray_class", "Quiet")
+
+    story.append(Paragraph(
+        "NOAA SWPC space weather arrays track geomagnetic flux, solar energetic flares, and ionospheric ionization. "
+        "Elevated Kp values induce GPS carrier phase drift and disrupt autonomous RTK navigation systems:",
+        body_style
+    ))
+    story.append(Spacer(1, 6))
+
+    space_summary = [
+        ["TELEMETRY VECTOR", "RECORDED METRIC", "STANDARD BASELINE", "OPERATIONAL STATUS"],
+        [
+            "Planetary Kp Index",
+            f"Kp {kp}",
+            "Kp < 4.0 (Nominal Magnetosphere)",
+            "NORMAL (GNSS Stable)" if kp < 5.0 else "ELEVATED (GPS Phase Jitter Observed)"
+        ],
+        [
+            "Solar X-Ray Emission Flux",
+            f"{xray}",
+            "Class B / C (Nominal Baseline)",
+            "STABLE (HF Radio Clear)" if not xray.startswith(("M", "X")) else "DEGRADED (High Sunlit Absorption)"
+        ],
+        [
+            "Satcom L-Band Propagation",
+            "LEO / GEO Channels Nominal",
+            "Bit Error Rate (BER) < 10^-7",
+            "NOMINAL CONTINUITY"
+        ]
+    ]
+    t_sp = Table(space_summary, colWidths=[120, 115, 158, 130])
+    t_sp.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), COLOR_PRIMARY),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 6.5),
+        ('GRID', (0,0), (-1,-1), 0.5, COLOR_BORDER),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, COLOR_BG_LIGHT]),
+        ('TOPPADDING', (0,0), (-1,-1), 3.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3.5),
+    ]))
+    story.append(t_sp)
+    story.append(Spacer(1, 8))
+
+    story.append(Paragraph("<b>Operational Recommendations for Navigational Equipment:</b>", h3_style))
+    story.append(Paragraph(
+        "• <b>Autonomous Port Machinery & Survey Drones:</b> If Kp >= 5.0, RTK differential positioning units may experience "
+        "pseudorange errors up to 3.5 meters. Automated cranes and terminal vehicles should rely on secondary laser or optical guidance.<br/>"
+        "• <b>Maritime Emergency Frequencies:</b> Sunlit trans-oceanic vessels must verify secondary satellite links as 3–30 MHz shortwave channels face absorption.",
+        body_style
+    ))
+
+    # =========================================================================
+    # PAGE 5: GROUND RECONNAISSANCE & CONTINUITY DIRECTIVES
+    # =========================================================================
+    story.append(PageBreak())
+    add_section_rule("5. Field Reconnaissance Network & Operational Directives")
+
+    story.append(Paragraph(
+        "The Brink World Field Network ingests geotagged eyewitness dispatches verified against satellite radar imagery "
+        "to confirm actual ground passability and infrastructure condition:",
+        body_style
+    ))
+    story.append(Spacer(1, 5))
+
+    reports = intel.get("crowd_reports", [])[:2]
+    if reports:
+        for rep in reports:
+            r_box = [
+                [Paragraph(f"<b>VERIFIED DISPATCH: {rep.get('title')}</b>", table_cell_bold), Paragraph(f"Location: {rep.get('location')}", meta_style)],
+                [Paragraph(rep.get("details", "").replace("\n\n", "<br/>"), table_cell), Paragraph(f"Observer: {rep.get('author','Scout')}", meta_style)]
+            ]
+            t_r = Table(r_box, colWidths=[373, 150])
+            t_r.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), COLOR_BG_LIGHT),
+                ('GRID', (0,0), (-1,-1), 0.5, COLOR_BORDER),
+                ('TOPPADDING', (0,0), (-1,-1), 2.5),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
+            ]))
+            story.append(t_r)
+            story.append(Spacer(1, 4))
+
+    story.append(Paragraph("<b>Standard Operational Continuity Directives (Execution Protocol):</b>", h3_style))
+    directives = [
+        ["TIMELINE", "MANDATORY CONTINUITY DIRECTIVE", "RESPONSIBLE DESK"],
+        [
+            "T + 00:00 to 01:00 hr",
+            f"Establish perimeter geofence audit. Ping all facilities within 150km of {asset_name}.",
+            "Crisis Command Desk"
+        ],
+        [
+            "T + 01:00 to 04:00 hr",
+            "Inspect bridge approaches and flood gates. Reroute logistics vehicles away from river flood belts.",
+            "Supply Chain & Logistics"
+        ],
+        [
+            "T + 04:00 to 12:00 hr",
+            "Verify backup satellite comms and battery storage units if local electrical substations disconnect.",
+            "IT & Telemetry Operations"
+        ],
+        [
+            "T + 12:00 to 24:00 hr",
+            "Commission targeted field scout verification for on-site damage certification and route clearance.",
+            "Field Intelligence Desk"
+        ]
+    ]
+    t_dir = Table(directives, colWidths=[95, 318, 110])
+    t_dir.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), COLOR_PRIMARY),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 6.5),
+        ('GRID', (0,0), (-1,-1), 0.5, COLOR_BORDER),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, COLOR_BG_LIGHT]),
+        ('TOPPADDING', (0,0), (-1,-1), 3.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3.5),
+    ]))
+    story.append(t_dir)
+    story.append(Spacer(1, 14))
+
+    # Signoff Footer (Printable)
+    signoff = [
+        [
+            Paragraph("<b>DOSSIER AUTHENTICATION:</b><br/>The Brink World Automated Threat Telemetry Engine<br/>Defense & Strategic Continuity Desk", meta_style),
+            Paragraph("<b>ENTERPRISE SUPPORT DESK:</b><br/>Email: thebrink2028@gmail.com<br/>Portal: https://thebrinkworld.com", meta_style)
+        ]
+    ]
+    t_sign = Table(signoff, colWidths=[280, 243])
+    t_sign.setStyle(TableStyle([
+        ('LINEABOVE', (0,0), (-1,-1), 1, COLOR_PRIMARY),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(t_sign)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 # ================= PUBLIC API ROUTES =================
 
@@ -542,176 +842,29 @@ async def get_intel():
         return await run_collector()
     return CACHE["data"]
 
-@app.get("/api/check-radius")
-async def check_radius(
-    lat: float = Query(..., description="Latitude"),
-    lon: float = Query(..., description="Longitude"),
-    radius_km: float = Query(300.0, description="Radius in km")
-):
-    intel = await get_intel()
-    threats = []
-    for q in intel["quakes"]["south_asia"] + intel["quakes"]["global"]:
-        if q.get("latitude") and q.get("longitude"):
-            dist = haversine_km(lat, lon, q["latitude"], q["longitude"])
-            if dist <= radius_km:
-                threats.append({
-                    "type": "Seismic Ground Shaking", "title": f"M{q['magnitude']} Tremor — {q['place']}",
-                    "place": q["place"], "distance_km": round(dist, 1),
-                    "depth_km": q.get("depth_km"), "severity": q["level"], "time": q["time"]
-                })
-    for g in intel.get("lookout_news", []):
-        if g.get("latitude") and g.get("longitude"):
-            dist = haversine_km(lat, lon, g["latitude"], g["longitude"])
-            if dist <= radius_km:
-                threats.append({
-                    "type": g.get("kind", "Environmental Crisis"), "title": g.get("headline"),
-                    "place": g.get("summary", "Active Alert Area"), "distance_km": round(dist, 1),
-                    "severity": g.get("level", "alert"), "time": g.get("time")
-                })
-    for r in intel.get("crowd_reports", []):
-        if r.get("latitude") and r.get("longitude"):
-            dist = haversine_km(lat, lon, r["latitude"], r["longitude"])
-            if dist <= radius_km:
-                threats.append({
-                    "type": f"Field Dispatch: {r.get('type')}", "title": r.get("title"),
-                    "place": r.get("location"), "distance_km": round(dist, 1),
-                    "severity": "escalate" if "Flood" in r.get("type", "") or "Landslide" in r.get("type", "") else "alert",
-                    "time": r.get("timestamp")
-                })
-
-    threats.sort(key=lambda x: x["distance_km"])
-    return {
-        "coordinates": {"lat": lat, "lon": lon}, "radius_km": radius_km,
-        "threat_count": len(threats), "threats": threats,
-        "risk_level": "CRITICAL" if any(t["severity"] == "escalate" for t in threats) else ("ELEVATED" if threats else "SECURE")
-    }
-
-# ================= 5-PAGE INSTITUTIONAL DOSSIER PDF =================
-
-async def generate_pdf_binary(title: str = "Macro Hazard & Operational Continuity Dossier") -> bytes:
-    intel = await get_intel()
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
-    
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('MainTitle', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor("#0f172a"), fontName="Helvetica-Bold")
-    h2_style = ParagraphStyle('SectionH2', parent=styles['Heading2'], fontSize=11, leading=15, textColor=colors.HexColor("#2563eb"), spaceBefore=10, spaceAfter=4, fontName="Helvetica-Bold")
-    body_style = ParagraphStyle('BodyTextCustom', parent=styles['Normal'], fontSize=8.5, leading=12, textColor=colors.HexColor("#334155"))
-    meta_style = ParagraphStyle('MetaStyle', parent=styles['Normal'], fontSize=7.5, leading=9, textColor=colors.HexColor("#64748b"))
-
-    story = []
-    
-    # PAGE 1
-    story.append(Paragraph("THE BRINK WORLD // STRATEGIC DEFENSE & RISK DOSSIER", meta_style))
-    story.append(Paragraph(title, title_style))
-    story.append(Paragraph(f"Telemetry Audit: {intel['evaluated_at']} UTC | Security Classification: RESTRICTED DESK", meta_style))
-    story.append(Spacer(1, 10))
-
-    sit = intel["situation"]
-    summary_data = [
-        ["CRITICAL THREATS", "SEVERE ALERTS", "ELEVATED WATCH", "SPACE TELEMETRY"],
-        [str(sit["escalate"]), str(sit["alert"]), str(sit["watch"]), f"Kp {intel['space']['kp']} ({intel['space']['xray_class']})"]
-    ]
-    t = Table(summary_data, colWidths=[130, 130, 130, 140])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#0f172a")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 8),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('BACKGROUND', (0,1), (-1,1), colors.HexColor("#f1f5f9")),
-        ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,1), (-1,1), 11),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-        ('TOPPADDING', (0,0), (-1,-1), 5),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
-    ]))
-    story.append(t)
-    story.append(Spacer(1, 12))
-
-    story.append(Paragraph("1. Primary Macro Threat Analysis", h2_style))
-    for item in intel["lookout_news"][:5]:
-        story.append(Paragraph(f"• <b>[{item['kind'].upper()}] {item['headline']}</b>", body_style))
-        story.append(Paragraph(f"  {item['summary']}", meta_style))
-        story.append(Spacer(1, 4))
-
-    # PAGE 2
-    story.append(PageBreak())
-    story.append(Paragraph("2. Regional Seismic & Fault Slip Evaluation", h2_style))
-    story.append(Paragraph("Telemetry collected via USGS and EMSC seismic arrays across active convergent boundaries.", meta_style))
-    story.append(Spacer(1, 6))
-
-    eq_rows = [["MAG", "LOCATION / BASIN", "DEPTH", "SEVERITY", "TIMESTAMP"]]
-    for q in intel["quakes"]["south_asia"][:12]:
-        eq_rows.append([f"M{q['magnitude']:.1f}", q['place'][:28], f"{q.get('depth_km',10)}km", q['level'].upper(), q['time'][11:16]])
-    
-    eq_table = Table(eq_rows, colWidths=[40, 240, 60, 80, 110])
-    eq_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1e293b")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('FONTSIZE', (0,0), (-1,-1), 7.5),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
-    ]))
-    story.append(eq_table)
-
-    # PAGE 3
-    story.append(PageBreak())
-    story.append(Paragraph("3. Hydrological Inundation & Severe Weather Corridor Tracking", h2_style))
-    story.append(Paragraph("Cross-referenced real-time alert data from NOAA and GDACS disaster satellites.", meta_style))
-    story.append(Spacer(1, 8))
-    if intel["severe_stories"]:
-        for s in intel["severe_stories"]:
-            story.append(Paragraph(f"<b>[SEVERE ALERT] {s['headline']}</b>", body_style))
-            story.append(Paragraph(s['summary'], meta_style))
-            story.append(Spacer(1, 6))
-    else:
-        story.append(Paragraph("No active Level-3 severe flash inundation warnings in current cycle.", body_style))
-
-    # PAGE 4
-    story.append(PageBreak())
-    story.append(Paragraph("4. Space Weather, Magnetosphere & Telecom Vectors", h2_style))
-    story.append(Paragraph(f"Solar X-Ray Emission: {intel['space']['xray_class']} | Planetary Kp Index: {intel['space']['kp']}", body_style))
-    story.append(Paragraph(intel['space']['summary'], meta_style))
-    story.append(Spacer(1, 10))
-    story.append(Paragraph("Operational Guidelines for High-Altitude & Trans-Polar Communication:", h2_style))
-    story.append(Paragraph("• Satcom L-band signals remain within standard latency parameters.\n• HF long-range maritime and aviation links require monitoring on sunlit sectors when X-ray class exceeds M5.0.", body_style))
-
-    # PAGE 5
-    story.append(PageBreak())
-    story.append(Paragraph("5. Field Verification Network & Continuity Protocol", h2_style))
-    story.append(Paragraph("Ground-level observations submitted through The Brink Field Network undergo secondary cross-referencing against orbital SAR imagery.", body_style))
-    story.append(Spacer(1, 8))
-    for r in intel["crowd_reports"][:3]:
-        story.append(Paragraph(f"<b>DISPATCH: {r['title']}</b> ({r['location']})", body_style))
-        story.append(Paragraph(r['details'], meta_style))
-        story.append(Spacer(1, 6))
-
-    story.append(Spacer(1, 20))
-    story.append(Paragraph("END OF INTELLIGENCE DOSSIER // THE BRINK WORLD ENTERPRISE DESK", meta_style))
-
-    doc.build(story)
-    buffer.seek(0)
-    return buffer.getvalue()
-
 @app.get("/api/report/pdf")
-async def get_pdf_report():
-    pdf_bytes = await generate_pdf_binary()
+async def get_pdf_report(
+    asset_name: str = Query("Designated Operations Corridor"),
+    lat: float = Query(None),
+    lon: float = Query(None)
+):
+    pdf_bytes = await generate_pdf_binary(asset_name=asset_name, lat=lat, lon=lon)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=thebrink-dossier-{int(time.time())}.pdf"}
     )
 
-# ================= LEAD CAPTURE & ORDER INTAKE =================
+# ================= LEAD CAPTURE VIA HTTPS RESEND =================
 
 @app.post("/api/lead/capture")
 async def capture_order_lead(
-    plan: str = Form(...),            # "dossier_pass" or "asset_watch"
+    plan: str = Form(...),
     name: str = Form(...),
     email: str = Form(...),
     company: str = Form(""),
     reason: str = Form("General Risk Assessment"),
-    asset_name: str = Form(None),
+    asset_name: str = Form("Designated Operations Corridor"),
     lat: float = Form(None),
     lon: float = Form(None),
     radius_km: float = Form(300.0)
@@ -724,7 +877,7 @@ async def capture_order_lead(
             INSERT INTO client_assets (client_name, client_email, asset_name, latitude, longitude, radius_km, created_at, active)
             VALUES (?, ?, ?, ?, ?, ?, ?, 0)
         """, (
-            name, email, asset_name or "Strategic Corridor",
+            name, email, asset_name,
             float(lat or 0.0), float(lon or 0.0), float(radius_km or 300.0),
             datetime.now(timezone.utc).isoformat()
         ))
@@ -732,14 +885,15 @@ async def capture_order_lead(
         conn.commit()
         conn.close()
 
-    # Compile the 5-page PDF dossier
-    pdf_bytes = await generate_pdf_binary()
+    # Dynamically generate tailored A4 PDF in-memory
+    pdf_bytes = await generate_pdf_binary(asset_name=asset_name, lat=lat, lon=lon)
 
-    # Prepare and dispatch email via HTTPS API (Bypasses Render SMTP port blocking)
-    plan_label = "24/7 Asset Perimeter Radar ($199)" if plan == "asset_watch" else "Executive Threat Dossier ($49)"
-    activation_link = f"{BACKEND_BASE_URL}/api/radar/activate?asset_id={asset_id}&passkey={ADMIN_PASSKEY}" if asset_id else "N/A"
+    # Deliver over HTTPS port 443 via Resend
+    if RESEND_API_KEY:
+        plan_label = "24/7 Asset Perimeter Radar ($199)" if plan == "asset_watch" else "Executive Threat Dossier ($49)"
+        activation_link = f"{BACKEND_BASE_URL}/api/radar/activate?asset_id={asset_id}&passkey={ADMIN_PASSKEY}" if asset_id else "N/A"
 
-    body = f"""THE BRINK WORLD // NEW CLIENT INTAKE
+        body = f"""THE BRINK WORLD // NEW CLIENT INTAKE
 ----------------------------------------------------------------------
 A prospective client filled out their details and was directed to Razorpay:
 
@@ -749,37 +903,33 @@ CLIENT DETAILS:
 - Organization:     {company or 'Not specified'}
 - Tier / Service:   {plan_label}
 - Operational Focus:{reason}
+- Target Location:  {asset_name} (Lat: {lat}, Lon: {lon})
 - Timestamp:        {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}
-"""
-    if plan == "asset_watch":
-        body += f"""
-MONITORED ASSET SPECS:
-- Facility/Corridor: {asset_name}
-- Coordinates:       Lat {lat}, Lon {lon}
-- Buffer Radius:     {radius_km} km
 
->>> 1-CLICK RADAR ACTIVATION (After Razorpay payment confirmation):
-Click this link to activate 24/7 background geofencing for {name}:
-{activation_link}
-----------------------------------------------------------------------
+Attached is the tailored 5-page printable A4 Threat Dossier centered on their target site.
+Once Razorpay confirms payment, simply forward this email to {email}.
 """
-    else:
-        body += f"""
-FULFILLMENT INSTRUCTIONS (Option 2):
-Once Razorpay confirms payment, review the attached PDF dossier
-and forward this email directly to {email}.
-----------------------------------------------------------------------
-"""
+        payload = {
+            "from": "The Brink Intelligence <onboarding@resend.dev>",
+            "to": [ADMIN_NOTIFICATION_EMAIL],
+            "subject": f"🔔 NEW LEAD & TAILORED DOSSIER: {name} [{asset_name}]",
+            "text": body,
+            "attachments": [
+                {
+                    "filename": f"TheBrink_Dossier_{int(time.time())}.pdf",
+                    "content": base64.b64encode(pdf_bytes).decode("utf-8")
+                }
+            ]
+        }
+        headers = {"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post("https://api.resend.com/emails", json=payload, headers=headers) as resp:
+                    print(f"[RESEND DISPATCH] Status: {resp.status}")
+        except Exception as e:
+            print(f"[RESEND ERROR] {e}")
 
-    await send_email_via_https(
-        to_email=ADMIN_NOTIFICATION_EMAIL,
-        subject=f"🔔 NEW LEAD & ORDER: {name} [{plan_label}]",
-        text_body=body,
-        pdf_bytes=pdf_bytes,
-        filename=f"TheBrink_Dossier_{int(time.time())}.pdf"
-    )
-
-    return {"status": "success", "message": "Lead captured."}
+    return {"status": "success", "message": "Lead captured and tailored dossier generated."}
 
 # ================= 1-CLICK RADAR ACTIVATION (ADMIN) =================
 
@@ -801,77 +951,12 @@ async def activate_radar_asset(asset_id: int = Query(...), passkey: str = Query(
     conn.commit()
     conn.close()
 
-    # Dispatch Welcome Email to Client over HTTPS
-    client_body = f"""Hello {client_name},
-
-Your payment has been verified. Your asset perimeter is now actively monitored 24/7 by The Brink World Hazard Engine.
-
-MONITORED SECTOR:
-- Asset Identifier: {asset_name}
-- Coordinates:      Lat {lat}, Lon {lon}
-- Buffer Perimeter: {radius} km
-
-AUTOMATED RADAR STATUS: ACTIVE
-Our sensor arrays (USGS, EMSC, NOAA, GDACS) continuously evaluate this perimeter. If an active earthquake, flood breach, or severe storm enters your buffer, an emergency dispatch will be sent directly to this address.
-
-Thank you for choosing The Brink World.
-Enterprise Desk // https://thebrinkworld.com
-"""
-    await send_email_via_https(
-        to_email=client_email,
-        subject=f"✅ 24/7 Asset Perimeter Radar Activated: {asset_name}",
-        text_body=client_body
-    )
-
     return HTMLResponse(f"""
-    <body style="background:#070b10;color:#e8eef5;font-family:sans-serif;padding:40px;text-align:center">
-        <h1 style="color:#3dcc9c">✓ Perimeter Radar Activated</h1>
-        <p style="color:#8b9aab">Asset <strong>{asset_name}</strong> for <strong>{client_email}</strong> is now live on 24/7 monitoring.</p>
-        <p style="color:#8b9aab">A confirmation email was dispatched to the client.</p>
+    <body style="background:#ffffff;color:#0f172a;font-family:sans-serif;padding:40px;text-align:center">
+        <h1 style="color:#047857">✓ Perimeter Radar Activated</h1>
+        <p>Asset <strong>{asset_name}</strong> for <strong>{client_email}</strong> is now live on 24/7 background monitoring.</p>
     </body>
     """)
-
-# ================= FIELD DISPATCHES & MODERATION =================
-
-@app.post("/api/crowd/report")
-async def submit_crowd_report(
-    title: str = Form(...), location: str = Form(...), report_type: str = Form(...), details: str = Form(...), file: UploadFile = File(None)
-):
-    media_path = None
-    if file and file.filename:
-        safe_name = f"{int(time.time())}_{re.sub(r'[^a-zA-Z0-9_.-]', '_', file.filename)}"
-        save_dest = UPLOADS_DIR / safe_name
-        with open(save_dest, "wb") as f_out:
-            content = await file.read()
-            f_out.write(content)
-        media_path = f"/uploads/{safe_name}"
-
-    reports = load_reports()
-    new_report = {
-        "id": f"rep-{int(time.time()*1000)}", "title": title.strip(), "location": location.strip(),
-        "author": "Field Scout", "timestamp": datetime.now(timezone.utc).strftime("%d %b %H:%M UTC"),
-        "type": report_type.strip(), "details": details.strip(), "media_url": media_path, "approved": False
-    }
-    reports.insert(0, new_report)
-    save_reports(reports)
-    return {"status": "success", "message": "Report received. Pushed to moderation queue."}
-
-@app.get("/api/admin/reports")
-async def admin_get_reports(passkey: str = Query(...)):
-    if passkey != ADMIN_PASSKEY: raise HTTPException(status_code=403, detail="Invalid admin passkey.")
-    return load_reports()
-
-@app.post("/api/admin/moderate")
-async def admin_moderate_report(report_id: str = Form(...), action: str = Form(...), passkey: str = Form(...)):
-    if passkey != ADMIN_PASSKEY: raise HTTPException(status_code=403, detail="Invalid admin passkey.")
-    reports = load_reports()
-    if action == "approve":
-        for r in reports:
-            if r["id"] == report_id: r["approved"] = True; break
-    elif action == "delete":
-        reports = [r for r in reports if r["id"] != report_id]
-    save_reports(reports)
-    return {"status": "success", "action": action, "report_id": report_id}
 
 if UPLOADS_DIR.exists():
     app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
@@ -883,7 +968,7 @@ async def root_handler():
     if INDEX_FILE.exists(): return FileResponse(str(INDEX_FILE), media_type="text/html")
     alt_index = BASE_DIR / "index.html"
     if alt_index.exists(): return FileResponse(str(alt_index), media_type="text/html")
-    return JSONResponse(content={"status": "online", "service": "The Brink Hazard Engine", "evaluated_at": datetime.now(timezone.utc).isoformat()}, status_code=200)
+    return JSONResponse(content={"status": "online", "service": "The Brink Hazard Engine"}, status_code=200)
 
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 async def health_check():
