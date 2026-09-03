@@ -127,7 +127,7 @@ def parse_emsc(data):
         })
     return events
 
-# ================= AUTOMATED HEALTH & PATHOGEN INGESTION =================
+# ================= AUTOMATED LIVE HEALTH & PATHOGEN INGESTION =================
 
 async def collect_health_screener():
     now_ts = time.time()
@@ -202,6 +202,33 @@ async def collect_health_screener():
             "source": "Municipal Surveillance"
         }
     ]
+
+    # Dynamically ingest live WHO DON items if available
+    try:
+        async with aiohttp.ClientSession() as session:
+            _, ok, who_xml = await fetch_feed(session, "who_don", FEEDS["who_don"], False)
+            if ok and who_xml:
+                root = ET.fromstring(who_xml)
+                channel = root.find("channel")
+                if channel is not None:
+                    for item in channel.findall("item")[:3]:
+                        title = item.findtext("title", "")
+                        desc = item.findtext("description", "")
+                        pub = item.findtext("pubDate", "")
+                        if title and not any(x["disease"] in title for x in items):
+                            items.insert(0, {
+                                "disease": title[:40],
+                                "location": "International Surveillance Corridor",
+                                "cases_infected": "Active Epidemiological Dispatch",
+                                "summary": desc[:160] + ("..." if len(desc) > 160 else ""),
+                                "vector": "Clinical Investigation Active",
+                                "timestamp": pub[:16] if pub else "Live Feed",
+                                "severity": "REGIONAL ALERT",
+                                "badge_class": "badge-amber",
+                                "source": "WHO DON Live"
+                            })
+    except Exception:
+        pass
 
     payload = {
         "updated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -598,8 +625,9 @@ async def run_collector():
     quakes = {"south_asia": [], "global": []}
     map_points = []
     news_feed = []
+    severe_storms = []
 
-    # USGS
+    # 1. USGS EARTHQUAKES
     usgs_ok, usgs_raw = data_map.get("usgs", (False, None))
     sources_health["USGS"] = {"ok": usgs_ok, "count": 0}
     if usgs_ok and usgs_raw and "features" in usgs_raw:
@@ -618,11 +646,14 @@ async def run_collector():
                 "source": "USGS", "level": classify_mag(mag)
             }
             if mag >= 2.5:
-                map_points.append({"lat": lat, "lon": lon, "mag": mag, "place": q_obj["place"], "time": iso_time})
+                map_points.append({
+                    "lat": lat, "lon": lon, "mag": mag, "place": q_obj["place"],
+                    "time": iso_time, "type": "quake"
+                })
             if is_in_south_asia(lat, lon): quakes["south_asia"].append(q_obj)
             else: quakes["global"].append(q_obj)
 
-    # EMSC
+    # 2. EMSC SOUTH ASIA
     emsc_ok, emsc_raw = data_map.get("emsc", (False, None))
     sources_health["EMSC"] = {"ok": emsc_ok, "count": 0}
     if emsc_ok and emsc_raw:
@@ -631,26 +662,113 @@ async def run_collector():
         for eq in emsc_items:
             if not any(abs(eq["latitude"] - x["latitude"]) < 0.25 and abs(eq["longitude"] - x["longitude"]) < 0.25 for x in quakes["south_asia"]):
                 quakes["south_asia"].append(eq)
-                map_points.append({"lat": eq["latitude"], "lon": eq["longitude"], "mag": eq["magnitude"], "place": eq["place"], "time": eq["time"]})
+                map_points.append({
+                    "lat": eq["latitude"], "lon": eq["longitude"], "mag": eq["magnitude"],
+                    "place": eq["place"], "time": eq["time"], "type": "quake"
+                })
 
     for k in quakes: quakes[k].sort(key=lambda x: str(x.get("time", "")), reverse=True)
 
-    all_quakes = quakes["south_asia"] + quakes["global"]
-    for q in all_quakes:
+    # Convert severe tremors to headline stream
+    for q in (quakes["south_asia"] + quakes["global"]):
         mag = q["magnitude"]
-        depth = q.get("depth_km") or 10
-        if mag >= 6.0:
+        if mag >= 5.5:
             news_feed.append({
-                "headline": f"Major M{mag:.1f} Rupture Near {q['place']}",
-                "summary": f"Deep lithospheric shear at {depth}km depth.",
+                "headline": f"Seismic Rupture M{mag:.1f} — {q['place']}",
+                "summary": f"Hypocenter registered at {q.get('depth_km', 10):.1f}km depth. Regional structural assessment active.",
                 "level": "escalate" if mag >= 7.0 else "alert",
-                "kind": "Severe Tremor", "latitude": q["latitude"], "longitude": q["longitude"], "time": q["time"]
+                "kind": "Earthquake", "time": q["time"]
             })
 
-    space_data = {
-        "xray_class": "Quiet (B-Class)", "summary": "Nominal solar baseline.",
-        "kp": 2.1, "level": "Normal"
-    }
+    # 3. GLOBAL CYCLONES, HURRICANES & STORM SURGES (GDACS LIVE RSS)
+    gdacs_ok, gdacs_xml = data_map.get("gdacs", (False, None))
+    sources_health["GDACS_Storms"] = {"ok": gdacs_ok, "count": 0}
+    if gdacs_ok and gdacs_xml:
+        try:
+            root = ET.fromstring(gdacs_xml)
+            ns = {
+                "gdacs": "http://www.gdacs.org",
+                "geo": "http://www.w3.org/2003/01/geo/wgs84_pos#",
+                "georss": "http://www.georss.org/georss"
+            }
+            channel = root.find("channel")
+            if channel is not None:
+                storm_count = 0
+                for item in channel.findall("item"):
+                    title = item.findtext("title", "")
+                    desc = item.findtext("description", "")
+                    event_type = item.findtext("gdacs:eventtype", "", ns) or ""
+                    alert_level = item.findtext("gdacs:alertlevel", "", ns) or "Green"
+                    
+                    point = item.findtext("georss:point", "", ns)
+                    s_lat, s_lon = None, None
+                    if point:
+                        coords = point.strip().split()
+                        if len(coords) == 2:
+                            s_lat, s_lon = float(coords[0]), float(coords[1])
+                    
+                    # Filter for Cyclones/Tropical Storms (TC), Floods (FL), or Storm Surges
+                    if event_type in ("TC", "FL") or any(w in title.lower() for w in ["cyclone", "tropical storm", "typhoon", "hurricane", "surge", "flood"]):
+                        storm_count += 1
+                        badge_level = "escalate" if alert_level.lower() == "red" else ("alert" if alert_level.lower() == "orange" else "watch")
+                        category = "Tropical Cyclone / Hurricane" if (event_type == "TC" or any(x in title.lower() for x in ["cyclone", "typhoon", "hurricane"])) else "Severe Flood Surge"
+                        
+                        s_obj = {
+                            "title": title,
+                            "category": category,
+                            "severity": alert_level.upper(),
+                            "level": badge_level,
+                            "summary": desc[:180] + ("..." if len(desc) > 180 else ""),
+                            "latitude": s_lat,
+                            "longitude": s_lon,
+                            "time": item.findtext("pubDate", "")
+                        }
+                        severe_storms.append(s_obj)
+
+                        # Plot storm center on map
+                        if s_lat is not None and s_lon is not None:
+                            map_points.append({
+                                "lat": s_lat, "lon": s_lon, "mag": "STORM",
+                                "place": title, "type": "storm", "level": badge_level
+                            })
+
+                        # Elevate red/orange warnings to priority alert box
+                        if alert_level.lower() in ("orange", "red"):
+                            news_feed.append({
+                                "headline": f"Severe Marine Alert: {title}",
+                                "summary": desc[:200],
+                                "level": badge_level,
+                                "kind": category,
+                                "time": s_obj["time"]
+                            })
+                sources_health["GDACS_Storms"]["count"] = storm_count
+        except Exception:
+            pass
+
+    # 4. NWS COASTAL STORM SURGE & TROPICAL WATCHES
+    nws_ok, nws_raw = data_map.get("nws", (False, None))
+    sources_health["NWS_Surge"] = {"ok": nws_ok, "count": 0}
+    if nws_ok and nws_raw and "features" in nws_raw:
+        nws_count = 0
+        for f in nws_raw["features"][:60]:
+            props = f.get("properties", {})
+            event_name = props.get("event", "")
+            if any(term in event_name.lower() for term in ["surge", "hurricane", "tropical storm", "coastal flood", "gale", "tsunami"]):
+                nws_count += 1
+                sev = props.get("severity", "Moderate")
+                severe_storms.append({
+                    "title": f"{event_name} — {props.get('areaDesc', 'Coastal Sector')[:50]}",
+                    "category": "Coastal Storm Surge & Gale",
+                    "severity": sev.upper(),
+                    "level": "escalate" if sev == "Extreme" else ("alert" if sev == "Severe" else "watch"),
+                    "summary": props.get("headline") or props.get("description", "")[:180],
+                    "latitude": None, "longitude": None,
+                    "time": props.get("sent", "")
+                })
+        sources_health["NWS_Surge"]["count"] = nws_count
+
+    # 5. SPACE WEATHER (NOAA SWPC)
+    space_data = {"xray_class": "Quiet (B-Class)", "summary": "Nominal solar baseline.", "kp": 2.1, "level": "Normal"}
     kp_ok, kp_raw = data_map.get("swpc_kp", (False, None))
     if kp_ok and isinstance(kp_raw, list) and len(kp_raw) > 0:
         latest_kp = kp_raw[-1]
@@ -659,7 +777,7 @@ async def run_collector():
         space_data["kp"] = kp_val
         if kp_val >= 5.0:
             space_data["level"] = "Geomagnetic Storm"
-            space_data["summary"] = f"Planetary Kp reached {kp_val}."
+            space_data["summary"] = f"Planetary Kp reached {kp_val}. Potential HF radio & GPS degradation."
 
     compiled = {
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
@@ -668,11 +786,16 @@ async def run_collector():
             "escalate": len([x for x in news_feed if x.get("level") == "escalate"]),
             "alert": len([x for x in news_feed if x.get("level") == "alert"]),
             "watch": len([x for x in news_feed if x.get("level") == "watch"]),
+            "storms": len(severe_storms),
             "listed": len(quakes["south_asia"]) + len(quakes["global"]),
             "space": 1 if (space_data["kp"] >= 5) else 0,
         },
-        "lookout_news": news_feed, "map_points": map_points, "quakes": quakes,
-        "space": space_data, "severe_stories": [], "sources": sources_health,
+        "lookout_news": news_feed,
+        "severe_storms": severe_storms,
+        "map_points": map_points,
+        "quakes": quakes,
+        "space": space_data,
+        "sources": sources_health,
         "crowd_reports": load_reports()
     }
 
@@ -715,7 +838,6 @@ async def capture_order_lead(
     pdf_bytes = None
     pdf_filename = f"TheBrink_Report_{int(time.time())}.pdf"
 
-    # Compile the correct PDF deliverable
     if "medical" in plan or "clinic" in plan:
         pdf_bytes = await generate_pathogen_pdf_binary(city_name=asset_name)
         pdf_filename = f"TheBrink_Pathogen_Audit_{re.sub(r'[^a-zA-Z0-9_]', '_', asset_name)}.pdf"
@@ -723,7 +845,6 @@ async def capture_order_lead(
         pdf_bytes = await generate_pdf_binary(asset_name=asset_name, lat=lat, lon=lon)
         pdf_filename = f"TheBrink_Earth_Dossier_{int(time.time())}.pdf"
 
-    # Save to SQLite
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
@@ -733,7 +854,6 @@ async def capture_order_lead(
     conn.commit()
     conn.close()
 
-    # Send Notification Email via Resend
     if RESEND_API_KEY:
         is_high_tier = plan in ("tier2_strategic_audit", "tier3_corridor_watch", "tier4_field_recon")
         body = f"""THE BRINK WORLD // NEW INTAKE ORDER
