@@ -127,14 +127,13 @@ def parse_emsc(data):
         })
     return events
 
-# ================= AUTOMATED HEALTH & PATHOGEN INGESTION WITH INFECTION COUNTS =================
+# ================= AUTOMATED HEALTH & PATHOGEN INGESTION =================
 
 async def collect_health_screener():
     now_ts = time.time()
     if HEALTH_CACHE["data"] and (now_ts - HEALTH_CACHE["last_collected"] < 1800):
         return HEALTH_CACHE["data"]
 
-    # Baseline authoritative public health registers with infection counts
     items = [
         {
             "disease": "Mpox (Clade Ib)",
@@ -150,8 +149,8 @@ async def collect_health_screener():
         {
             "disease": "Dengue Fever (DENV-2)",
             "location": "South Asia (Gujarat, Maharashtra, Delhi NCR)",
-            "cases_infected": "24,800+ Confirmed Hospital Inpatient Admissions",
-            "summary": "Post-monsoon vector replication spike. High incidence of severe thrombocytopenia.",
+            "cases_infected": "24,800+ Confirmed Hospital Admissions",
+            "summary": "Post-monsoon vector replication spike. Severe thrombocytopenia triage active.",
             "vector": "Day-biting Aedes aegypti mosquito",
             "timestamp": "Cycle W34 2026",
             "severity": "REGIONAL ALERT",
@@ -161,7 +160,7 @@ async def collect_health_screener():
         {
             "disease": "Cholera (V. cholerae O1)",
             "location": "Sudan (Al Jazirah), Horn of Africa, Flood Basins",
-            "cases_infected": ">38,200 Acute Watery Diarrhea Cases (1,150+ Deaths)",
+            "cases_infected": ">38,200 Acute Diarrhea Cases (1,150+ Deaths)",
             "summary": "Severe municipal infrastructure disruption and runoff-induced cross-contamination.",
             "vector": "Contaminated drinking water & unwashed food",
             "timestamp": "Dispatch Aug 2026",
@@ -172,8 +171,8 @@ async def collect_health_screener():
         {
             "disease": "Avian Influenza (H5N1)",
             "location": "US Dairy Belts, EU Poultry, East Asian Flyways",
-            "cases_infected": "Rare Human Cases (Occupational Farm Workers); Millions Poultry Culled; >85 Dairy Herds",
-            "summary": "Monitoring viral genetic reassortment markers. Direct contact and raw dairy precautions active.",
+            "cases_infected": "Rare Human Cases (Farm Workers); Millions Poultry Culled; >85 Dairy Herds",
+            "summary": "Monitoring viral genetic reassortment markers. Raw dairy precautions active.",
             "vector": "Direct animal fluids & unpasteurized raw milk",
             "timestamp": "Review Aug 2026",
             "severity": "ZOONOTIC WATCH",
@@ -195,7 +194,7 @@ async def collect_health_screener():
             "disease": "Chikungunya Virus",
             "location": "South Asian Urban Riverbank Belts & Indian Ocean",
             "cases_infected": "6,400+ Recorded Outpatient Cases (Zero Deaths)",
-            "summary": "Co-circulating with seasonal dengue. Manifests as severe symmetrical arthralgia.",
+            "summary": "Co-circulating with seasonal dengue. Causes severe symmetrical arthralgia.",
             "vector": "Aedes mosquito bites in residential zones",
             "timestamp": "Weekly Tally",
             "severity": "LOCALIZED",
@@ -220,10 +219,6 @@ async def get_health_screener():
 # ================= DEDICATED PATHOGEN & PHARMACY PDF ENGINE =================
 
 async def generate_pathogen_pdf_binary(city_name: str = "Designated Health Sector") -> bytes:
-    """
-    Generates the official A4 Clinical & Pharmacy Syndromic Audit.
-    Never sends earthquake or space telemetry.
-    """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
 
@@ -253,7 +248,6 @@ async def generate_pathogen_pdf_binary(city_name: str = "Designated Health Secto
         story.append(line_t)
         story.append(Spacer(1, 4))
 
-    # Header
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M UTC")
     story.append(Table([[
         Paragraph("<b>THE BRINK WORLD // DIVISION 04: BIO-INTELLIGENCE</b><br/><font size=6.5 color='#64748b'>CLINICAL EPIDEMIOLOGY & PHARMACEUTICAL DEMAND DESK</font>", body_style),
@@ -264,18 +258,16 @@ async def generate_pathogen_pdf_binary(city_name: str = "Designated Health Secto
     story.append(Paragraph("14-DAY SYNDROMIC OUTBREAK & PHARMACEUTICAL INVENTORY AUDIT", title_style))
     story.append(Spacer(1, 4))
 
-    # Metadata Card
     story.append(Table([[
         Paragraph(f"<b>TARGET JURISDICTION:</b> {city_name}", tc_wrap_b),
         Paragraph("<b>CADENCE:</b> 14-Day Demand Runway", tc_wrap),
-        Paragraph("<b>TIER:</b> B2B Medical Dossier ($49 / ₹3,999)", tc_wrap_b)
+        Paragraph("<b>TIER:</b> Clinical Dossier Deliverable", tc_wrap_b)
     ]], colWidths=[213, 150, 160], style=[
         ('BACKGROUND', (0,0), (-1,-1), BG_LIGHT), ('GRID', (0,0), (-1,-1), 0.5, BORDER),
         ('TOPPADDING', (0,0), (-1,-1), 3.5), ('BOTTOMPADDING', (0,0), (-1,-1), 3.5)
     ]))
     story.append(Spacer(1, 6))
 
-    # Strict Legal Disclaimer Box
     story.append(Table([[
         Paragraph(
             "<b>STATUTORY RISK & MEDICAL INDEMNIFICATION DISCLAIMER:</b> "
@@ -292,7 +284,6 @@ async def generate_pathogen_pdf_binary(city_name: str = "Designated Health Secto
     ]))
     story.append(Spacer(1, 6))
 
-    # 1. Environmental Dynamics
     section_break(f"1. Environmental Drivers & Vector Incubation Baseline ({city_name})")
     story.append(Paragraph(
         f"Real-time hydrological and meteorological telemetry for the <b>{city_name}</b> municipal perimeter indicates favorable "
@@ -302,7 +293,6 @@ async def generate_pathogen_pdf_binary(city_name: str = "Designated Health Secto
     ))
     story.append(Spacer(1, 5))
 
-    # 2. Syndromic Risk Register
     section_break("2. 14-Day Syndromic Outbreak Register & Triage Pressures")
     outbreak_rows = [
         [
@@ -343,7 +333,6 @@ async def generate_pathogen_pdf_binary(city_name: str = "Designated Health Secto
     ]))
     story.append(Spacer(1, 6))
 
-    # 3. Pharmacy & Inventory Buffering Directives
     section_break("3. Pharmacy & Hospital Facility Stocking Directives (14-Day Runway)")
     inventory_table = [
         [
@@ -382,18 +371,8 @@ async def generate_pathogen_pdf_binary(city_name: str = "Designated Health Secto
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, BG_LIGHT]),
         ('TOPPADDING', (0,0), (-1,-1), 3), ('BOTTOMPADDING', (0,0), (-1,-1), 3)
     ]))
-    story.append(Spacer(1, 6))
-
-    # 4. Sanitation Mandate
-    section_break("4. Municipal Sanitation & Infection Control Protocols")
-    story.append(Paragraph(
-        f"1. <b>Potable Water Chlorination:</b> Enforce free residual chlorine testing (minimum 0.5 ppm) across overhead cisterns in {city_name}.<br/>"
-        "2. <b>Larvicidal Abatement:</b> Execute chemical larvicide application (Temephos/Abate) across basement parking lots, open drains, and construction sumps.",
-        body_style
-    ))
     story.append(Spacer(1, 10))
 
-    # Signoff Table
     story.append(Table([[
         Paragraph("<b>AUTHENTICATED BY:</b><br/>The Brink World Epidemiological Synthesis Desk<br/>Division 04: Public Health Telemetry", meta_style),
         Paragraph("<b>ENTERPRISE DESK:</b><br/>Email: thebrink2028@gmail.com<br/>Portal: https://thebrinkworld.com", meta_style)
@@ -555,94 +534,11 @@ async def generate_pdf_binary(asset_name: str = "Designated Operational Corridor
         ('TOPPADDING', (0,0), (-1,-1), 2.5), ('BOTTOMPADDING', (0,0), (-1,-1), 2.5)
     ]))
 
-    story.append(PageBreak())
-    section_break("3. Hydrological Inundation & Thermal Stress Audit")
-    hydro_table = [
-        [
-            Paragraph("<b>HYDROLOGIC EVENT</b>", tc_wrap_b), Paragraph("<b>METRIC TRIGGER</b>", tc_wrap_b),
-            Paragraph("<b>ESTIMATED SUPPLY CHAIN IMPACT</b>", tc_wrap_b), Paragraph("<b>EVACUATION BUFFER</b>", tc_wrap_b)
-        ],
-        [
-            Paragraph("Flash Inundation", tc_wrap_b), Paragraph("Precipitation >75mm / hr", tc_wrap),
-            Paragraph("Arterial roadway scouring, culvert silt blockage, transit delays.", tc_wrap), Paragraph("3.0 km down-gradient", tc_wrap)
-        ],
-        [
-            Paragraph("River Gauge Crest", tc_wrap_b), Paragraph("Water Level >2.5m datum", tc_wrap),
-            Paragraph("Bridge pier scour; ground-level warehouse inventory submergence.", tc_wrap), Paragraph("1.5 km riverine belt", tc_wrap)
-        ]
-    ]
-    story.append(Table(hydro_table, colWidths=[105, 110, 203, 105], style=[
-        ('BACKGROUND', (0,0), (-1,0), BG_LIGHT), ('GRID', (0,0), (-1,-1), 0.5, BORDER),
-        ('TOPPADDING', (0,0), (-1,-1), 4), ('BOTTOMPADDING', (0,0), (-1,-1), 4)
-    ]))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph("<b>5-Year Baseline Climatological & Thermal Stress Audit:</b>", tc_wrap_b))
-    thermal_bg = colors.HexColor("#fef2f2") if "ANOMALY" in temp_anomaly["status"] else BG_LIGHT
-    thermal_border = colors.HexColor("#f87171") if "ANOMALY" in temp_anomaly["status"] else BORDER
-
-    story.append(Table([
-        [
-            Paragraph(f"<b>STATUS: {temp_anomaly['status']}</b>", tc_wrap_b),
-            Paragraph(f"Current Running: <b>{temp_anomaly['current_mean'] or '—'}°C</b> | 5-Yr Baseline: <b>{temp_anomaly['baseline_mean'] or '—'}°C</b>", meta_style)
-        ],
-        [
-            Paragraph(temp_anomaly["warning_text"], tc_wrap),
-            Paragraph(f"Deviation: <b>{'+' if temp_anomaly['delta']>0 else ''}{temp_anomaly['delta']}°C</b>", meta_style)
-        ]
-    ], colWidths=[383, 140], style=[
-        ('BACKGROUND', (0,0), (-1,-1), thermal_bg), ('GRID', (0,0), (-1,-1), 0.5, thermal_border),
-        ('TOPPADDING', (0,0), (-1,-1), 3), ('BOTTOMPADDING', (0,0), (-1,-1), 3)
-    ]))
-
-    story.append(PageBreak())
-    section_break("4. Space Weather, Ionospheric Disturbance & Satcom")
-    sp = intel.get("space", {})
-    space_table = [
-        [
-            Paragraph("<b>TELEMETRY VECTOR</b>", tc_wrap_b), Paragraph("<b>LOGGED METRIC</b>", tc_wrap_b),
-            Paragraph("<b>STANDARD BASELINE</b>", tc_wrap_b), Paragraph("<b>OPERATIONAL STATUS</b>", tc_wrap_b)
-        ],
-        [
-            Paragraph("Planetary Kp Index", tc_wrap_b), Paragraph(f"Kp {sp.get('kp', 0.0)}", tc_wrap),
-            Paragraph("Kp < 4.0 (Nominal Magnetosphere)", tc_wrap),
-            Paragraph("NORMAL (GNSS Stable)" if sp.get("kp",0) < 5.0 else "ELEVATED (Phase Drift)", tc_wrap)
-        ]
-    ]
-    story.append(Table(space_table, colWidths=[120, 110, 163, 130], style=[
-        ('BACKGROUND', (0,0), (-1,0), BG_LIGHT), ('GRID', (0,0), (-1,-1), 0.5, BORDER),
-        ('TOPPADDING', (0,0), (-1,-1), 4), ('BOTTOMPADDING', (0,0), (-1,-1), 4)
-    ]))
-
-    story.append(PageBreak())
-    section_break("5. Emergency Execution Directives & Authentication")
-    directives_table = [
-        [Paragraph("<b>TIMELINE</b>", tc_wrap_b), Paragraph("<b>DIRECTIVE</b>", tc_wrap_b), Paragraph("<b>DESK</b>", tc_wrap_b)],
-        [
-            Paragraph("T + 00:00 to 01:00 hr", tc_wrap_b),
-            Paragraph(f"Ping telemetry sensors within 150 km of {asset_name}.", tc_wrap), Paragraph("Crisis Command", tc_wrap)
-        ],
-        [
-            Paragraph("T + 01:00 to 04:00 hr", tc_wrap_b),
-            Paragraph("Inspect bridge abutments and stormwater culverts.", tc_wrap), Paragraph("Supply Chain", tc_wrap)
-        ]
-    ]
-    story.append(Table(directives_table, colWidths=[100, 313, 110], style=[
-        ('BACKGROUND', (0,0), (-1,0), BG_LIGHT), ('GRID', (0,0), (-1,-1), 0.5, BORDER),
-        ('TOPPADDING', (0,0), (-1,-1), 4), ('BOTTOMPADDING', (0,0), (-1,-1), 4)
-    ]))
-    story.append(Spacer(1, 16))
-
-    story.append(Table([[
-        Paragraph("<b>DOSSIER AUTHENTICATION:</b><br/>The Brink World Automated Threat Engine<br/>Enterprise Defense Desk", meta_style),
-        Paragraph("<b>SUPPORT DESK:</b><br/>Email: thebrink2028@gmail.com<br/>Portal: https://thebrinkworld.com", meta_style)
-    ]], colWidths=[280, 243], style=[('LINEABOVE', (0,0), (-1,-1), 1, PRIMARY), ('TOPPADDING', (0,0), (-1,-1), 5)]))
-
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
 
-# ================= REST OF THE TELEMETRY & LEAD ENGINE =================
+# ================= TELEMETRY COLLECTOR & ANOMALY ENGINE =================
 
 async def fetch_temperature_anomaly(lat: float, lon: float) -> dict:
     url_history = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date=2021-01-01&end_date=2025-12-31&daily=temperature_2m_mean&timezone=auto"
@@ -672,13 +568,13 @@ async def fetch_temperature_anomaly(lat: float, lon: float) -> dict:
             result["delta"] = delta
             if delta >= 1.5:
                 result["status"] = "HEAT ANOMALY (ELEVATED)"
-                result["warning_text"] = f"Running annual mean is +{delta}°C above 5-year baseline ({result['current_mean']}°C vs {result['baseline_mean']}°C). Risk of transformer load tripping and concrete curing micro-cracks."
+                result["warning_text"] = f"Running annual mean is +{delta}°C above 5-year baseline ({result['current_mean']}°C vs {result['baseline_mean']}°C)."
             elif delta <= -1.5:
                 result["status"] = "COLD ANOMALY (ELEVATED)"
-                result["warning_text"] = f"Running annual mean is {delta}°C below 5-year baseline ({result['current_mean']}°C vs {result['baseline_mean']}°C). Risk of uninsulated pipe freezing and diesel waxing."
+                result["warning_text"] = f"Running annual mean is {delta}°C below 5-year baseline ({result['current_mean']}°C vs {result['baseline_mean']}°C)."
             else:
                 diff_sign = f"+{delta}" if delta > 0 else f"{delta}"
-                result["warning_text"] = f"Nominal thermal variation ({diff_sign}°C relative to 5-yr baseline of {result['baseline_mean']}°C). Infrastructure operating within historical margins."
+                result["warning_text"] = f"Nominal thermal variation ({diff_sign}°C relative to 5-yr baseline of {result['baseline_mean']}°C)."
     except Exception:
         pass
     return result
@@ -746,18 +642,13 @@ async def run_collector():
         if mag >= 6.0:
             news_feed.append({
                 "headline": f"Major M{mag:.1f} Rupture Near {q['place']}",
-                "summary": f"Deep lithospheric shear at {depth}km depth. Surface acceleration alert active.",
+                "summary": f"Deep lithospheric shear at {depth}km depth.",
                 "level": "escalate" if mag >= 7.0 else "alert",
                 "kind": "Severe Tremor", "latitude": q["latitude"], "longitude": q["longitude"], "time": q["time"]
             })
 
-    gdacs_ok, gdacs_raw = data_map.get("gdacs", (False, None))
-    sources_health["GDACS"] = {"ok": gdacs_ok, "count": 0}
-    if gdacs_ok and gdacs_raw:
-        for g in parse_gdacs_rss(gdacs_raw)[:5]: news_feed.append(g)
-
     space_data = {
-        "xray_class": "Quiet (B-Class)", "summary": "Nominal solar baseline. Satcom and navigation channels nominal.",
+        "xray_class": "Quiet (B-Class)", "summary": "Nominal solar baseline.",
         "kp": 2.1, "level": "Normal"
     }
     kp_ok, kp_raw = data_map.get("swpc_kp", (False, None))
@@ -768,38 +659,20 @@ async def run_collector():
         space_data["kp"] = kp_val
         if kp_val >= 5.0:
             space_data["level"] = "Geomagnetic Storm"
-            space_data["summary"] = f"Planetary Kp reached {kp_val}. Auroral oval expansion and GPS carrier phase drift observed."
-
-    severe_stories = []
-    nws_ok, nws_raw = data_map.get("nws", (False, None))
-    if nws_ok and nws_raw and "features" in nws_raw:
-        for f in nws_raw["features"][:4]:
-            p = f.get("properties", {})
-            if p.get("severity") in ["Extreme", "Severe"]:
-                severe_stories.append({
-                    "headline": p.get("event", "Severe Storm"), "summary": p.get("areaDesc", ""),
-                    "level": "alert", "kind": "Severe Weather", "time": p.get("onset")
-                })
-
-    seen = set()
-    unique_news = []
-    for item in news_feed:
-        if item["headline"] not in seen:
-            seen.add(item["headline"])
-            unique_news.append(item)
+            space_data["summary"] = f"Planetary Kp reached {kp_val}."
 
     compiled = {
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
         "elapsed_ms": int((time.time() - t0) * 1000),
         "situation": {
-            "escalate": len([x for x in unique_news if x.get("level") == "escalate"]),
-            "alert": len([x for x in unique_news if x.get("level") == "alert"]),
-            "watch": len([x for x in unique_news if x.get("level") == "watch"]),
+            "escalate": len([x for x in news_feed if x.get("level") == "escalate"]),
+            "alert": len([x for x in news_feed if x.get("level") == "alert"]),
+            "watch": len([x for x in news_feed if x.get("level") == "watch"]),
             "listed": len(quakes["south_asia"]) + len(quakes["global"]),
             "space": 1 if (space_data["kp"] >= 5) else 0,
         },
-        "lookout_news": unique_news, "map_points": map_points, "quakes": quakes,
-        "space": space_data, "severe_stories": severe_stories, "sources": sources_health,
+        "lookout_news": news_feed, "map_points": map_points, "quakes": quakes,
+        "space": space_data, "severe_stories": [], "sources": sources_health,
         "crowd_reports": load_reports()
     }
 
@@ -813,7 +686,7 @@ async def get_intel():
         return await run_collector()
     return CACHE["data"]
 
-# ================= LEAD CAPTURE & ROUTING ENGINE =================
+# ================= LEAD CAPTURE & NOTIFICATION ENGINE =================
 
 @app.post("/api/lead/capture")
 async def capture_order_lead(
@@ -828,28 +701,29 @@ async def capture_order_lead(
     radius_km: float = Form(300.0)
 ):
     plan_labels = {
+        "instant_micro_pass": "Micro-Audit / Emergency Radar Pass (₹699)",
+        "single_facility_pass": "Single Facility Pass (₹2,499)",
         "tier1_instant_dossier": "Tier 1: Instant Site Threat Dossier ($49 / ₹3,999)",
-        "tier2_strategic_audit": "Tier 2: Strategic Asset Audit ($349 / ₹28,999)",
-        "tier3_corridor_watch": "Tier 3: 30-Day Corridor Watch Desk ($599/mo / ₹49,999/mo)",
-        "tier4_field_recon": "Tier 4: Ground & Remote Reconnaissance ($950+ / ₹79,000+)",
-        "medical_pharmacy_desk": "Medical & Pharmacy Outbreak Audit ($49 / ₹3,999)"
+        "tier2_strategic_audit": "Tier 2: Strategic Asset Audit ($349 / ₹27,999)",
+        "tier3_corridor_watch": "Tier 3: 30-Day Corridor Watch Desk ($599/mo / ₹48,999/mo)",
+        "tier4_field_recon": "Tier 4: Ground & Remote Reconnaissance ($950+ / ₹76,999+)",
+        "medical_pharmacy_audit": "Medical & Pharmacy Outbreak Audit ($49 / ₹3,999)",
+        "monthly_clinic_watch": "Monthly Clinic Watch Desk ($159/mo / ₹11,999/mo)"
     }
     label = plan_labels.get(plan, plan)
 
-    # 1. Generate the EXACT corresponding PDF report
     pdf_bytes = None
     pdf_filename = f"TheBrink_Report_{int(time.time())}.pdf"
 
-    if plan == "medical_pharmacy_desk":
-        # Generate the dedicated Pathogen & Pharmacy Audit
+    # Compile the correct PDF deliverable
+    if "medical" in plan or "clinic" in plan:
         pdf_bytes = await generate_pathogen_pdf_binary(city_name=asset_name)
         pdf_filename = f"TheBrink_Pathogen_Audit_{re.sub(r'[^a-zA-Z0-9_]', '_', asset_name)}.pdf"
-    elif plan in ("tier1_instant_dossier", "dossier_pass"):
-        # Generate the physical Earthquake, Flood & Climate Dossier
+    elif "dossier" in plan or "pass" in plan:
         pdf_bytes = await generate_pdf_binary(asset_name=asset_name, lat=lat, lon=lon)
         pdf_filename = f"TheBrink_Earth_Dossier_{int(time.time())}.pdf"
 
-    # 2. Log to Persistent Database
+    # Save to SQLite
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
@@ -859,7 +733,7 @@ async def capture_order_lead(
     conn.commit()
     conn.close()
 
-    # 3. Dispatch Email Alert to Admin via Resend
+    # Send Notification Email via Resend
     if RESEND_API_KEY:
         is_high_tier = plan in ("tier2_strategic_audit", "tier3_corridor_watch", "tier4_field_recon")
         body = f"""THE BRINK WORLD // NEW INTAKE ORDER
@@ -873,21 +747,17 @@ SPECIFIED SCOPE:    {reason}
 TIMESTAMP (UTC):    {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}
 ----------------------------------------------------------------------
 """
-        if plan == "medical_pharmacy_desk":
-            body += f"""ACTION (PATHOGEN DESK - $49 / ₹3,999):
-The tailored 14-Day Pathogen & Pharmacy Inventory Audit for {asset_name} is ATTACHED to this email.
-Once Razorpay confirms payment receipt, forward this attached PDF directly to {email}.
+        if is_high_tier:
+            body += f"""ACTION REQUIRED: MANUAL INVOICING / CUSTOM PAYMENT LINK
+This client submitted an enterprise scoping request for {label}.
+Check their requirements and email them a manual payment link:
+- If INR: Send a manual Razorpay Invoice or bank wire details (NEFT/RTGS).
+- If USD: Send your manual Payoneer / Wire payment link.
 """
-        elif plan == "tier1_instant_dossier":
-            body += f"""ACTION (EARTH DOSSIER - $49 / ₹3,999):
-The tailored Earth & Climate Threat Dossier for {asset_name} is ATTACHED to this email.
+        elif pdf_bytes:
+            body += f"""ACTION: AUTOMATED AUDIT COMPILED
+The compiled A4 printable PDF report for {asset_name} is ATTACHED to this email.
 Once Razorpay confirms payment receipt, forward this attached PDF directly to {email}.
-"""
-        elif is_high_tier:
-            body += f"""ACTION (HIGH-TIER COMMISSION - MANUAL PAYMENT LINK REQUIRED):
-The client has requested scoping for {label}.
-Check their preferred currency (USD or INR) from their intake message.
-Send the customized payment link or corporate invoice directly to {email} to initiate the deliverable.
 """
 
         payload = {
