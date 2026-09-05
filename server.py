@@ -203,7 +203,6 @@ async def collect_health_screener():
         }
     ]
 
-    # Dynamically ingest live WHO DON items if available
     try:
         async with aiohttp.ClientSession() as session:
             _, ok, who_xml = await fetch_feed(session, "who_don", FEEDS["who_don"], False)
@@ -461,7 +460,12 @@ async def generate_pdf_binary(asset_name: str = "Designated Operational Corridor
 
     critical_nearby = len([q for q in regional_threats if q["dist_km"] <= 300 and q.get("magnitude",0) >= 5.0])
     elevated_nearby = len([q for q in regional_threats if q["dist_km"] <= 300 and q.get("magnitude",0) >= 3.0])
+    
+    volcanoes_list = intel.get("severe_volcanoes", [])
+    active_volcano_near = any(v for v in volcanoes_list if v.get("latitude") and v.get("longitude") and haversine_km(target_lat, target_lon, v["latitude"], v["longitude"]) <= 800)
+
     score = 18 + (critical_nearby * 30) + (elevated_nearby * 8)
+    if active_volcano_near: score += 25
     if "ANOMALY" in temp_anomaly["status"]: score += 15
     if intel.get("space", {}).get("kp", 0) >= 5.0: score += 10
     threat_score = min(100, max(12, score))
@@ -516,15 +520,15 @@ async def generate_pdf_binary(asset_name: str = "Designated Operational Corridor
             Paragraph("<b>COMPOSITE RISK INDEX</b>", tc_wrap_b),
             Paragraph("<b>300KM SEVERE BREACHES</b>", tc_wrap_b),
             Paragraph("<b>THERMAL ANOMALY (5-YR)</b>", tc_wrap_b),
-            Paragraph("<b>SPACE TELEMETRY</b>", tc_wrap_b)
+            Paragraph("<b>VOLCANIC / ASH HAZARD</b>", tc_wrap_b)
         ],
         [
             Paragraph(f"<b>{threat_score}/100</b> ({threat_label})", tc_wrap),
             Paragraph(f"{critical_nearby} Critical | {elevated_nearby} Elevated", tc_wrap),
             Paragraph(f"<b>{temp_anomaly['status']}</b> ({'+' if temp_anomaly['delta']>0 else ''}{temp_anomaly['delta']}°C)", tc_wrap),
-            Paragraph(f"Kp {intel.get('space', {}).get('kp', '0.0')} // {intel.get('space', {}).get('xray_class', 'Quiet')}", tc_wrap)
+            Paragraph(f"<b>{'ACTIVE PLUME ALERT' if active_volcano_near else 'Nominal Baseline'}</b>", tc_wrap)
         ]
-    ], colWidths=[140, 135, 135, 113], style=[
+    ], colWidths=[130, 135, 135, 123], style=[
         ('BACKGROUND', (0,0), (-1,0), BG_LIGHT), ('GRID', (0,0), (-1,-1), 0.5, BORDER),
         ('TOPPADDING', (0,0), (-1,-1), 4), ('BOTTOMPADDING', (0,0), (-1,-1), 4)
     ]))
@@ -533,14 +537,34 @@ async def generate_pdf_binary(asset_name: str = "Designated Operational Corridor
     section_break("1. Executive Briefing & Regional Context")
     story.append(Paragraph(
         f"This strategic intelligence dossier analyzes real-time environmental stress factors within proximity to <b>{asset_name}</b> ({target_str}). "
-        f"Composite risk is calibrated at <b>{threat_score}/100</b>. Within your 300km operational perimeter, sensor arrays registered "
-        f"<b>{elevated_nearby} seismic shocks</b> in the current cycle. Operational thresholds are detailed below.",
+        f"Composite risk is calibrated at <b>{threat_score}/100</b>. Within your operational perimeter, sensor arrays registered "
+        f"<b>{elevated_nearby} seismic shocks</b> and global volcanic ash monitoring inputs. Operational thresholds are detailed below.",
         body_style
     ))
     story.append(Spacer(1, 6))
 
+    if volcanoes_list:
+        section_break("2. Global Volcanic Ash & Eruption Advisory Feed")
+        story.append(Paragraph(
+            "Global Volcanic Ash Advisory Centers (VAACs) and Smithsonian monitoring arrays track stratospheric ash injections, plume ceilings, and downwind drift trajectories. Active events:",
+            body_style
+        ))
+        story.append(Spacer(1, 4))
+        volc_rows = [[Paragraph("<b>VOLCANO / REGION</b>", tc_wrap_b), Paragraph("<b>ACTIVITY DETAILS / PLUME CEILING</b>", tc_wrap_b), Paragraph("<b>SEVERITY</b>", tc_wrap_b)]]
+        for v in volcanoes_list[:6]:
+            volc_rows.append([
+                Paragraph(v.get("title", "Volcano Event"), tc_wrap_b),
+                Paragraph(v.get("summary", "Ash advisory active."), tc_wrap),
+                Paragraph(v.get("severity", "ALERT"), tc_wrap)
+            ])
+        story.append(Table(volc_rows, colWidths=[150, 273, 100], style=[
+            ('BACKGROUND', (0,0), (-1,0), BG_LIGHT), ('GRID', (0,0), (-1,-1), 0.5, BORDER),
+            ('TOPPADDING', (0,0), (-1,-1), 2.5), ('BOTTOMPADDING', (0,0), (-1,-1), 2.5)
+        ]))
+        story.append(Spacer(1, 6))
+
     story.append(PageBreak())
-    section_break(f"2. Lithospheric Fault Dynamics Relative to {asset_name}")
+    section_break("3. Lithospheric Fault Dynamics & Seismic Displacements")
     seismic_rows = [[
         Paragraph("<b>MAG</b>", tc_wrap_b), Paragraph("<b>FAULT SECTOR</b>", tc_wrap_b),
         Paragraph("<b>DEPTH</b>", tc_wrap_b), Paragraph("<b>EST. PGA</b>", tc_wrap_b),
@@ -626,6 +650,7 @@ async def run_collector():
     map_points = []
     news_feed = []
     severe_storms = []
+    severe_volcanoes = []
 
     # 1. USGS EARTHQUAKES
     usgs_ok, usgs_raw = data_map.get("usgs", (False, None))
@@ -669,7 +694,6 @@ async def run_collector():
 
     for k in quakes: quakes[k].sort(key=lambda x: str(x.get("time", "")), reverse=True)
 
-    # Convert severe tremors to headline stream
     for q in (quakes["south_asia"] + quakes["global"]):
         mag = q["magnitude"]
         if mag >= 5.5:
@@ -680,9 +704,9 @@ async def run_collector():
                 "kind": "Earthquake", "time": q["time"]
             })
 
-    # 3. GLOBAL CYCLONES, HURRICANES & STORM SURGES (GDACS LIVE RSS)
+    # 3. GLOBAL CYCLONES, VOLCANOES & STORM SURGES (GDACS LIVE RSS)
     gdacs_ok, gdacs_xml = data_map.get("gdacs", (False, None))
-    sources_health["GDACS_Storms"] = {"ok": gdacs_ok, "count": 0}
+    sources_health["GDACS_Hazards"] = {"ok": gdacs_ok, "count": 0}
     if gdacs_ok and gdacs_xml:
         try:
             root = ET.fromstring(gdacs_xml)
@@ -693,7 +717,7 @@ async def run_collector():
             }
             channel = root.find("channel")
             if channel is not None:
-                storm_count = 0
+                hazard_count = 0
                 for item in channel.findall("item"):
                     title = item.findtext("title", "")
                     desc = item.findtext("description", "")
@@ -707,41 +731,46 @@ async def run_collector():
                         if len(coords) == 2:
                             s_lat, s_lon = float(coords[0]), float(coords[1])
                     
-                    # Filter for Cyclones/Tropical Storms (TC), Floods (FL), or Storm Surges
+                    # Cyclones/Floods (TC/FL)
                     if event_type in ("TC", "FL") or any(w in title.lower() for w in ["cyclone", "tropical storm", "typhoon", "hurricane", "surge", "flood"]):
-                        storm_count += 1
+                        hazard_count += 1
                         badge_level = "escalate" if alert_level.lower() == "red" else ("alert" if alert_level.lower() == "orange" else "watch")
                         category = "Tropical Cyclone / Hurricane" if (event_type == "TC" or any(x in title.lower() for x in ["cyclone", "typhoon", "hurricane"])) else "Severe Flood Surge"
                         
                         s_obj = {
-                            "title": title,
-                            "category": category,
-                            "severity": alert_level.upper(),
-                            "level": badge_level,
-                            "summary": desc[:180] + ("..." if len(desc) > 180 else ""),
-                            "latitude": s_lat,
-                            "longitude": s_lon,
-                            "time": item.findtext("pubDate", "")
+                            "title": title, "category": category, "severity": alert_level.upper(),
+                            "level": badge_level, "summary": desc[:180] + ("..." if len(desc) > 180 else ""),
+                            "latitude": s_lat, "longitude": s_lon, "time": item.findtext("pubDate", "")
                         }
                         severe_storms.append(s_obj)
-
-                        # Plot storm center on map
                         if s_lat is not None and s_lon is not None:
-                            map_points.append({
-                                "lat": s_lat, "lon": s_lon, "mag": "STORM",
-                                "place": title, "type": "storm", "level": badge_level
-                            })
+                            map_points.append({"lat": s_lat, "lon": s_lon, "mag": "STORM", "place": title, "type": "storm", "level": badge_level})
 
-                        # Elevate red/orange warnings to priority alert box
                         if alert_level.lower() in ("orange", "red"):
-                            news_feed.append({
-                                "headline": f"Severe Marine Alert: {title}",
-                                "summary": desc[:200],
-                                "level": badge_level,
-                                "kind": category,
-                                "time": s_obj["time"]
-                            })
-                sources_health["GDACS_Storms"]["count"] = storm_count
+                            news_feed.append({"headline": f"Severe Marine Alert: {title}", "summary": desc[:200], "level": badge_level, "kind": category, "time": s_obj["time"]})
+
+                    # Volcanoes (VO) / Ash Plumes (e.g. Krakatau, Etna, etc.)
+                    elif event_type == "VO" or any(w in title.lower() for w in ["volcano", "volcanic", "ash", "krakatau", "sinabung", "etna", "merapi"]):
+                        hazard_count += 1
+                        badge_level = "escalate" if alert_level.lower() == "red" else "alert"
+                        v_obj = {
+                            "title": title, "category": "Volcanic Eruption & Ash Plume",
+                            "severity": alert_level.upper(), "level": badge_level,
+                            "summary": desc[:200] + ("..." if len(desc) > 200 else ""),
+                            "latitude": s_lat, "longitude": s_lon, "time": item.findtext("pubDate", "")
+                        }
+                        severe_volcanoes.append(v_obj)
+                        if s_lat is not None and s_lon is not None:
+                            map_points.append({"lat": s_lat, "lon": s_lon, "mag": "ASH", "place": title, "type": "storm", "level": badge_level})
+
+                        news_feed.append({
+                            "headline": f"🌋 VOLCANIC ASH ADVISORY: {title}",
+                            "summary": desc[:220],
+                            "level": "escalate",
+                            "kind": "Volcanic Eruption",
+                            "time": v_obj["time"]
+                        })
+                sources_health["GDACS_Hazards"]["count"] = hazard_count
         except Exception:
             pass
 
@@ -753,7 +782,7 @@ async def run_collector():
         for f in nws_raw["features"][:60]:
             props = f.get("properties", {})
             event_name = props.get("event", "")
-            if any(term in event_name.lower() for term in ["surge", "hurricane", "tropical storm", "coastal flood", "gale", "tsunami"]):
+            if any(term in event_name.lower() for term in ["surge", "hurricane", "tropical storm", "coastal flood", "gale", "tsunami", "volcano"]):
                 nws_count += 1
                 sev = props.get("severity", "Moderate")
                 severe_storms.append({
@@ -787,11 +816,13 @@ async def run_collector():
             "alert": len([x for x in news_feed if x.get("level") == "alert"]),
             "watch": len([x for x in news_feed if x.get("level") == "watch"]),
             "storms": len(severe_storms),
+            "volcanoes": len(severe_volcanoes),
             "listed": len(quakes["south_asia"]) + len(quakes["global"]),
             "space": 1 if (space_data["kp"] >= 5) else 0,
         },
         "lookout_news": news_feed,
         "severe_storms": severe_storms,
+        "severe_volcanoes": severe_volcanoes,
         "map_points": map_points,
         "quakes": quakes,
         "space": space_data,
