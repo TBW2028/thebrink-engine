@@ -3,7 +3,6 @@ import io
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from supabase import create_client, Client
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -22,11 +21,6 @@ CORS(app, resources={
         ]
     }
 })
-
-# Supabase Initialization (Use service role key securely on backend)
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # 1. Multi-Hazard Data Collectors
 def fetch_seismic_and_volcano_data():
@@ -66,14 +60,14 @@ def generate_pdf_dossier(data):
         spaceAfter=12
     )
     
-    story.append(Paragraph(f"IN-DEPTH INTELLIGENCE DOSSIER: {data['hazard_type'].upper()}", title_style))
-    story.append(Paragraph(f"Target Asset: {data['asset_name']} | Coordinates: {data['latitude']}, {data['longitude']}", styles['Normal']))
+    story.append(Paragraph(f"IN-DEPTH INTELLIGENCE DOSSIER: {data.get('hazard_type', 'GENERAL').upper()}", title_style))
+    story.append(Paragraph(f"Target Asset: {data.get('asset_name', 'N/A')} | Coordinates: {data.get('latitude', 'N/A')}, {data.get('longitude', 'N/A')}", styles['Normal']))
     story.append(Spacer(1, 15))
     
     # Risk Assessment Matrix Table
     table_data = [
         ["Parameter", "Status / Value"],
-        ["Hazard Category", data['hazard_type']],
+        ["Hazard Category", data.get('hazard_type', 'N/A')],
         ["Base Risk Index", "High (Class III Alert Equivalent)"],
         ["Recommended Mitigation", "Review structural integrity & enforce local zoning codes."]
     ]
@@ -96,33 +90,12 @@ def generate_pdf_dossier(data):
 # Health-check endpoint to support keep-alive pings (prevents free-tier cold starts)
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    return jsonify({"status": "active", "system": "synchronized"})
+    return jsonify({"status": "active", "service": "The Brink Hazard Engine"})
 
-# 3. Lead Capture & Order Logging Endpoint
-@app.route('/api/lead/capture', methods=['POST'])
-def capture_lead():
-    payload = request.json or {}
-    client_name = payload.get("client_name")
-    client_email = payload.get("client_email")
-    hazard_type = payload.get("hazard_type")
-    asset_name = payload.get("asset_name")
-    lat = payload.get("latitude")
-    lon = payload.get("longitude")
-    amount_paid = payload.get("amount_paid", "$49 / ₹4,500")
-
-    # Insert into Supabase (Bypasses RLS using Service Role Key)
-    db_response = supabase.table("report_orders").insert({
-        "client_name": client_name,
-        "client_email": client_email,
-        "hazard_type": hazard_type,
-        "asset_name": asset_name,
-        "latitude": lat,
-        "longitude": lon,
-        "amount_paid": amount_paid,
-        "payment_status": "pending"
-    }).execute()
-
-    return jsonify({"status": "success", "message": "Order captured, awaiting payment verification.", "data": db_response.data})
+# Root route to prevent 404s when hitting the base URL
+@app.route('/', methods=['GET'])
+def root_home():
+    return jsonify({"status": "online", "service": "The Brink Hazard Engine"})
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
