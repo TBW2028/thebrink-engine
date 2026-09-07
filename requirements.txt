@@ -4,3 +4,4 @@ aiohttp>=3.9.0
 reportlab>=4.1.0
 python-multipart>=0.0.9
 resend>=2.0.0
+flask-cors>=4.0.0
