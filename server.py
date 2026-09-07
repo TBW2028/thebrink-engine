@@ -6,7 +6,6 @@ import math
 import os
 from pathlib import Path
 import re
-import sqlite3
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -36,11 +35,13 @@ INDEX_FILE = STATIC_DIR / "index.html"
 UPLOADS_DIR = BASE_DIR / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 REPORTS_FILE = BASE_DIR / "crowd_reports.json"
-DB_FILE = BASE_DIR / "enterprise_vault.db"
 
 ADMIN_PASSKEY = os.getenv("ADMIN_PASSKEY", "brink_admin_2026")
 ADMIN_NOTIFICATION_EMAIL = os.getenv("ADMIN_NOTIFICATION_EMAIL", "thebrink2028@gmail.com")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 FEEDS = {
     "usgs": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson",
@@ -56,26 +57,36 @@ FEEDS = {
 CACHE = {"data": None, "last_collected": 0}
 HEALTH_CACHE = {"data": None, "last_collected": 0}
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS client_assets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_name TEXT,
-            client_email TEXT,
-            asset_name TEXT,
-            latitude REAL,
-            longitude REAL,
-            radius_km REAL,
-            created_at TEXT,
-            active INTEGER DEFAULT 0
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-init_db()
+async def insert_lead_to_supabase(client_name: str, client_email: str, asset_name: str, lat: float, lon: float, radius_km: float):
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        print("Supabase credentials not set. Bypassing cloud insert.")
+        return False
+        
+    url = f"{SUPABASE_URL}/rest/v1/client_assets"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+    }
+    payload = {
+        "client_name": client_name,
+        "client_email": client_email,
+        "asset_name": asset_name,
+        "latitude": float(lat or 0.0),
+        "longitude": float(lon or 0.0),
+        "radius_km": float(radius_km or 300.0),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "active": 0
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                return resp.status in (200, 201, 204)
+    except Exception as e:
+        print("Supabase insert error:", e)
+        return False
 
 def haversine_km(lat1, lon1, lat2, lon2):
     R = 6371.0
@@ -822,6 +833,7 @@ async def run_collector():
                     desc = item.findtext("description", "")
                     event_type = item.findtext("gdacs:eventtype", "", ns) or ""
                     alert_level = item.findtext("gdacs:alertlevel", "", ns) or "Green"
+                    pub_date = item.findtext("pubDate", "")
                     
                     point = item.findtext("georss:point", "", ns)
                     s_lat, s_lon = None, None
@@ -838,14 +850,14 @@ async def run_collector():
                         s_obj = {
                             "title": title, "category": category, "severity": alert_level.upper(),
                             "level": badge_level, "summary": desc[:180] + ("..." if len(desc) > 180 else ""),
-                            "latitude": s_lat, "longitude": s_lon, "time": item.findtext("pubDate", "")
+                            "latitude": s_lat, "longitude": s_lon, "time": pub_date
                         }
                         severe_storms.append(s_obj)
                         if s_lat is not None and s_lon is not None:
                             map_points.append({"lat": s_lat, "lon": s_lon, "mag": "STORM", "place": title, "type": "storm", "level": badge_level})
 
                         if alert_level.lower() in ("orange", "red"):
-                            news_feed.append({"headline": f"Severe Marine Alert: {title}", "summary": desc[:200], "level": badge_level, "kind": category, "time": s_obj["time"]})
+                            news_feed.append({"headline": f"Severe Marine Alert: {title}", "summary": desc[:200], "level": badge_level, "kind": category, "time": pub_date})
                 sources_health["GDACS_Hazards"]["count"] = hazard_count
         except Exception:
             pass
@@ -949,17 +961,17 @@ async def capture_order_lead(
         pdf_bytes = await generate_pathogen_pdf_binary(city_name=asset_name)
         pdf_filename = f"TheBrink_Pathogen_Audit_{re.sub(r'[^a-zA-Z0-9_]', '_', asset_name)}.pdf"
     elif "dossier" in plan or "pass" in plan:
-        pdf_bytes = await generate_geotechnical_pdf_binary(asset_name=asset_name, lat=lat, lon=lon)
+        pdf_bytes = await generate_pdf_binary(asset_name=asset_name, lat=lat, lon=lon)
         pdf_filename = f"TheBrink_Geotechnical_Audit_{int(time.time())}.pdf"
 
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO client_assets (client_name, client_email, asset_name, latitude, longitude, radius_km, created_at, active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-    """, (name, email, asset_name, float(lat or 0.0), float(lon or 0.0), float(radius_km or 300.0), datetime.now(timezone.utc).isoformat()))
-    conn.commit()
-    conn.close()
+    await insert_lead_to_supabase(
+        client_name=name,
+        client_email=email,
+        asset_name=asset_name,
+        lat=float(lat or 0.0),
+        lon=float(lon or 0.0),
+        radius_km=float(radius_km or 300.0)
+    )
 
     if RESEND_API_KEY:
         is_high_tier = plan in ("tier2_strategic_audit", "tier3_corridor_watch", "tier4_field_recon")
