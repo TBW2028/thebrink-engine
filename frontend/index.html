@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THE BRINK // Where the World is Going Next</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07090e;
+      --panel: #0f131c;
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #2563eb;
+      --accent-glow: rgba(37, 99, 235, 0.3);
+      --cyan: #06b6d4;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      line-height: 1.6;
+      background-image: radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.12) 0%, transparent 60%);
+    }
+    .display { font-family: 'Space Grotesk', sans-serif; }
+    
+    header {
+      padding: 1.25rem 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      background: rgba(7, 9, 14, 0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-decoration: none;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--emerald);
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      margin-left: 1.75rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    nav a:hover { color: #fff; }
+    .btn-login {
+      padding: 0.45rem 1rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      margin-left: 1.5rem;
+    }
+
+    .hero {
+      max-width: 1100px;
+      margin: 4.5rem auto 3rem;
+      padding: 0 1.5rem;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 1rem;
+      border-radius: 50px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--cyan);
+      margin-bottom: 1.75rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+    h1 {
+      font-size: clamp(2.3rem, 5vw, 4rem);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.5rem;
+    }
+    h1 span {
+      background: linear-gradient(135deg, #fff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p.sub {
+      color: var(--muted);
+      font-size: 1.2rem;
+      max-width: 760px;
+      margin: 0 auto 2.5rem;
+      font-weight: 300;
+    }
+
+    /* 3 Windows */
+    .windows-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      max-width: 1300px;
+      margin: 3rem auto 5rem;
+      padding: 0 1.5rem;
+    }
+    @media (max-width: 1024px) {
+      .windows-grid { grid-template-columns: 1fr; }
+    }
+    .window-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .window-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .window-header {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+    .dots { display: flex; gap: 6px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .window-body {
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .tag {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+    .window-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .window-desc {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 1.75rem;
+      flex: 1;
+    }
+
+    .info-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 6px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+
+    .btn-action {
+      display: block;
+      text-align: center;
+      padding: 0.85rem 1.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .btn-blue {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-blue:hover { background: #1d4ed8; }
+    .btn-cyan {
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      background: rgba(6, 182, 212, 0.05);
+    }
+    .btn-cyan:hover { background: var(--cyan); color: #000; }
+    .btn-emerald {
+      border: 1px solid var(--emerald);
+      color: var(--emerald);
+      background: rgba(16, 185, 129, 0.05);
+    }
+    .btn-emerald:hover { background: var(--emerald); color: #000; }
+
+    /* Modal / Paywall */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .modal {
+      background: #0e121a;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      width: 100%;
+      max-width: 420px;
+      padding: 2.25rem;
+      position: relative;
+    }
+    .modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1.2rem;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1.25rem;
+      cursor: pointer;
+    }
+    .modal h3 { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    .modal p { font-size: 0.9rem; color: var(--muted); margin-bottom: 1.5rem; }
+    .modal input {
+      width: 100%;
+      padding: 0.8rem 1rem;
+      background: #06080d;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+    }
+    .modal input:focus { outline: none; border-color: var(--accent); }
+    .modal button.submit-btn {
+      width: 100%;
+      padding: 0.85rem;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .banner {
+      border-top: 1px solid var(--border);
+      background: rgba(15, 19, 28, 0.5);
+      padding: 4.5rem 1.5rem;
+      text-align: center;
+    }
+    .banner-content { max-width: 800px; margin: 0 auto; }
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="/" class="brand display">
+      <span class="live-dot"></span>
+      THE BRINK
+    </a>
+    <nav>
+      <a href="#windows">Live Feeds</a>
+      <a href="/watch">Run Property Check</a>
+      <a href="/health">System Status</a>
+      <button class="btn-login" onclick="openLogin('portal')">Sign In</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="badge">GLOBAL EARLY WARNING NETWORK</div>
+      <h1 class="display">See where the world is breaking.<br><span>Before the headlines tell you.</span></h1>
+      <p class="sub">From real-time earthquakes and flood risks to shifting money and sudden disease outbreaks. Clear, unfiltered alerts for curious minds, active investors, and property owners.</p>
+    </section>
+
+    <!-- 3 Windows Side-by-Side -->
+    <section class="windows-grid" id="windows">
+
+      <!-- Window 1: Intel & Market Shifts -->
+      <div class="window-card">
+        <div class="window-header">
+          <div class="dots">
+            <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
+          </div>
+          <span>INTEL // MACRO SHIFTS</span>
+        </div>
+        <div class="window-body">
+          <span class="tag" style="color: var(--cyan);">For Investors & Observers</span>
+          <h2 class="window-title display">Strategic Intel Desk</h2>
+          <p class="window-desc">Where is capital fleeing? Which supply lines are choking? Get brief, hard-hitting analysis on global power shifts and emerging markets before consensus reacts.</p>
+          <div class="info-box">
+            <div style="color: #fff; font-weight: 600; margin-bottom: 0.25rem;">Latest Dispatch Available:</div>
+            <div style="color: var(--muted);">"The New Choke Points: How Water & Power Scarcity Are Rewiring Tech Hubs."</div>
+          </div>
+          <button class="btn-action btn-cyan" onclick="openLogin('intel')">Unlock Subscriber Intel →</button>
+        </div>
+      </div>
+
+      <!-- Window 2: Earth Watch & Property Risk (Paywall / Checkout) -->
+      <div class="window-card" style="border-color: rgba(37, 99, 235, 0.4);">
+        <div class="window-header">
+          <div class="dots">
+            <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
+          </div>
+          <span>EARTH // RISK AUDIT</span>
+        </div>
+        <div class="window-body">
+          <span class="tag" style="color: #60a5fa;">For Property Owners & Enterprise</span>
+          <h2 class="window-title display">Earth & Safety Watch</h2>
+          <p class="window-desc">Is your factory, home, or warehouse safe? Enter any GPS coordinates or city to test earthquake, flood, and extreme heat dangers. Delivered as a verified 10-page report in 20 seconds.</p>
+          <div class="info-box">
+            <div style="color: #fff; font-weight: 600; margin-bottom: 0.25rem;">Automated Property Audit:</div>
+            <div style="color: var(--muted);">Instant download & email delivery upon order completion.</div>
+          </div>
+          <a href="/watch" class="btn-action btn-blue">Check Your Property Now →</a>
+        </div>
+      </div>
+
+      <!-- Window 3: Health & Outbreak Radar -->
+      <div class="window-card">
+        <div class="window-header">
+          <div class="dots">
+            <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
+          </div>
+          <span>HEALTH // OUTBREAK RADAR</span>
+        </div>
+        <div class="window-body">
+          <span class="tag" style="color: var(--emerald);">For Citizens & Planners</span>
+          <h2 class="window-title display">Outbreak & Health Radar</h2>
+          <p class="window-desc">Track early-stage biological alerts, hospital pressure clusters, and health risks globally. Clear maps and straightforward summaries of what is spreading where.</p>
+          <div class="info-box">
+            <div style="color: #fff; font-weight: 600; margin-bottom: 0.25rem;">Active Network Feeds:</div>
+            <div style="color: var(--muted);">Global outbreak monitoring active 24/7 across verified public health sources.</div>
+          </div>
+          <a href="/health" class="btn-action btn-emerald">Open Health Dashboard →</a>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Enterprise Section -->
+    <section class="banner">
+      <div class="banner-content">
+        <h2 class="display" style="font-size: 2rem; margin-bottom: 1rem;">Protect Real Assets Before Disasters Strike</h2>
+        <p style="color: var(--muted); font-size: 1.05rem; margin-bottom: 2rem;">
+          Whether you are evaluating a $50M distribution hub or checking safety around your family’s land, The Brink gives you raw facts, not speculation.
+        </p>
+        <button class="btn-action btn-blue" style="display: inline-block; padding: 0.85rem 2rem;" onclick="openLogin('enterprise')">Request Custom Enterprise Screening</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Login / Paywall Modal -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal">
+      <button class="modal-close" onclick="closeLogin()">✕</button>
+      <h3 class="display" id="modalHeading">Sign In to The Brink</h3>
+      <p id="modalSub">Enter your email to access member-only intelligence briefs and alerts.</p>
+      
+      <form onsubmit="submitEmail(event)">
+        <input type="email" id="userEmail" required placeholder="name@company.com">
+        <button type="submit" class="submit-btn" id="modalBtn">Continue →</button>
+      </form>
+      <div style="text-align: center; margin-top: 1rem;">
+        <span style="font-size: 0.8rem; color: var(--muted);">Looking to audit a single property? <a href="/watch" style="color: #60a5fa;">Run Earth Watch</a></span>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>THE BRINK // 2026. ALL RIGHTS RESERVED.</div>
+  </footer>
+
+  <script>
+    function openLogin(mode) {
+      const modal = document.getElementById('modalBackdrop');
+      const heading = document.getElementById('modalHeading');
+      const sub = document.getElementById('modalSub');
+      const btn = document.getElementById('modalBtn');
+
+      if (mode === 'intel') {
+        heading.innerText = 'Subscriber Intel Desk';
+        sub.innerText = 'Unlock full access to macro shift memos and critical risk briefings.';
+        btn.innerText = 'Subscribe & Unlock';
+      } else if (mode === 'enterprise') {
+        heading.innerText = 'Enterprise Screening';
+        sub.innerText = 'Enter your corporate email. Our team will configure bulk facility checks for your portfolio.';
+        btn.innerText = 'Request Portfolio Access';
+      } else {
+        heading.innerText = 'Member Sign In';
+        sub.innerText = 'Enter your email to receive your one-click sign-in link.';
+        btn.innerText = 'Send Sign-In Link';
+      }
+      modal.style.display = 'flex';
+    }
+
+    function closeLogin() {
+      document.getElementById('modalBackdrop').style.display = 'none';
+    }
+
+    async function submitEmail(e) {
+      e.preventDefault();
+      const email = document.getElementById('userEmail').value;
+      const btn = document.getElementById('modalBtn');
+      btn.innerText = 'Sending...';
+
+      try {
+        await fetch('https://thebrink-engine.thebrink2028.workers.dev/api/inquire', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, intent: 'portal-access' })
+        });
+        alert('Thank you. A verification link has been sent to ' + email);
+        closeLogin();
+      } catch (err) {
+        alert('Check your connection or try again shortly.');
+      } finally {
+        btn.innerText = 'Continue →';
+      }
+    }
+  </script>
+</body>
+</html>
