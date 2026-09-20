@@ -1,0 +1,10 @@
+name = "thebrinkworld"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+[site]
+bucket = "../frontend"
+
+# Environment Variables (Set keys via: npx wrangler secret put <NAME>)
+[vars]
+GITHUB_REPO = "your-username/thebrink-engine"

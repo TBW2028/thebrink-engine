@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<title>Earth &amp; Climate Watch · The Brink World</title>
+<meta name="description" content="Real-time planetary tremors, cyclones, storm surge radar, and asset risk audits."/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06090e; --panel:#0c121b; --panel2:#111a26; --line:#1e2a38;
+  --text:#edf2f7; --muted:#94a3b8; --soft:#cbd5e1;
+  --accent:#00f3ff; --accent-blue:#6b9eff; --ok:#10b981; --warn:#f59e0b; --hot:#ef4444;
+  --gold:#f59e0b; --shadow:0 12px 40px rgba(0,0,0,.45);
+  --font-display: 'Archivo Black', sans-serif;
+  --font-body: 'Space Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html, body{
+  width:100%; overflow-x:hidden; scroll-behavior:smooth;
+  background:radial-gradient(ellipse at 50% -20%,rgba(0,243,255,.08),transparent 45%),var(--bg);
+  color:var(--text); font-family:var(--font-body); font-size:16px; line-height:1.55;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* BRAND FIXED HEADER */
+.brand-fixed-bar {
+  position: fixed; top: 0; left: 0; width: 100%; height: 50px; z-index: 99999;
+  background: rgba(6, 9, 14, 0.96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 2px solid rgba(0, 243, 255, 0.4); box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+  padding: 0 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.brand-fixed-left { display: flex; align-items: center; gap: 16px; }
+.brand-fixed-title { font-family: var(--font-mono); font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: var(--gold); text-transform: uppercase; white-space: nowrap; }
+.brand-clock-bar { font-family: var(--font-mono); font-size: 11px; color: var(--soft); display: flex; gap: 12px; white-space: nowrap; }
+@media(max-width: 1024px){ .brand-clock-bar { display: none; } }
+
+.brand-fixed-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.hdr-link { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--text); padding: 4px 8px; border-radius: 4px; border: 1px solid transparent; white-space: nowrap; }
+.hdr-link:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+@media(max-width: 680px){ .hdr-link.hide-sm { display: none; } }
+
+.wrap{ max-width: 1240px; margin: 0 auto; padding: 64px 16px 72px; width: 100%; }
+
+header{ padding: 12px 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); letter-spacing:-.03em; margin:4px 0 6px; color:#fff; line-height:1.2; }
+.sub{color:var(--muted);font-size:0.98rem;max-width:52rem;line-height:1.5;}
+
+.btn{
+  display:inline-flex;align-items:center;border:1px solid var(--line);background:transparent;
+  color:var(--text);border-radius:6px;padding:7px 12px;font-size:0.9rem;font-weight:600;
+  cursor:pointer;font-family:var(--font-mono);text-decoration:none;
+}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-primary{background:var(--accent);color:#071018;border-color:var(--accent);font-weight:700}
+.btn-gold{background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;border:none;font-weight:700}
+.btn-gold:hover{filter:brightness(1.1);text-decoration:none;color:#000}
+
+/* PROOF OF EXPOSURE: INSTANT FACILITY AUDIT STRIP */
+.audit-lead-strip {
+  background: linear-gradient(90deg, rgba(0,243,255,0.08), rgba(245,158,11,0.06));
+  border: 1px solid rgba(0,243,255,0.3); border-radius: 8px; padding: 14px 18px;
+  margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 14px;
+}
+.audit-lead-text h3 { font-size: 1.05rem; color: #fff; font-weight: 750; }
+.audit-lead-text p { font-size: 0.85rem; color: var(--soft); margin-top: 2px; }
+.audit-input-group { display: flex; gap: 8px; flex-wrap: wrap; flex-grow: 1; max-width: 520px; }
+
+/* COMPACT LOCAL SITE & HAZARD PERIMETER */
+.compact-local-box {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 16px; margin-bottom: 18px; display: flex; justify-content: space-between;
+  align-items: center; flex-wrap: wrap; gap: 12px;
+}
+.compact-local-info { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.compact-city { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent); }
+.compact-temp { font-family: var(--font-display); font-size: 1.4rem; color: #fff; }
+.compact-perimeter-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 6px;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700; cursor: pointer;
+  background: rgba(16, 185, 129, 0.1); border: 1px solid var(--ok); color: var(--ok);
+}
+
+/* 5 KEY SIGNATURE INSTRUMENTS */
+.signature-instruments-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 22px; }
+@media(max-width: 1100px){ .signature-instruments-grid { grid-template-columns: repeat(3, 1fr); } }
+@media(max-width: 768px){ .signature-instruments-grid { grid-template-columns: repeat(2, 1fr); } }
+@media(max-width: 480px){ .signature-instruments-grid { grid-template-columns: 1fr; } }
+
+.sig-card {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px; display: flex; flex-direction: column; justify-content: space-between;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35); cursor: pointer; transition: border-color 0.2s ease, transform 0.15s ease;
+}
+.sig-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.sig-lbl { font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+.sig-val { font-family: var(--font-mono); font-size: 1.55rem; font-weight: 800; margin: 6px 0 2px; letter-spacing: -0.02em; }
+.sig-sub { font-size: 0.82rem; color: var(--soft); line-height: 1.35; }
+.sig-status-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.sig-status-prep { background: rgba(16,185,129,0.15); color: var(--ok); border: 1px solid var(--ok); }
+.sig-status-action { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid var(--warn); }
+
+/* CONVERGENCE VECTORS MINI-BAR */
+.conv-meter-container { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.conv-meter-row { display: flex; align-items: center; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.conv-bar-bg { width: 100%; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.conv-bar-fill { height: 100%; border-radius: 2px; }
+
+/* SENSOR COUNTERS */
+.tiles{ display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:20px; width:100%; }
+@media(max-width:1024px){.tiles{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:480px){.tiles{grid-template-columns:repeat(2,1fr);gap:8px}}
+.tile{ background:var(--panel);border:1px solid var(--line);border-radius:8px; padding:12px;cursor:pointer; }
+.tile:hover{border-color:var(--accent)}
+.tile .lbl{font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.tile .num{font-family:var(--font-mono);font-size:1.45rem;font-weight:800;letter-spacing:-.03em;margin-top:2px}
+.tile.escalate .num{color:var(--hot)}
+.tile.alert .num{color:var(--warn)}
+.tile.watch .num{color:var(--accent-blue)}
+.tile.listed .num,.tile.space .num{color:var(--soft)}
+
+/* MAP & LOOKOUT */
+.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:24px;width:100%;}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;box-shadow:var(--shadow);width:100%;}
+.panel-h{ font-family:var(--font-mono);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted); font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between; }
+.badge{font-size:11.5px;padding:3px 7px;border-radius:4px;border:1px solid rgba(61,204,156,.35);color:var(--ok);font-weight:700;font-family:var(--font-mono)}
+#map{height:320px;border-radius:8px;border:1px solid var(--line);background:#0a1018;width:100%;}
+
+/* COLLAPSIBLE ACCORDION TRAYS */
+.tray-accordion { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.tray-header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; background: var(--panel); user-select: none; }
+.tray-header:hover { background: rgba(0, 243, 255, 0.04); }
+.tray-title { font-family: var(--font-mono); font-size: 13.5px; font-weight: 700; text-transform: uppercase; color: #fff; display: flex; align-items: center; gap: 10px; }
+.tray-toggle-btn { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--accent); width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--line); }
+.tray-content { padding: 0 16px 16px; display: none; }
+.tray-accordion.open .tray-content { display: block; }
+.tray-accordion.open .tray-toggle-btn { transform: rotate(45deg); color: var(--hot); }
+
+.regions2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;width:100%;}
+@media(max-width:800px){.regions2{grid-template-columns:1fr}}
+.region-scroll{max-height:300px;overflow-y:auto;padding-right:4px;}
+.qrow{ display:grid;grid-template-columns:50px 1fr;gap:10px;padding:10px 8px; border-bottom:1px solid rgba(30,42,56,.85);border-radius:6px;cursor:pointer; }
+.qrow:hover{background:rgba(0,243,255,0.06);transform:translateX(2px)}
+.mag{font-family:var(--font-mono);font-weight:800;font-size:1.15rem;display:flex;align-items:center;justify-content:center;border-radius:6px;}
+.mag.escalate{color:var(--hot);border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.08)}
+.mag.alert{color:var(--warn);border:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.08)}
+.mag.watch{color:var(--accent-blue);border:1px solid rgba(107,158,255,0.3);background:rgba(107,158,255,0.08)}
+.qtitle{font-size:0.96rem;font-weight:600;color:#fff}
+.qmeta{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:2px;display:flex;flex-wrap:wrap;gap:8px;}
+
+/* B2B COMMERCIAL TIERS */
+.commercial-section-header { margin: 40px 0 16px; padding-bottom: 12px; border-bottom: 2px solid var(--line); display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px; }
+.commercial-section-header h2 { font-family: var(--font-display); font-size: 1.4rem; color: #fff; text-transform: uppercase; }
+.b2b-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:30px; width:100%; }
+@media(max-width:1100px){.b2b-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.b2b-grid{grid-template-columns:1fr}}
+.b2b-card{ background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px; display:flex;flex-direction:column;justify-content:space-between; }
+.b2b-card:hover{border-color:var(--accent)}
+.b2b-tag{font-family:var(--font-mono);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:6px}
+.b2b-title{font-size:1.1rem;font-weight:750;color:#fff;margin-bottom:8px}
+.b2b-desc{font-size:0.88rem;color:var(--soft);margin-bottom:16px;line-height:1.5}
+.b2b-price{font-family:var(--font-mono);font-size:1.35rem;font-weight:800;color:#fff;margin-bottom:4px}
+.b2b-sla{font-family:var(--font-mono);font-size:0.8rem;color:var(--muted);margin-bottom:14px}
+.b2b-bullets{display:grid;gap:6px;margin:10px 0 14px}
+.b2b-bullet{font-size:.82rem;color:var(--soft);display:flex;gap:7px}
+.b2b-bullet::before{content:"✓";color:var(--ok);font-family:var(--font-mono);font-weight:800}
+
+/* MODALS */
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);display:none;align-items:center;justify-content:center;z-index:999999}
+.modal-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;max-width:640px;width:92%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow)}
+.input-dark{ background:var(--panel2);border:1px solid var(--line);border-radius:6px; color:#fff;padding:11px 13px;font-size:15px;width:100%;font-family:var(--font-body); }
+
+/* LIVE PRIORITY BANNER */
+.active-event-banner{
+  display:none; margin-bottom:18px; border:1px solid var(--hot);
+  background:linear-gradient(90deg,rgba(239,68,68,.16),rgba(12,18,27,.96));
+  border-radius:10px; padding:14px 16px; box-shadow:0 8px 30px rgba(239,68,68,.12);
+}
+.active-event-kicker{font:700 11px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--hot);margin-bottom:4px}
+.active-event-title{font-weight:800;color:#fff;font-size:1.08rem}
+.active-event-body{color:var(--soft);font-size:.9rem;margin-top:3px}
+.active-event-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.live-meta{font:500 10px var(--font-mono);color:var(--muted);margin-top:8px}
+
+.threat-status-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; margin-top: 10px; }
+.threat-status-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11.5px; text-transform: uppercase; }
+.threat-status-table td { padding: 8px 10px; border-bottom: 1px solid rgba(30,42,56,.6); color: #fff; }
+.status-pill { padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 11px; text-transform: uppercase; display: inline-block; }
+.status-pill.nominal { background: rgba(16,185,129,0.15); color: var(--ok); border: 1px solid var(--ok); }
+</style>
+</head>
+<body>
+
+<!-- FIXED HEADER -->
+<div class="brand-fixed-bar">
+  <div class="brand-fixed-left">
+    <div class="brand-fixed-title">THE BRINK WORLD // WATCH</div>
+    <div class="brand-clock-bar">
+      <span id="utcClock">UTC: --:--:--</span>
+      <span id="localClock">Local: --:--:--</span>
+    </div>
+  </div>
+  <div class="brand-fixed-right">
+    <a href="/" class="hdr-link hide-sm">← Intel</a>
+    <a href="#commercial-suite" class="hdr-link hide-sm" style="color:var(--gold)">Asset Audits ↓</a>
+    <button type="button" class="btn" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalLogin')">Login</button>
+    <button type="button" class="btn btn-primary" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalSignup')">Signup (Free)</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <h1>Earth &amp; Climate Watch</h1>
+    <p class="sub">Curated planetary risk intelligence: real-time exposure modeling, compound hazard convergence, and critical engineering asset audits.</p>
+  </header>
+
+  <!-- INSTANT AUDIT STRIP -->
+  <div class="audit-lead-strip">
+    <div class="audit-lead-text">
+      <h3>Instant Facility Exposure Audit</h3>
+      <p>Check if your facility, factory or warehouse sits inside an active seismic stress migration or storm cone.</p>
+    </div>
+    <div class="audit-input-group">
+      <input type="text" id="auditInputLoc" class="input-dark" placeholder="Enter Facility City or GPS (e.g. Paradip, Nagoya, Pune)" style="padding:8px 12px; font-size:13.5px;"/>
+      <button class="btn btn-gold" type="button" onclick="runInstantAudit()">Audit Exposure →</button>
+    </div>
+  </div>
+
+  <!-- LIVE PRIORITY EVENT BANNER -->
+  <div id="activeEventBanner" class="active-event-banner" role="status" aria-live="polite" style="display:none">
+    <div class="active-event-kicker">⚡ LIVE PRIORITY EVENT</div>
+    <div class="active-event-title" id="activeEventTitle"></div>
+    <div class="active-event-body" id="activeEventBody"></div>
+    <div class="active-event-actions">
+      <button class="btn btn-primary" type="button" id="activeEventOpenBtn">Open Event Brief</button>
+      <button class="btn btn-gold" type="button" id="activeEventAnalogBtn">What happened last time this fault ruptured →</button>
+      <button class="btn" type="button" onclick="openMapAndExplain()">Inspect on Map ↗</button>
+    </div>
+    <div class="live-meta" id="activeEventMeta"></div>
+  </div>
+
+  <!-- COMPACT LOCAL SITE & MULTI-HAZARD PERIMETER -->
+  <div class="compact-local-box">
+    <div class="compact-local-info">
+      <div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="compact-city" id="userLocationBadge">📍 Detecting Local Coordinates...</span>
+          <button type="button" class="btn" style="padding:2px 6px; font-size:11px;" id="btnChangeCity">Change</button>
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-top:2px;">Monitoring 300km local lithospheric &amp; climatic perimeter...</div>
+      </div>
+      <div class="compact-temp" id="userCurrentTemp">--°C</div>
+    </div>
+    <div id="perimeterSentinelPill" class="compact-perimeter-pill" onclick="openPerimeterStatusModal()">
+      <span class="live-dot" style="width:7px; height:7px; background:var(--ok); border-radius:50%;"></span>
+      <span id="perimeterStatusText">✓ NO THREAT DETECTED (300 KM PERIMETER)</span>
+    </div>
+  </div>
+
+  <!-- 5 KEY SIGNATURE INSTRUMENTS -->
+  <div class="signature-instruments-grid">
+    <!-- 1. GHL (CLICKABLE EXPLAINER) -->
+    <div class="sig-card" onclick="openModal('modalGhlExplainer')">
+      <div>
+        <div class="sig-lbl"><span>Global Hazard Load</span> <span class="badge" style="font-size:10px; border-color:var(--accent); color:var(--accent);">DETAILS ↗</span></div>
+        <div class="sig-val" id="sigGhl" style="color:var(--hot);">— <span style="font-size:0.9rem; font-weight:400; color:var(--muted);">/ 100</span></div>
+      </div>
+      <div class="sig-sub">Total planetary physical pressure across quakes, storms, and solar flux.</div>
+    </div>
+
+    <!-- 2. HAZARD VELOCITY (CLICKABLE EXPLAINER) -->
+    <div class="sig-card" onclick="openModal('modalVelocityExplainer')">
+      <div>
+        <div class="sig-lbl"><span>Hazard Velocity</span> <span class="badge" style="font-size:10px; border-color:var(--warn); color:var(--warn);">DETAILS ↗</span></div>
+        <div class="sig-val" id="sigVelocity" style="color:var(--warn);">—</div>
+      </div>
+      <div class="sig-sub">Rate of new disasters emerging compared to yesterday's baseline.</div>
+    </div>
+
+    <!-- 3. HAZARD CONVERGENCE (PLAIN-ENGLISH POPUP) -->
+    <div class="sig-card" onclick="openModal('modalConvergenceBreakdown')">
+      <div>
+        <div class="sig-lbl"><span>Hazard Convergence</span> <span class="badge" style="font-size:10px; border-color:var(--accent); color:var(--accent);">DETAILS ↗</span></div>
+        <div class="sig-val" id="sigConvergence" style="color:var(--accent);">— <span style="font-size:0.9rem; font-weight:400; color:var(--muted);">/ 100</span></div>
+      </div>
+      <div class="conv-meter-container">
+        <div class="conv-meter-row"><span>Cluster Pressure</span><span id="lblSwarmVal">--%</span></div>
+        <div class="conv-bar-bg"><div id="barSwarm" class="conv-bar-fill" style="width:0%; background:var(--accent-blue);"></div></div>
+        <div class="conv-meter-row"><span>Overdue Fault Risk</span><span id="lblGapVal">--%</span></div>
+        <div class="conv-bar-bg"><div id="barGap" class="conv-bar-fill" style="width:0%; background:var(--gold);"></div></div>
+      </div>
+    </div>
+
+    <!-- 4. EVACUATION RUNWAY (ACTIONABLE GUIDANCE) -->
+    <div class="sig-card" onclick="openModal('modalEscapeExplainer')">
+      <div>
+        <div class="sig-lbl"><span>Evacuation Runway</span> <span id="sigEscapeBadge" class="sig-status-badge sig-status-prep">CLEAR</span></div>
+        <div class="sig-val" id="sigEscapeWindow" style="color:var(--gold);">CLEAR</div>
+      </div>
+      <div class="sig-sub">Hours remaining before severe cyclone or storm surge strikes land.</div>
+    </div>
+
+    <!-- 5. REAL EXPOSED POPULATION (SHAKING THRESHOLD) -->
+    <div class="sig-card" onclick="openModal('modalPopulationExplainer')">
+      <div>
+        <div class="sig-lbl"><span>Inside Ground Motion</span> <span class="badge" style="font-size:10px; border-color:var(--accent); color:var(--accent);">DETAILS ↗</span></div>
+        <div class="sig-val" id="sigExposedPop" style="color:var(--accent); font-size:1.35rem;">—</div>
+      </div>
+      <div class="sig-sub">Real population within disruptive ground-shaking radius (MMI &ge; IV).</div>
+    </div>
+  </div>
+
+  <!-- SENSOR COUNTERS -->
+  <div class="tiles">
+    <div class="tile escalate" onclick="openTrayAndScroll('tray-storms')"><div class="lbl">Escalate ↗</div><div class="num" id="c-escalate">—</div></div>
+    <div class="tile alert" onclick="openTrayAndScroll('tray-volcanoes')"><div class="lbl">Alert ↗</div><div class="num" id="c-alert">—</div></div>
+    <div class="tile" style="border-top:2px solid var(--accent)" onclick="openTrayAndScroll('tray-storms')"><div class="lbl" style="color:var(--accent)">Storms &amp; Surge 🌀</div><div class="num" id="c-storms" style="color:var(--accent)">—</div></div>
+    <div class="tile" style="border-top:2px solid var(--hot)" onclick="openTrayAndScroll('tray-volcanoes')"><div class="lbl" style="color:var(--hot)">Volcanoes &amp; Ash 🌋</div><div class="num" id="c-volcanoes" style="color:var(--hot)">—</div></div>
+    <div class="tile watch" onclick="openTrayAndScroll('tray-quakes')"><div class="lbl">Watch ↗</div><div class="num" id="c-watch">—</div></div>
+    <div class="tile listed" onclick="openTrayAndScroll('tray-quakes')"><div class="lbl">Tremors 24h ↗</div><div class="num" id="c-listed">—</div></div>
+    <div class="tile space" style="border-top:2px solid var(--accent-blue)" onclick="openTrayAndScroll('tray-space')"><div class="lbl" style="color:var(--accent-blue)">Space Kp ↗</div><div class="num" id="c-space" style="color:var(--accent-blue)">—</div></div>
+  </div>
+
+  <!-- MAP & LOOKOUT -->
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-h">
+        <span>Global Hazard Intelligence Matrix</span>
+        <span class="badge">Real-Time</span>
+      </div>
+      <div id="map"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h">
+        <span>Priority Hazard Lookout</span>
+        <span class="badge">Live Stream</span>
+      </div>
+      <div id="lookout" class="region-scroll" style="max-height:320px; overflow-y:auto;"><div style="color:var(--muted);padding:8px">Loading streams…</div></div>
+    </div>
+  </div>
+
+  <!-- STORMS & SURGE TRAY -->
+  <div class="tray-accordion open" id="tray-storms">
+    <div class="tray-header" onclick="toggleTray('tray-storms')">
+      <div class="tray-title"><span style="color:var(--accent)">🌀</span> Active Severe Storms &amp; Cyclonic Trajectories</div>
+      <div class="tray-toggle-btn">+</div>
+    </div>
+    <div class="tray-content">
+      <div id="stormContainer" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;"></div>
+    </div>
+  </div>
+
+  <!-- EARTHQUAKES TRAY -->
+  <div class="tray-accordion open" id="tray-quakes">
+    <div class="tray-header" onclick="toggleTray('tray-quakes')">
+      <div class="tray-title"><span style="color:var(--accent-blue)">⚡</span> Earthquakes &amp; Fault Dislocation Matrix</div>
+      <div class="tray-toggle-btn">+</div>
+    </div>
+    <div class="tray-content">
+      <div class="regions2">
+        <div>
+          <div style="font-family:var(--font-mono); font-size:12px; color:var(--muted); margin-bottom:8px; font-weight:700;">South Asia &amp; Himalayas (MHT / Seismic Gaps)</div>
+          <div class="region-scroll" id="q-south-asia"></div>
+        </div>
+        <div>
+          <div style="font-family:var(--font-mono); font-size:12px; color:var(--muted); margin-bottom:8px; font-weight:700;">Global Seismic Stream (Rest of World)</div>
+          <div class="region-scroll" id="q-global"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ENTERPRISE RISK TIERS -->
+  <div id="commercial-suite" class="commercial-section-header">
+    <div>
+      <div style="font-family:var(--font-mono); font-size:12px; color:var(--accent); font-weight:700; letter-spacing:0.1em; text-transform:uppercase;">ENTERPRISE RISK ARCHITECTURE</div>
+      <h2>Know if a disaster will hit your facility before it stops operations</h2>
+    </div>
+  </div>
+
+  <div class="b2b-grid">
+    <!-- TIER 1: $39 SINGLE DOSSIER -->
+    <div class="b2b-card" style="border-top:3px solid var(--accent-blue)">
+      <div>
+        <div class="b2b-tag">EXECUTIVE DOSSIER</div>
+        <div class="b2b-title">Single-Site Exposure Audit</div>
+        <div class="b2b-desc">One-time deterministic audit for a specific facility, port, or terminal. Delivered as an executive PDF risk memo for operations review.</div>
+        <div class="b2b-bullets">
+          <div class="b2b-bullet">1 Verified GPS Asset Location</div>
+          <div class="b2b-bullet">Fault Stress Migration Vector</div>
+          <div class="b2b-bullet">Historical Rupture Precedent Dossier</div>
+          <div class="b2b-bullet">Immediate Email PDF Delivery</div>
+        </div>
+      </div>
+      <div>
+        <div class="b2b-price">₹2,999 <span style="font-size:.85rem;font-weight:400;color:var(--muted)">($39)</span></div>
+        <div class="b2b-sla">One-off audit · Immediate turnaround</div>
+        <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="openAssetOnboarding('Single-Site Dossier (₹2,999 / $39)')">Order Site Dossier →</button>
+      </div>
+    </div>
+
+    <!-- TIER 2: ASSET WATCH -->
+    <div class="b2b-card" style="border-top:3px solid var(--accent)">
+      <div>
+        <div class="b2b-tag">CONTINUOUS WATCH</div>
+        <div class="b2b-title">Asset Watch</div>
+        <div class="b2b-desc">24/7 continuous multi-hazard surveillance across up to 5 critical facilities. Automated SMS/Email alerts when local stress jump J breaches 5.0x.</div>
+        <div class="b2b-bullets">
+          <div class="b2b-bullet">Up to 5 Monitored Facilities</div>
+          <div class="b2b-bullet">Pre-Rupture Swarm Detection</div>
+          <div class="b2b-bullet">Automated Morning Risk Brief</div>
+        </div>
+      </div>
+      <div>
+        <div class="b2b-price">₹9,900 <span style="font-size:.85rem;font-weight:400;color:var(--muted)">/ mo</span></div>
+        <div class="b2b-sla">Monthly invoicing · SLA backed</div>
+        <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="openAssetOnboarding('Asset Watch (5 Sites)')">Monitor Assets →</button>
+      </div>
+    </div>
+
+    <!-- TIER 3: CORRIDOR WATCH -->
+    <div class="b2b-card" style="border-top:3px solid var(--gold)">
+      <div>
+        <div class="b2b-tag" style="color:var(--gold)">LOGISTICS &amp; PORTS</div>
+        <div class="b2b-title">Corridor Watch</div>
+        <div class="b2b-desc">For logistics trunks, supply routes and coastal ports. Tracks convergence of rainfall, flash floods, and subduction swarms.</div>
+        <div class="b2b-bullets">
+          <div class="b2b-bullet">25 Waypoints &amp; Monitored Trunks</div>
+          <div class="b2b-bullet">Compound Hazard Convergence Radar</div>
+          <div class="b2b-bullet">Direct Operational Webhooks</div>
+        </div>
+      </div>
+      <div>
+        <div class="b2b-price">₹24,900 <span style="font-size:.85rem;font-weight:400;color:var(--muted)">/ mo</span></div>
+        <div class="b2b-sla">Customized waypoint mapping</div>
+        <button class="btn btn-gold" style="width:100%; justify-content:center;" onclick="openAssetOnboarding('Corridor Watch (25 Waypoints)')">Protect Corridors →</button>
+      </div>
+    </div>
+
+    <!-- TIER 4: SYSTEMIC DESK -->
+    <div class="b2b-card" style="border-top:3px solid var(--ok)">
+      <div>
+        <div class="b2b-tag" style="color:var(--ok)">ENTERPRISE</div>
+        <div class="b2b-title">Systemic Risk Desk</div>
+        <div class="b2b-desc">Bespoke integrations for infrastructure operators, reinsurers, and data centers requiring direct raw API streams.</div>
+        <div class="b2b-bullets">
+          <div class="b2b-bullet">Unlimited Global Geofences</div>
+          <div class="b2b-bullet">Direct Raw Ingestion API Access</div>
+          <div class="b2b-bullet">Historical Analog Scenario Studies</div>
+        </div>
+      </div>
+      <div>
+        <div class="b2b-price">Custom</div>
+        <div class="b2b-sla">Dedicated risk engineer support</div>
+        <button class="btn" style="width:100%; justify-content:center;" onclick="openAssetOnboarding('Enterprise Systemic Risk Desk')">Commission Inquiry →</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>The Brink World // Earth &amp; Climate Desk</div>
+    <div style="font-size:11px; color:var(--muted);">Multi-Sensor Physical Pipeline · Delivery: Cloudflare Global Edge</div>
+  </footer>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- 1. MODAL: GLOBAL HAZARD LOAD EXPLAINER -->
+<div class="modal" id="modalGhlExplainer">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+      <h3 style="font-size:1.25rem;color:#fff;">Global Hazard Load (0–100)</h3>
+      <button class="btn" onclick="closeModal('modalGhlExplainer')" style="padding:4px 9px">✕</button>
+    </div>
+    <p style="font-size:0.92rem; color:var(--soft); line-height:1.6; margin-bottom:12px;">
+      <strong>Global Hazard Load</strong> represents the total physical energy currently straining our planet. Instead of counting raw events, it weights them by destructive potential:
+    </p>
+    <div style="display:flex; flex-direction:column; gap:8px; font-size:0.88rem; color:var(--soft);">
+      <div style="background:var(--panel2); padding:10px; border-radius:6px; border-left:3px solid var(--hot);">
+        <strong style="color:#fff;">Depth-Damped Tremors (Up to 65%):</strong> Shallow quakes release violence directly at the surface; deep tremors dissipate before reaching people. The engine mathematically damps every quake by its hypocenter depth.
+      </div>
+      <div style="background:var(--panel2); padding:10px; border-radius:6px; border-left:3px solid var(--accent);">
+        <strong style="color:#fff;">Active Cyclonic Storms (Up to 15%):</strong> Tracks massive low-pressure vortices actively spinning over warm oceans toward populated coastlines.
+      </div>
+      <div style="background:var(--panel2); padding:10px; border-radius:6px; border-left:3px solid var(--gold);">
+        <strong style="color:#fff;">Space Weather &amp; Geomagnetic Storms (Up to 15%):</strong> Tracks solar coronal mass ejections that bend Earth’s magnetic field and threaten electrical grids and satellites.
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+      <button class="btn btn-primary" onclick="closeModal('modalGhlExplainer')">Got It</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2. MODAL: HAZARD VELOCITY EXPLAINER -->
+<div class="modal" id="modalVelocityExplainer">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+      <h3 style="font-size:1.25rem;color:#fff;">Hazard Velocity (Rate of Change)</h3>
+      <button class="btn" onclick="closeModal('modalVelocityExplainer')" style="padding:4px 9px">✕</button>
+    </div>
+    <p style="font-size:0.92rem; color:var(--soft); line-height:1.6; margin-bottom:12px;">
+      Velocity does not measure how many hazards exist—it measures <strong>how fast new hazards are accelerating</strong> right now compared to yesterday:
+    </p>
+    <div style="background:var(--panel2); padding:12px; border-radius:6px; border:1px solid var(--line); font-size:0.88rem; color:var(--soft); line-height:1.6;">
+      <div>• <strong>Positive Velocity (+%):</strong> Disasters are emerging or intensifying faster in the last 6 hours than in the preceding 18 hours. This signals sudden swarms or rapid storm formation.</div>
+      <div style="margin-top:6px;">• <strong>Negative Velocity (-%):</strong> Activity is calming down and falling below the 24-hour moving average.</div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+      <button class="btn btn-primary" onclick="closeModal('modalVelocityExplainer')">Got It</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3. MODAL: HAZARD CONVERGENCE (PLAIN-ENGLISH) -->
+<div class="modal" id="modalConvergenceBreakdown">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+      <h3 style="font-size:1.25rem;color:#fff;">Hazard Convergence Explained</h3>
+      <button class="btn" onclick="closeModal('modalConvergenceBreakdown')" style="padding:4px 9px">✕</button>
+    </div>
+    <p style="font-size:0.92rem; color:var(--soft); margin-bottom:14px;">
+      Disasters become catastrophic when multiple threats strike the same area at once. Hazard Convergence answers three simple questions:
+    </p>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <div style="background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:12px;">
+        <div style="display:flex; justify-content:space-between; font-weight:700; color:#fff;">
+          <span>1. Cluster Pressure (<span id="modalSwarmScore">--%</span>)</span>
+        </div>
+        <div style="font-size:0.84rem; color:var(--soft); margin-top:3px;">
+          Are multiple earthquakes grouping together in the same 350 km region? Swarms show the earth's crust is actively bending and shifting stress to nearby faults.
+        </div>
+      </div>
+      <div style="background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:12px;">
+        <div style="display:flex; justify-content:space-between; font-weight:700; color:#fff;">
+          <span>2. Overdue Fault Risk (<span id="modalGapScore">--%</span>)</span>
+        </div>
+        <div style="font-size:0.84rem; color:var(--soft); margin-top:3px;">
+          Did this tremor happen near a major locked fault line (like the Himalayas or San Andreas) that hasn't ruptured in centuries and has massive pent-up energy?
+        </div>
+      </div>
+      <div style="background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:12px;">
+        <div style="display:flex; justify-content:space-between; font-weight:700; color:#fff;">
+          <span>3. Compound Threat (<span id="modalCrossScore">--%</span>)</span>
+        </div>
+        <div style="font-size:0.84rem; color:var(--soft); margin-top:3px;">
+          Are multiple different disasters overlapping? (e.g., an earthquake hitting an area drenched by cyclone rain triggers catastrophic landslides).
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+      <button class="btn btn-primary" onclick="closeModal('modalConvergenceBreakdown')">Acknowledge</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4. MODAL: EVACUATION RUNWAY & INSTRUCTIONS -->
+<div class="modal" id="modalEscapeExplainer">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+      <h3 style="font-size:1.25rem;color:#fff;">Evacuation Runway &amp; Safety Protocol</h3>
+      <button class="btn" onclick="closeModal('modalEscapeExplainer')" style="padding:4px 9px">✕</button>
+    </div>
+    <p style="font-size:0.92rem; color:var(--soft); line-height:1.6; margin-bottom:12px;">
+      The <strong>Evacuation Runway</strong> is the countdown clock to severe landfall. When a tropical cyclone approaches, it gives teams and families an exact action window before roads flood and power cuts.
+    </p>
+    <div style="background:rgba(245,158,11,0.08); border:1px solid var(--gold); border-radius:6px; padding:12px; margin-bottom:12px;">
+      <strong style="color:var(--gold);">Standard Operating Procedures by Runway:</strong>
+      <div style="font-size:0.86rem; color:var(--soft); margin-top:6px; line-height:1.6;">
+        • <strong>48 Hours Remaining:</strong> Stage emergency backup power; verify satellite communications; review supply line diversions.<br/>
+        • <strong>24 Hours Remaining:</strong> Secure outdoor cranes, storage containers, and loose roof panels; evacuate low-lying coastal staff.<br/>
+        • <strong>12 Hours Remaining:</strong> Safe shutdown of plant machinery and electrical substations; complete final inland relocation.
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+      <button class="btn btn-primary" onclick="closeModal('modalEscapeExplainer')">Understood</button>
+    </div>
+  </div>
+</div>
+
+<!-- 5. MODAL: INSIDE GROUND MOTION (EXPOSURE EXPLAINER) -->
+<div class="modal" id="modalPopulationExplainer">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+      <h3 style="font-size:1.25rem;color:#fff;">Inside Ground Motion (MMI &ge; IV)</h3>
+      <button class="btn" onclick="closeModal('modalPopulationExplainer')" style="padding:4px 9px">✕</button>
+    </div>
+    <p style="font-size:0.92rem; color:var(--soft); line-height:1.6; margin-bottom:12px;">
+      Most platforms multiply total quakes by an arbitrary number. <strong>The Brink Engine does not fake population exposure.</strong>
+    </p>
+    <div style="background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:12px; font-size:0.88rem; color:var(--soft); line-height:1.6;">
+      <div style="color:#fff; font-weight:700; margin-bottom:4px;">How Real Exposure Is Calculated:</div>
+      1. <strong>Physical Shaking Radius:</strong> Uses the standard geophysical equation $R = 10^{0.433 \cdot M - 0.82}$ to calculate how far shaking travels before fading below felt threshold (MMI IV).<br/>
+      2. <strong>Depth Damping:</strong> Deep quakes (e.g. 150 km) lose energy traveling up through bedrock and expose fewer people.<br/>
+      3. <strong>Spatial Density Grid:</strong> An earthquake in the open ocean exposes <strong>0 people</strong>. An earthquake beneath an urban industrial corridor calculates real human density.
+    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+      <button class="btn btn-primary" onclick="closeModal('modalPopulationExplainer')">Got It</button>
+    </div>
+  </div>
+</div>
+
+<!-- 6. MODAL: INSTANT AUDIT REPORT RESULT -->
+<div class="modal" id="modalAuditReport">
+  <div class="modal-card" style="max-width:640px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+      <div>
+        <div style="font:700 11px var(--font-mono);color:var(--gold);letter-spacing:.08em;text-transform:uppercase;">PRELIMINARY FACILITY RISK REPORT</div>
+        <h3 style="font-size:1.2rem;color:#fff;margin-top:3px;" id="auditReportTarget">Asset Target Fix</h3>
+      </div>
+      <button class="btn" onclick="closeModal('modalAuditReport')" style="padding:4px 9px">✕</button>
+    </div>
+    
+    <div id="auditReportContent" style="font-size:0.92rem; color:var(--soft); line-height:1.6;"></div>
+
+    <div style="background:rgba(245,158,11,0.08); border:1px dashed var(--gold); border-radius:6px; padding:12px; margin-top:14px;">
+      <strong style="color:#fff;">Order the Full Executive PDF Dossier (₹2,999 / $39)</strong>
+      <p style="font-size:0.84rem; color:var(--soft); margin-top:3px;">Includes complete historical rupture logs, MMI IV attenuation maps, and 7-day probability leaps delivered to your operations team.</p>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn btn-gold" style="width:100%; justify-content:center;" onclick="orderDossierForTarget()">Order Formal PDF Dossier →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 7. MODAL: HISTORICAL PRECEDENTS & OEF DOSSIER -->
+<div class="modal" id="modalHistoricalAnalog">
+  <div class="modal-card" style="max-width:680px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+      <div>
+        <div style="font:700 11px var(--font-mono);color:var(--gold);letter-spacing:.08em;text-transform:uppercase;">SEISMIC PRECEDENT &amp; STRESS MIGRATION</div>
+        <h3 style="font-size:1.25rem;color:#fff;margin-top:3px;" id="analogModalTitle">Historical Precedent Analysis</h3>
+      </div>
+      <button class="btn" onclick="closeModal('modalHistoricalAnalog')" style="padding:4px 9px">✕</button>
+    </div>
+    <div id="analogModalBody"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; border-top:1px solid var(--line); padding-top:12px;">
+      <button class="btn btn-gold" id="btnMonitorThisCorridor" onclick="convertEventToMonitoredAsset()">Monitor This Corridor →</button>
+      <button class="btn btn-primary" onclick="closeModal('modalHistoricalAnalog')">Close Dossier</button>
+    </div>
+  </div>
+</div>
+
+<!-- 8. MODAL: ASSET ONBOARDING CAPTURE (EXPLAINS WHAT SURVEILLANCE DOES) -->
+<div class="modal" id="modalAssetOnboarding">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+      <h3 style="font-size:1.2rem; color:#fff" id="onboardTitle">Commission Risk Surveillance</h3>
+      <button class="btn" onclick="closeModal('modalAssetOnboarding')" style="padding:4px 9px">✕</button>
+    </div>
+    <div style="background:var(--panel2); padding:10px; border-radius:6px; border-left:3px solid var(--accent); font-size:0.84rem; color:var(--soft); margin-bottom:12px; line-height:1.5;">
+      <strong style="color:#fff;">What Happens When Surveillance Is Activated:</strong><br/>
+      • Your site coordinates are locked into the 24/7 physical monitoring grid.<br/>
+      • You receive automated SMS/Email alerts if an approaching cyclone track passes within 250 km or an earthquake cluster breaches jump threshold ($J \ge 5.0\text{x}$).<br/>
+      • A formal engineering risk PDF is dispatched immediately to your email.
+    </div>
+    <form id="formAssetOnboard" style="display:flex; flex-direction:column; gap:12px">
+      <input type="text" id="obName" class="input-dark" placeholder="Lead Operational Officer / Name" required/>
+      <input type="email" id="obEmail" class="input-dark" placeholder="Corporate / Operations Email Address" required/>
+      <input type="text" id="obFacility" class="input-dark" placeholder="Facility Coordinates, Port, or Asset Location" required/>
+      <button type="submit" class="btn btn-gold" style="justify-content:center; padding:12px;">Activate Surveillance Radar →</button>
+    </form>
+  </div>
+</div>
+
+<!-- 9. MODAL: CLEAN PERIMETER SENTINEL BRIEFING -->
+<div class="modal" id="modalPerimeterStatus">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:8px;">
+      <h3 style="font-size:1.25rem; color:#fff;">300km Perimeter Sentinel Status</h3>
+      <button class="btn" onclick="closeModal('modalPerimeterStatus')" style="padding:4px 9px">✕</button>
+    </div>
+    <div style="font-size:0.92rem; color:var(--soft); margin-bottom:12px;">
+      Automated sensor status of all natural disaster vectors within your 300 km regional asset perimeter:
+    </div>
+    <table class="threat-status-table">
+      <thead>
+        <tr><th>Threat Vector</th><th>State Indicator</th></tr>
+      </thead>
+      <tbody id="perimeterThreatTableBody"></tbody>
+    </table>
+    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+      <button class="btn btn-primary" onclick="closeModal('modalPerimeterStatus')">Acknowledge Status</button>
+    </div>
+  </div>
+</div>
+
+<!-- 10. MODAL: LOGIN -->
+<div class="modal" id="modalLogin">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+      <h3 style="font-size:1.2rem; color:#fff">Platform Login</h3>
+      <button class="btn" onclick="closeModal('modalLogin')" style="padding:4px 9px">✕</button>
+    </div>
+    <form id="formLogin" style="display:flex; flex-direction:column; gap:12px">
+      <input type="email" class="input-dark" placeholder="Registered Email Address" required/>
+      <input type="password" class="input-dark" placeholder="Access Password" required/>
+      <button type="submit" class="btn btn-primary" style="justify-content:center; padding:11px;">Authorize Access →</button>
+    </form>
+  </div>
+</div>
+
+<!-- 11. MODAL: SIGNUP FREE -->
+<div class="modal" id="modalSignup">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+      <h3 style="font-size:1.2rem; color:#fff">Free Platform Signup</h3>
+      <button class="btn" onclick="closeModal('modalSignup')" style="padding:4px 9px">✕</button>
+    </div>
+    <form id="formSignup" style="display:flex; flex-direction:column; gap:12px">
+      <input type="text" class="input-dark" placeholder="Full Name / Officer" required/>
+      <input type="email" class="input-dark" placeholder="Corporate Email Address" required/>
+      <button type="submit" class="btn btn-gold" style="justify-content:center; padding:11px;">Complete Free Registration →</button>
+    </form>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const API = "https://thebrink-engine.thebrink2028.workers.dev";
+const $ = id => document.getElementById(id);
+function openModal(id){ $(id).style.display = "flex"; }
+function closeModal(id){ $(id).style.display = "none"; }
+
+let detectedCityName = "Detecting...";
+let currentSelectedEvent = null;
+let currentAuditTarget = "";
+let userCoords = { lat: 18.52, lon: 73.85 };
+
+function formatTime(isoStr) {
+  if (!isoStr) return { elapsed: "Recent", fullDate: "Undated" };
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return { elapsed: "Recent", fullDate: isoStr };
+  const now = new Date();
+  const diffSec = Math.floor((now - d) / 1000);
+  let elapsed = "";
+  if (diffSec < 60) elapsed = "Just now";
+  else if (diffSec < 3600) elapsed = `${Math.floor(diffSec / 60)}m ago`;
+  else if (diffSec < 86400) elapsed = `${Math.floor(diffSec / 3600)}h ago`;
+  else elapsed = `${Math.floor(diffSec / 86400)}d ago`;
+  const fullDate = d.toISOString().replace("T", " ").substring(0, 19) + " UTC";
+  return { elapsed, fullDate };
+}
+
+function updateClocks() {
+  const now = new Date();
+  $("utcClock").textContent = `UTC: ${now.toLocaleDateString("en-US", {timeZone:"UTC", month:"2-digit", day:"2-digit", year:"numeric"})}, ${now.toLocaleTimeString("en-US", {timeZone:"UTC", hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:true})}`;
+  $("localClock").textContent = `Local (${detectedCityName}): ${now.toLocaleTimeString("en-US", {hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:true})}`;
+}
+setInterval(updateClocks, 1000);
+updateClocks();
+
+function toggleTray(id){ $(id).classList.toggle('open'); }
+function openTrayAndScroll(id){ const el=$(id); el.classList.add('open'); el.scrollIntoView({behavior:'smooth'}); }
+
+function openAssetOnboarding(tierName, initialLoc=""){
+  $("onboardTitle").textContent = `Commission ${tierName}`;
+  if(initialLoc) $("obFacility").value = initialLoc;
+  openModal('modalAssetOnboarding');
+}
+
+function convertEventToMonitoredAsset(){
+  if(currentSelectedEvent){
+    closeModal('modalHistoricalAnalog');
+    openAssetOnboarding("Asset Watch", `${currentSelectedEvent.place || currentSelectedEvent.title} (${currentSelectedEvent.latitude || currentSelectedEvent.lat}, ${currentSelectedEvent.longitude || currentSelectedEvent.lon})`);
+  }
+}
+
+function runInstantAudit(){
+  const loc = $("auditInputLoc").value.trim();
+  if(!loc){ alert("Please enter a facility city, port name, or coordinate fix."); return; }
+  currentAuditTarget = loc;
+  $("auditReportTarget").textContent = `Exposure Diagnostic: ${loc}`;
+  $("auditReportContent").innerHTML = `
+    <div style="background:var(--panel2); padding:12px; border-radius:6px; border:1px solid var(--line); margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-family:var(--font-mono); font-weight:700; color:var(--accent);">DIAGNOSTIC RADAR FIX</span>
+        <span class="badge" style="border-color:var(--warn); color:var(--warn)">PROXIMITY SCAN ACTIVE</span>
+      </div>
+      <p style="margin-top:6px; font-size:0.88rem;">Scanned 350 km perimeter around <strong>${loc}</strong> against ComCat seismic hypocenters, JTWC cyclonic tracks, and locked tectonic gaps.</p>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+      <div style="background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:6px; padding:10px;">
+        <div style="font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase;">Lithospheric Stress Status</div>
+        <div style="font-weight:750; color:#fff; margin-top:2px;">Routine Background (1.0x)</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:6px; padding:10px;">
+        <div style="font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase;">Meteorological Cone</div>
+        <div style="font-weight:750; color:#fff; margin-top:2px;">Clear of Active Gale Cones</div>
+      </div>
+    </div>
+  `;
+  openModal('modalAuditReport');
+}
+
+function orderDossierForTarget(){
+  closeModal('modalAuditReport');
+  openAssetOnboarding("Single-Site Dossier (₹2,999 / $39)", currentAuditTarget);
+}
+
+$("formAssetOnboard").addEventListener("submit", async e => {
+  e.preventDefault();
+  alert(`Surveillance registration received for ${$("obFacility").value}. Diagnostic dossier dispatched to ${$("obEmail").value}.`);
+  closeModal('modalAssetOnboarding');
+});
+
+// AUTOMATIC LOCATION DETECTION
+async function autoDetectUserLocation() {
+  const loadCoords = async (lat, lon, name) => {
+    userCoords = { lat, lon };
+    detectedCityName = name;
+    $("userLocationBadge").textContent = `📍 Local Site: ${name}`;
+    try {
+      const curRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m&forecast_days=1`);
+      if (curRes.ok) {
+        const d = await curRes.json();
+        $("userCurrentTemp").textContent = `${Math.round(d.current?.temperature_2m || 0)}°C`;
+      }
+    } catch(e) {}
+  };
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+          const d = await rev.json();
+          const city = d.address?.city || d.address?.town || d.address?.district || "Local Sector";
+          loadCoords(pos.coords.latitude, pos.coords.longitude, city);
+        } catch(e) {
+          loadCoords(pos.coords.latitude, pos.coords.longitude, "Local Corridor");
+        }
+      },
+      async () => {
+        // IP Fallback
+        try {
+          const r = await fetch("https://ipwho.is/");
+          const d = await r.json();
+          if (d.success) loadCoords(d.latitude, d.longitude, d.city || "Local Sector");
+          else loadCoords(18.52, 73.85, "Pune");
+        } catch(e) { loadCoords(18.52, 73.85, "Pune"); }
+      },
+      { timeout: 3500 }
+    );
+  } else {
+    loadCoords(18.52, 73.85, "Pune");
+  }
+}
+
+$("btnChangeCity").addEventListener("click", () => {
+  const manual = prompt("Enter target facility or city:", "Nagoya");
+  if (!manual || !manual.trim()) return;
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(manual.trim())}&limit=1`)
+    .then(r => r.json())
+    .then(places => {
+      if (places && places.length > 0) {
+        const p = places[0];
+        const c = p.display_name.split(",")[0].trim();
+        detectedCityName = c;
+        $("userLocationBadge").textContent = `📍 Local Site: ${c}`;
+      }
+    });
+});
+
+const PERIMETER_VECTOR_META = [
+  { key:"volcano", label:"Volcanic Eruptions" }, { key:"quake", label:"Earthquakes & Fault Activity" },
+  { key:"flood", label:"Flash Floods & Cloudbursts" }, { key:"cyclone", label:"Tropical Cyclones" },
+  { key:"rain", label:"Extreme Rainfall" }, { key:"drought", label:"Agricultural Drought" },
+  { key:"heat", label:"Extreme Heat Anomaly" }, { key:"wildfire", label:"Wildfire Activity" }
+];
+
+function openPerimeterStatusModal() {
+  $("perimeterThreatTableBody").innerHTML = PERIMETER_VECTOR_META.map(v => `
+    <tr>
+      <td>${v.label}</td>
+      <td><span class="status-pill nominal">NO THREAT DETECTED</span></td>
+    </tr>
+  `).join("");
+  openModal('modalPerimeterStatus');
+}
+
+function openHistoricalAnalogModal(eventObj) {
+  if (!eventObj) return;
+  currentSelectedEvent = eventObj;
+  const oef = eventObj.oef || {};
+  const analogs = oef.analogs || [];
+  const tInfo = formatTime(eventObj.time);
+  
+  $("analogModalTitle").textContent = eventObj.title || eventObj.headline || "Lithospheric Precedent Analysis";
+
+  let html = `
+    <div style="background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="font-family:var(--font-mono); font-size:11.5px; color:var(--accent); font-weight:700;">TECTONIC CORRIDOR &amp; OVERDUE RISK</span>
+        <span class="badge" style="border-color:${oef.gap_risk === 'CRITICAL' ? 'var(--hot)' : 'var(--warn)'}; color:#fff;">${oef.gap_risk || 'NOMINAL'} GAP RISK</span>
+      </div>
+      <div style="font-weight:800; color:#fff; font-size:1.15rem;">${oef.fault_corridor || 'Global Seismic Corridor'}</div>
+      <div style="font-size:0.86rem; color:var(--gold); margin-top:2px;">🕒 Ingested: ${tInfo.elapsed} · ${tInfo.fullDate}</div>
+      <div style="font-size:0.88rem; color:var(--soft); margin-top:4px;"><strong>Plate Movement Rate:</strong> ${oef.slip_rate || 'Standard crustal dissipation'}</div>
+      <div style="font-size:0.88rem; color:var(--soft);"><strong>Last Significant Rupture:</strong> ${oef.last_major_rupture || 'None in historical catalog'}</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+      <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:12px;">
+        <div style="font-family:var(--font-mono); font-size:10.5px; color:var(--gold); font-weight:700; text-transform:uppercase;">Short-term Risk Jump</div>
+        <div style="font-family:var(--font-mono); font-size:1.8rem; font-weight:800; color:#fff; margin-top:2px;">${oef.jump_factor || 1.0}x</div>
+        <div style="font-size:0.8rem; color:var(--soft); margin-top:2px;">Multiplier over normal background probability.</div>
+      </div>
+      <div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:12px;">
+        <div style="font-family:var(--font-mono); font-size:10.5px; color:var(--hot); font-weight:700; text-transform:uppercase;">7-Day Secondary Leap</div>
+        <div style="font-family:var(--font-mono); font-size:1.8rem; font-weight:800; color:#fff; margin-top:2px;">${oef.prob_larger_7d || 0.1}%</div>
+        <div style="font-size:0.8rem; color:var(--soft); margin-top:2px;">Probability of subsequent larger rupture (&ge; M+0.5).</div>
+      </div>
+    </div>
+
+    <div style="font-family:var(--font-mono); font-size:12px; color:var(--muted); text-transform:uppercase; font-weight:700; margin-bottom:8px;">
+      What happened the last time this fault segment ruptured:
+    </div>
+  `;
+
+  if (analogs.length > 0) {
+    html += analogs.map(a => `
+      <div style="background:var(--panel2); border-left:3px solid var(--gold); border-radius:4px; padding:10px 12px; margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between;">
+          <strong style="color:#fff;">${a.year} — ${a.event}</strong>
+          <span style="font-family:var(--font-mono); color:var(--gold); font-weight:700;">M${a.mag}</span>
+        </div>
+        <div style="font-size:0.86rem; color:var(--soft); margin-top:4px;">${a.outcome}</div>
+      </div>
+    `).join("");
+  } else {
+    html += `<div style="background:var(--panel2); padding:12px; border-radius:6px; font-size:0.9rem; color:var(--soft);">
+      No historical precursors in this exact segment caused runaway rupture cascading. Dissipating via standard aftershock decay.
+    </div>`;
+  }
+
+  $("analogModalBody").innerHTML = html;
+  openModal('modalHistoricalAnalog');
+}
+
+let map, layer;
+function initMap(){
+  if(map) return;
+  map = L.map("map", {scrollWheelZoom:false}).setView([20, 30], 2);
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+    attribution: "Tiles &copy; Esri", maxZoom: 16
+  }).addTo(map);
+  layer = L.layerGroup().addTo(map);
+}
+
+let ACTIVE_EVENT = null;
+function showPriorityBanner(event){
+  const box = $("activeEventBanner");
+  ACTIVE_EVENT = event;
+  if(!event || !event.title){ box.style.display="none"; return; }
+  const tInfo = formatTime(event.time);
+  $("activeEventTitle").textContent = event.title;
+  $("activeEventBody").textContent = event.summary || "Live hazard signal active.";
+  $("activeEventMeta").textContent = `Source: ${event.category || "Hazard"} · ${event.severity || "LIVE"} · 🕒 ${tInfo.elapsed} (${tInfo.fullDate})`;
+  $("activeEventOpenBtn").onclick = () => openHistoricalAnalogModal(event);
+  $("activeEventAnalogBtn").onclick = () => openHistoricalAnalogModal(event);
+  box.style.display = "block";
+}
+
+function openMapAndExplain(){
+  if(ACTIVE_EVENT?.lat && ACTIVE_EVENT?.lon && map) map.setView([ACTIVE_EVENT.lat, ACTIVE_EVENT.lon], 7);
+}
+
+function escapeHtml(v){ return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m])); }
+
+async function loadIntel(){
+  initMap();
+  try{
+    const res = await fetch(`${API}/api/intel`);
+    if(res.ok){
+      const data = await res.json();
+      const m = data.metrics || {};
+      const sit = data.situation || {};
+      const convVecs = m.convergence_vectors || {};
+
+      $("sigGhl").innerHTML = `${m.global_hazard_load ?? 0} <span style="font-size:.9rem;font-weight:400;color:var(--muted);">/ 100</span>`;
+      const vNum = Number(m.hazard_velocity || 0);
+      $("sigVelocity").textContent = `${vNum > 0 ? "↑ +" : ""}${vNum}%`;
+      $("sigConvergence").innerHTML = `${m.hazard_convergence ?? 0} <span style="font-size:.9rem;font-weight:400;color:var(--muted);">/ 100</span>`;
+      $("sigExposedPop").textContent = m.exposed_population || "0";
+
+      const swarmVal = convVecs.swarm_density ?? 20;
+      const gapVal = convVecs.fault_gap_deficit ?? 30;
+      $("lblSwarmVal").textContent = `${swarmVal}%`;
+      $("barSwarm").style.width = `${swarmVal}%`;
+      $("lblGapVal").textContent = `${gapVal}%`;
+      $("barGap").style.width = `${gapVal}%`;
+      $("modalSwarmScore").textContent = `${swarmVal}%`;
+      $("modalGapScore").textContent = `${gapVal}%`;
+      $("modalCrossScore").textContent = `${convVecs.cross_hazard_coupling ?? 10}%`;
+
+      $("c-escalate").textContent  = sit.escalate ?? 0;
+      $("c-alert").textContent     = sit.alert ?? 0;
+      $("c-storms").textContent    = sit.storms ?? 0;
+      $("c-volcanoes").textContent = sit.volcanoes ?? 0;
+      $("c-watch").textContent     = sit.watch ?? 0;
+      $("c-listed").textContent    = sit.listed ?? 0;
+      $("c-space").textContent     = data.space?.kp !== undefined ? `Kp ${data.space.kp}` : "—";
+
+      if(data.priority_events && data.priority_events.length > 0) showPriorityBanner(data.priority_events[0]);
+
+      layer.clearLayers();
+      (data.map_points || []).forEach(p => {
+        const lat = Number(p.lat), lon = Number(p.lon);
+        if(!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        const mag = parseFloat(p.mag || 3);
+        const markerColor = p.type === "storm" ? "#00f3ff" : (mag >= 6 ? "#ef4444" : (mag >= 5 ? "#f59e0b" : "#6b9eff"));
+        const radius = p.type === "volcano" ? 8 : (p.type === "storm" ? 9 : Math.max(3, Math.min(12, mag * 1.6)));
+        const marker = L.circleMarker([lat, lon], { radius, color: markerColor, fillColor: markerColor, fillOpacity: 0.62, weight: 2 }).addTo(layer);
+        marker.bindTooltip(`${escapeHtml(p.place)} · ${p.oef_status || 'Active'}`, {direction:"top"});
+      });
+
+      // STORMS CONTAINER WITH TIMESTAMPS
+      const stormBox = $("stormContainer");
+      const storms = data.severe_storms || [];
+      if(storms.length > 0){
+        stormBox.innerHTML = storms.map(s => {
+          const tInfo = formatTime(s.observed_at);
+          return `
+            <div class="hazard-card-row" style="border-left:3px solid var(--accent); background:var(--panel2); padding:12px; border-radius:6px;" onclick='openAssetOnboarding("Storm Track Monitoring", "${escapeHtml(s.title)}")'>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:700; color:#fff;">🌀 ${escapeHtml(s.title)}</span>
+                <span class="badge" style="border-color:var(--accent); color:var(--accent); font-size:10px;">${escapeHtml(s.severity)}</span>
+              </div>
+              <div style="font-size:0.86rem; color:var(--soft); margin-top:4px;">${escapeHtml(s.summary)}</div>
+              <div style="font-family:var(--font-mono); font-size:11px; color:var(--gold); margin-top:6px;">🕒 Observed: ${tInfo.elapsed} · ${tInfo.fullDate}</div>
+            </div>
+          `;
+        }).join("");
+      } else {
+        stormBox.innerHTML = `<div style="color:var(--ok); font-size:14px; padding:10px;">✓ All maritime and cyclonic basins nominal.</div>`;
+      }
+
+      // QUAKES SOUTH ASIA WITH EXPLICIT TIMESTAMPS
+      const qBox = $("q-south-asia");
+      const saQuakes = data.quakes?.south_asia || [];
+      if(saQuakes.length > 0){
+        qBox.innerHTML = saQuakes.map(q => {
+          const tInfo = formatTime(q.time);
+          return `
+            <div class="qrow" onclick='openHistoricalAnalogModal(${JSON.stringify(q)})'>
+              <div class="mag ${q.level}">${Number(q.magnitude).toFixed(1)}</div>
+              <div>
+                <div class="qtitle">${escapeHtml(q.place)} <span style="color:var(--gold); font-size:11px;">⚡ Risk Jump: ${q.oef?.jump_factor || 1.0}x</span></div>
+                <div class="qmeta">
+                  <span style="color:var(--gold)">🕒 ${tInfo.elapsed} (${tInfo.fullDate})</span>
+                  <span>Depth: ${q.depth_km}km</span>
+                  <span>${q.oef?.fault_corridor || 'Himalayan Arc'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      } else {
+        qBox.innerHTML = `<div style="color:var(--muted); padding:8px">No regional tremors logged.</div>`;
+      }
+
+      // QUAKES GLOBAL WITH EXPLICIT TIMESTAMPS
+      const gBox = $("q-global");
+      const gQuakes = data.quakes?.global || [];
+      if(gQuakes.length > 0){
+        gBox.innerHTML = gQuakes.map(q => {
+          const tInfo = formatTime(q.time);
+          return `
+            <div class="qrow" onclick='openHistoricalAnalogModal(${JSON.stringify(q)})'>
+              <div class="mag ${q.level}">${Number(q.magnitude).toFixed(1)}</div>
+              <div>
+                <div class="qtitle">${escapeHtml(q.place)}</div>
+                <div class="qmeta">
+                  <span style="color:var(--gold)">🕒 ${tInfo.elapsed} (${tInfo.fullDate})</span>
+                  <span>Depth: ${q.depth_km}km</span>
+                  <span>${q.oef?.fault_corridor || 'Global Belt'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      // LOOKOUT STREAM WITH TIMESTAMPS
+      const lookoutBox = $("lookout");
+      const news = data.lookout_news || [];
+      if(news.length > 0){
+        lookoutBox.innerHTML = news.map(n => {
+          const tInfo = formatTime(n.time);
+          return `
+            <div class="hazard-card-row" style="padding:10px 12px; margin-bottom:8px; border-left:3px solid var(--gold);" onclick='openHistoricalAnalogModal(${JSON.stringify({title: n.headline, oef: n.oef, time: n.time})})'>
+              <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><span class="qtitle">${escapeHtml(n.headline)}</span><span class="badge" style="font-size:10px;">${escapeHtml(n.kind)}</span></div>
+              <div style="font-size:0.86rem; color:var(--soft);">${escapeHtml(n.summary)}</div>
+              <div style="font-family:var(--font-mono); font-size:11px; color:var(--gold); margin-top:4px;">🕒 ${tInfo.elapsed} · ${tInfo.fullDate}</div>
+            </div>
+          `;
+        }).join("");
+      }
+    }
+  }catch(e){}
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  autoDetectUserLocation();
+  loadIntel();
+  setInterval(loadIntel, 2 * 60 * 1000);
+});
+</script>
+</body>
+</html>

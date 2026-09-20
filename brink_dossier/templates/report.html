@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ meta.report_title }} — {{ meta.site_name }}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+  :root { --ink: #14161A; --paper: #FBFAF7; --rule: #D8D3C8; --rule-lt: #EAE6DD; --slate: #5C6472; --brass: #B8892B; --oxblood: #9E2B25; --amber: #C67A16; --moss: #3F6B4A; }
+  @page { size: A4 portrait; margin: 0; }
+  @page interior {
+    margin: 18mm 15mm 16mm 15mm; background: #FBFAF7;
+    @top-left { content: "{{ meta.product_name }} — {{ meta.tier_label }}"; font-family: 'IBM Plex Mono', monospace; font-size: 6pt; color: #8A8578; }
+    @top-right { content: "{{ meta.ref }} · Confidential"; font-family: 'IBM Plex Mono', monospace; font-size: 6pt; color: #8A8578; }
+    @bottom-left { content: "{{ meta.site_name }} · {{ meta.coords_str }}"; font-family: 'IBM Plex Mono', monospace; font-size: 6pt; color: #A5A092; }
+    @bottom-right { content: counter(page) " / " counter(pages); font-family: 'IBM Plex Mono', monospace; font-size: 6pt; font-weight: 600; color: var(--ink); }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; color: var(--ink); background: #fff; font-size: 8.3pt; line-height: 1.5; -webkit-print-color-adjust: exact; }
+  .interior { page: interior; page-break-before: always; position: relative; }
+  .display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.01em; margin: 0; }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  h2.sec { font-family: 'Bebas Neue', sans-serif; font-size: 19pt; line-height: 1; margin: 0 0 2px 0; }
+  .sec-no { font-family: 'IBM Plex Mono', monospace; font-size: 7pt; font-weight: 600; color: var(--brass); letter-spacing: 0.08em; }
+  .sec-head { border-bottom: 1.5pt solid var(--ink); padding-bottom: 5px; margin-bottom: 11px; }
+  .sec-sub { font-size: 7.6pt; color: var(--slate); margin: 3px 0 0 0; }
+  h3.sub { font-family: 'Bebas Neue', sans-serif; font-size: 11.5pt; margin: 14px 0 5px 0; }
+  .row { display: table; width: 100%; table-layout: fixed; }
+  .col { display: table-cell; vertical-align: top; }
+  .gut { padding-right: 9px; }
+  .conf { font-family: 'IBM Plex Mono', monospace; font-size: 5.4pt; font-weight: 600; padding: 1px 4px; border-radius: 1.5px; border: 0.5pt solid currentColor; white-space: nowrap; }
+  .c-obs { color: #2F5D46; background: #E8F0EA; }
+  .c-mod { color: #7A5A12; background: #F6EEDC; }
+  table.dt { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 7.5pt; }
+  table.dt th { background: var(--ink); color: #F4F1E9; font-family: 'IBM Plex Mono', monospace; font-size: 6.2pt; padding: 5px 6px; text-align: left; }
+  table.dt td { padding: 5px 6px; border-bottom: 0.5pt solid var(--rule-lt); vertical-align: top; }
+  table.dt tr:nth-child(even) td { background: #F4F1EA; }
+  .panel { border: 0.5pt solid var(--rule); background: #fff; padding: 9px 10px; margin-bottom: 8px; }
+  .panel-t { font-family: 'IBM Plex Mono', monospace; font-size: 6.4pt; font-weight: 600; color: var(--slate); letter-spacing: 0.06em; margin-bottom: 4px; }
+  .flag { border-left: 2.5pt solid var(--brass); background: #fff; padding: 8px 11px; margin: 10px 0; }
+  .flag-sev { border-left-color: var(--oxblood); background: #FCF5F4; }
+  .cover { background: #0B0D11; color: #EDEAE2; height: 297mm; width: 210mm; padding: 21mm 18mm 15mm 18mm; position: relative; overflow: hidden; }
+  .cover-grid { position: absolute; top:0; left:0; right:0; bottom:0; background-image: linear-gradient(rgba(184,137,43,0.055) 0.5pt, transparent 0.5pt), linear-gradient(90deg, rgba(184,137,43,0.055) 0.5pt, transparent 0.5pt); background-size: 8mm 8mm; }
+  .cover-inner { position: relative; z-index: 2; height: 100%; }
+  .wordmark { font-family: 'Bebas Neue', sans-serif; font-size: 17pt; letter-spacing: 0.09em; color: #fff; }
+  .wordmark em { font-style: normal; color: var(--brass); }
+  .cover-rule { border-top: 0.5pt solid #2A2E36; margin: 11px 0; }
+  .cover-meta { font-family: 'IBM Plex Mono', monospace; font-size: 6.2pt; color: #7C8290; }
+  .cover-classif { font-family: 'IBM Plex Mono', monospace; font-size: 6.6pt; font-weight: 600; color: #C6564E; letter-spacing: 0.12em; }
+  .cover-site { font-family: 'Bebas Neue', sans-serif; font-size: 32pt; line-height: 0.98; color: #fff; margin-top: 4px; }
+  .cover-client { font-size: 10.5pt; color: #99A0AE; margin-top: 5px; font-weight: 500; }
+  .rule-score { font-family: 'IBM Plex Mono', monospace; font-size: 46pt; font-weight: 700; line-height: 0.85; }
+  .rule-tier { font-family: 'Bebas Neue', sans-serif; font-size: 15pt; color: #fff; }
+  .rule-band { position: relative; height: 7px; background: #1C2029; margin-top: 12px; }
+  .rule-seg { position: absolute; top: 0; height: 7px; }
+  .rule-mark { position: absolute; top: -5px; width: 2px; height: 17px; background: #fff; }
+  .dec { border: 0.5pt solid var(--rule); border-left: 3pt solid var(--ink); background: #fff; padding: 8px 10px; margin-bottom: 7px; }
+  .dec-act { font-family: 'Bebas Neue', sans-serif; font-size: 12pt; line-height: 1.1; margin: 1px 0 3px 0; }
+  .dec-why { font-size: 7.3pt; color: #3A3F48; line-height: 1.45; }
+  .dec-meta { font-family: 'IBM Plex Mono', monospace; font-size: 6.2pt; color: var(--slate); margin-top: 4px; }
+  .tri-card { border: 0.5pt solid var(--rule); background: #fff; padding: 8px; margin-bottom: 7px; }
+  .tri-num { font-family: 'IBM Plex Mono', monospace; font-size: 16pt; font-weight: 700; }
+  .tri-lbl { font-size: 7.2pt; font-weight: 600; text-transform: uppercase; color: var(--slate); }
+  .tri-why { font-size: 7.2pt; color: #3A3F48; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-grid"></div>
+  <div class="cover-inner">
+    <div class="wordmark">THE BRINK <em>WORLD</em></div>
+    <div class="cover-classif">SITE THREAT DOSSIER · {{ meta.tier_label }}</div>
+    <div class="cover-rule"></div>
+    <div class="cover-meta">{{ meta.coords_str }} · {{ meta.occupancy_label }} · Ref: {{ meta.ref }}</div>
+    <div style="margin-top: 42mm;">
+      <div class="cover-site">{{ meta.site_name }}</div>
+      <div class="cover-client">Prepared for {{ meta.customer_name }}</div>
+    </div>
+    <div style="margin-top: 14mm;">
+      <div class="row">
+        <div class="col" style="width: 38%;">
+          <div class="rule-score" style="color: {{ cover.score_color }};">{{ cover.score }}</div>
+          <div class="rule-tier">{{ cover.tier_name }}</div>
+        </div>
+        <div class="col" style="width: 62%; vertical-align: bottom; padding-bottom: 2px;">
+          <div class="cover-meta" style="color:#99A0AE; line-height:1.6;">Baseline Ground Truth & Operational Telemetry<br>{{ cover.summary_line }}</div>
+        </div>
+      </div>
+      <div class="rule-band">
+        <div class="rule-seg" style="left:0%; width:25%; background:#2E4C3A;"></div>
+        <div class="rule-seg" style="left:25%; width:25%; background:#6B5A1E;"></div>
+        <div class="rule-seg" style="left:50%; width:25%; background:#8A5A14;"></div>
+        <div class="rule-seg" style="left:75%; width:25%; background:#7E2721;"></div>
+        <div class="rule-mark" style="left: {{ cover.score }}%;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% for sec in sections %}
+<div class="interior">
+  <div class="sec-head">
+    <div class="sec-no">§0{{ loop.index }}</div>
+    <h2 class="sec">{{ sec.title }}</h2>
+    {% if sec.subtitle %}<p class="sec-sub">{{ sec.subtitle }}</p>{% endif %}
+  </div>
+  {% for block in sec.blocks %}
+    {% if block.kind == "trio" %}
+      <div class="tri-card">
+        <div class="row">
+          <div class="col" style="width: 25%;">
+            <div class="tri-num" style="color: {{ block.color|default('var(--ink)') }};">{{ block.figure }}</div>
+            <span class="conf {{ block.conf_class }}">{{ block.conf }}</span>
+          </div>
+          <div class="col" style="width: 75%;">
+            <div class="tri-lbl">{{ block.label }}</div>
+            <div style="font-size: 7.2pt; color: var(--slate);">{{ block.what }}</div>
+            <div class="tri-why"><strong>Why it matters:</strong> {{ block.why }}</div>
+          </div>
+        </div>
+      </div>
+    {% elif block.kind == "decision" %}
+      <div class="dec">
+        <div class="dec-act">{{ block.action }}</div>
+        <div class="dec-why">{{ block.rationale }}</div>
+        <div class="dec-meta">BY: {{ block.due }} · EFFORT: {{ block.effort }} · LOSS AVOIDED: {{ block.loss_avoided }}</div>
+      </div>
+    {% elif block.kind == "table" %}
+      <h3 class="sub">{{ block.title }}</h3>
+      <table class="dt">
+        <thead><tr>{% for h in block.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for row in block.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+      </table>
+    {% elif block.kind == "flag" %}
+      <div class="flag {% if block.severe %}flag-sev{% endif %}">
+        <div class="panel-t">{{ block.title }}</div>
+        <div style="font-size: 7.3pt; color: #3A3F48;">{{ block.text }}</div>
+      </div>
+    {% elif block.kind == "glossary" %}
+      <div class="panel" style="margin-bottom: 6px;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 7.4pt;">{{ block.term }}</div>
+        <div style="font-size: 7.1pt; color: #3A3F48; margin-top: 2px;">{{ block.def }}</div>
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endfor %}
+
+</body>
+</html>
