@@ -2,12 +2,24 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // 1. Investor & Advertiser Inquiry Intake
+    // Standard CORS headers for Cloudflare Pages frontend
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-razorpay-signature",
+      "Access-Control-Max-Age": "86400"
+    };
+
+    // 0. Handle CORS preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    // 1. Investor & Contact Inquiry Intake
     if (url.pathname === "/api/inquire" && request.method === "POST") {
       try {
         const data = await request.json();
         
-        // Dispatch instant alert to executive team via Resend
         if (env.RESEND_API_KEY) {
           await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -18,34 +30,44 @@ export default {
             body: JSON.stringify({
               from: "The Brink World <onboarding@resend.dev>",
               to: ["thebrink2028@gmail.com"],
-              subject: `[INQUIRY DESK] ${data.intent}: ${data.name}`,
+              subject: `[INQUIRY DESK] ${data.intent || 'General'}: ${data.name || 'Anonymous'}`,
               html: `
-                <h3>New Executive Ingestion Received</h3>
-                <p><strong>Desk:</strong> ${data.intent}</p>
-                <p><strong>Name:</strong> ${data.name}</p>
-                <p><strong>Email:</strong> ${data.email}</p>
-                <p><strong>Thesis / Message:</strong></p>
-                <blockquote style="background:#f4f4f4;padding:12px;">${data.notes}</blockquote>
+                <h3>New Platform Telemetry / Lead Intake</h3>
+                <p><strong>Intent:</strong> ${data.intent || 'None'}</p>
+                <p><strong>Name:</strong> ${data.name || 'None'}</p>
+                <p><strong>Email:</strong> ${data.email || 'None'}</p>
+                <p><strong>Facility / Location:</strong> ${data.location || data.asset_name || data.route || 'N/A'}</p>
+                <p><strong>Scope / Notes:</strong></p>
+                <blockquote style="background:#f4f4f4;padding:12px;">${data.scope || data.notes || data.reason || 'None provided'}</blockquote>
               `
             })
           });
         }
 
         return new Response(JSON.stringify({ ok: true }), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: err.message }), { 
+          status: 500, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        });
       }
     }
 
-    // 2. Razorpay Order Creation
-    if (url.pathname === "/api/create-razorpay-order" && request.method === "POST") {
+    // 2. Razorpay Order Creation (Supports both /api/create-order and /api/create-razorpay-order)
+    if ((url.pathname === "/api/create-order" || url.pathname === "/api/create-razorpay-order") && request.method === "POST") {
       try {
         const body = await request.json();
-        const amount = (body.amount_inr || 4900) * 100;
+
+        // Calculate amount in smallest currency unit (paise or cents)
+        const rawAmount = body.amount || body.amount_inr || 3999;
+        const currency = (body.currency || "INR").toUpperCase();
+        const amount = Math.round(rawAmount * 100);
 
         const auth = btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`);
+        
+        // Pass location and site details in 'notes' so Razorpay preserves them on payment.captured
         const rzRes = await fetch("https://api.razorpay.com/v1/orders", {
           method: "POST",
           headers: {
@@ -54,17 +76,26 @@ export default {
           },
           body: JSON.stringify({
             amount: amount,
-            currency: "INR",
-            receipt: `rcpt_${Date.now()}`
+            currency: currency,
+            receipt: body.receipt || `rcpt_${Date.now()}`,
+            notes: {
+              location: body.facility || body.location || "18.5204, 73.8567",
+              site_name: body.facility || body.site_name || "Industrial Facility",
+              customer_name: body.customer_name || "Lead Officer",
+              customer_email: body.customer_email || "thebrink2028@gmail.com"
+            }
           })
         });
 
         const rzOrder = await rzRes.json();
         return new Response(JSON.stringify(rzOrder), {
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: err.message }), { 
+          status: 500, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        });
       }
     }
 
@@ -72,6 +103,10 @@ export default {
     if (url.pathname === "/api/razorpay-webhook" && request.method === "POST") {
       const payloadText = await request.text();
       const signature = request.headers.get("x-razorpay-signature");
+
+      if (!env.RAZORPAY_WEBHOOK_SECRET) {
+        return new Response("Webhook secret not configured", { status: 500 });
+      }
 
       const encoder = new TextEncoder();
       const key = await crypto.subtle.importKey(
@@ -99,37 +134,43 @@ export default {
         const notes = payment.notes || {};
 
         // Dispatch job to GitHub Actions Python Runner
-        await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${env.GITHUB_PAT}`,
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "TheBrink-Cloudflare-Worker"
-          },
-          body: JSON.stringify({
-            event_type: "order_paid",
-            client_payload: {
-              location: notes.location,
-              site_name: notes.site_name,
-              customer_email: payment.email,
-              answers: {
-                occupancy: notes.occupancy || "warehouse",
-                headcount: notes.headcount || "6-25",
-                tolerance: notes.tolerance || "1-2d",
-                value_band: notes.value_band || "skip",
-                customer_name: notes.customer_name || payment.email
+        if (env.GITHUB_PAT && env.GITHUB_REPO) {
+          await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${env.GITHUB_PAT}`,
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "TheBrink-Cloudflare-Worker"
+            },
+            body: JSON.stringify({
+              event_type: "order_paid",
+              client_payload: {
+                location: notes.location || "18.5204, 73.8567",
+                site_name: notes.site_name || "Industrial Facility",
+                customer_email: payment.email || notes.customer_email || "thebrink2028@gmail.com",
+                answers: {
+                  occupancy: notes.occupancy || "warehouse",
+                  customer_name: notes.customer_name || payment.email || "Lead Officer"
+                }
               }
-            }
-          })
-        });
+            })
+          });
+        }
 
-        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        return new Response(JSON.stringify({ ok: true }), { 
+          status: 200, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        });
       }
 
-      return new Response("Event skipped", { status: 200 });
+      return new Response("Event skipped", { status: 200, headers: corsHeaders });
     }
 
-    return new Response("The Brink World Edge Gateway Active", { status: 200 });
+    // 4. Default Root Health Check
+    return new Response("The Brink World Edge Gateway Active", { 
+      status: 200, 
+      headers: { ...corsHeaders, "Content-Type": "text/plain" } 
+    });
   }
 };
 

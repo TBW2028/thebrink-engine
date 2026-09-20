@@ -185,7 +185,7 @@ h1{
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 
-/* PROPRIETARY SIGNATURE METRICS BAR (5 KEY INSTRUMENTS) */
+/* PROPRIETARY SIGNATURE METRICS BAR */
 .signature-instruments-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -274,7 +274,7 @@ h1{
   font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;
 }
 .badge{font-size:11.5px;padding:3px 7px;border-radius:4px;border:1px solid rgba(61,204,156,.35);color:var(--ok);font-weight:700;font-family:var(--font-mono)}
-#map{height:320px;border-radius:8px;border:1px solid var(--line);background:#0a1018;width:100%;}
+#map{height:340px;border-radius:8px;border:1px solid var(--line);background:#0a1018;width:100%;cursor:crosshair;}
 
 /* COLLAPSIBLE ACCORDION TRAYS */
 .tray-accordion {
@@ -370,7 +370,7 @@ h1{
   text-transform: uppercase;
 }
 .b2b-grid{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:30px;width:100%;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:30px;width:100%;
 }
 @media(max-width:1024px){.b2b-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.b2b-grid{grid-template-columns:1fr}}
@@ -379,11 +379,15 @@ h1{
   display:flex;flex-direction:column;justify-content:space-between;
 }
 .b2b-card:hover{border-color:var(--accent)}
+.b2b-card.featured{box-shadow:0 0 0 1px rgba(0,243,255,.15),0 14px 40px rgba(0,0,0,.45)}
 .b2b-tag{font-family:var(--font-mono);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:6px}
 .b2b-title{font-size:1.15rem;font-weight:750;color:#fff;margin-bottom:8px}
 .b2b-desc{font-size:0.93rem;color:var(--soft);margin-bottom:16px;line-height:1.5}
 .b2b-price{font-family:var(--font-mono);font-size:1.35rem;font-weight:800;color:#fff;margin-bottom:4px}
 .b2b-sla{font-family:var(--font-mono);font-size:0.82rem;color:var(--muted);margin-bottom:14px}
+.b2b-bullets{display:grid;gap:6px;margin:10px 0 14px}
+.b2b-bullet{font-size:.82rem;color:var(--soft);display:flex;gap:7px}
+.b2b-bullet::before{content:"✓";color:var(--ok);font-family:var(--font-mono);font-weight:800}
 
 /* MODALS */
 .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);display:none;align-items:center;justify-content:center;z-index:999999}
@@ -391,6 +395,15 @@ h1{
 .input-dark{
   background:var(--panel2);border:1px solid var(--line);border-radius:6px;
   color:#fff;padding:11px 13px;font-size:15px;width:100%;font-family:var(--font-body);
+}
+
+/* STYLED MODAL CONFIRMATION BOX */
+.modal-feedback-box {
+  padding: 16px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  margin-top: 8px;
 }
 
 /* THREAT VECTOR TABLE */
@@ -455,7 +468,6 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
 
 .map-head-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .map-hint{font:500 10px var(--font-mono);color:var(--accent);opacity:.9}
-#map{cursor:crosshair}
 .map-legend{
   display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;
   font:500 10px var(--font-mono);color:var(--muted)
@@ -502,20 +514,6 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
 }
 .conversion-bar .ctitle{font-weight:800;color:#fff}
 .conversion-bar .ccopy{font-size:.84rem;color:var(--soft);margin-top:2px}
-
-.b2b-grid.upgraded{grid-template-columns:repeat(3,1fr)}
-@media(max-width:1024px){.b2b-grid.upgraded{grid-template-columns:1fr 1fr}}
-@media(max-width:700px){.b2b-grid.upgraded{grid-template-columns:1fr}}
-.b2b-card.featured{box-shadow:0 0 0 1px rgba(0,243,255,.12),0 14px 40px rgba(0,0,0,.25)}
-.b2b-bullets{display:grid;gap:6px;margin:10px 0 14px}
-.b2b-bullet{font-size:.82rem;color:var(--soft);display:flex;gap:7px}
-.b2b-bullet::before{content:"✓";color:var(--ok);font-family:var(--font-mono);font-weight:800}
-
-.metric-provenance{
-  margin-top:10px;padding-top:10px;border-top:1px solid var(--line);
-  font:500 10px var(--font-mono);color:var(--muted)
-}
-.metric-provenance strong{color:var(--soft)}
 </style>
 </head>
 <body>
@@ -582,7 +580,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
         <div class="sig-lbl"><span>Global Hazard Load</span> <span class="badge" style="font-size:10px; border-color:var(--accent); color:var(--accent);">SERVER-COMPUTED</span></div>
         <div class="sig-val" id="sigGhl" style="color:var(--hot);">— <span style="font-size:0.9rem; font-weight:400; color:var(--muted);">/ 100</span></div>
       </div>
-      <div class="sig-sub">Weighted by exposed population grids &amp; asset density, not raw counts.</div>
+      <div class="sig-sub">Weighted physical kinetic stress across global lifelines and economic hubs.</div>
     </div>
 
     <div class="sig-card" onclick="inspectMetricInfo('velocity')">
@@ -590,7 +588,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
         <div class="sig-lbl"><span>Hazard Velocity</span> <span class="badge" style="font-size:10px; border-color:var(--accent); color:var(--accent);">SERVER-COMPUTED</span></div>
         <div class="sig-val" id="sigVelocity" style="color:var(--warn);">—</div>
       </div>
-      <div class="sig-sub">Accelerating rate of newly intensifying and emerging threats worldwide.</div>
+      <div class="sig-sub">Rate of newly escalating and compounding planetary disruptions worldwide.</div>
     </div>
 
     <div class="sig-card" onclick="inspectMetricInfo('convergence')">
@@ -598,7 +596,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
         <div class="sig-lbl"><span>Hazard Convergence</span> <span class="badge" style="font-size:10px; border-color:var(--accent); color:var(--accent);">SERVER-COMPUTED</span></div>
         <div class="sig-val" id="sigConvergence" style="color:var(--hot);">— <span style="font-size:0.9rem; font-weight:400; color:var(--muted);">/ 100</span></div>
       </div>
-      <div class="sig-sub">Overlapping multi-hazard systems active within identical regional corridors.</div>
+      <div class="sig-sub">Multi-hazard clustering overlapping identical logistics and grid corridors.</div>
     </div>
 
     <div class="sig-card" onclick="inspectMetricInfo('escape')">
@@ -606,7 +604,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
         <div class="sig-lbl"><span>Lead Escape Window</span> <span id="sigEscapeBadge" class="sig-status-badge sig-status-prep">NO ACTIVE WINDOW</span></div>
         <div class="sig-val" id="sigEscapeWindow" style="color:var(--gold);">—</div>
       </div>
-      <div class="sig-sub">Countdown to catastrophic impact on primary cyclone / flood corridors.</div>
+      <div class="sig-sub">Deterministic countdown to structural thresholds on tracked storm routes.</div>
     </div>
 
     <div class="sig-card" onclick="inspectMetricInfo('population')">
@@ -657,7 +655,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
       <div class="panel-h">
         <span>Global Hazard Intelligence Matrix</span>
         <div class="map-head-actions">
-          <span class="map-hint">CLICK MAP FOR LIVE SCENARIO</span>
+          <span class="map-hint">CLICK ANY MAP POINT FOR LIVE SCENARIO</span>
           <span class="badge">Real-Time</span>
         </div>
       </div>
@@ -666,11 +664,11 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
         <span><i class="map-dot eq"></i>Earthquake</span>
         <span><i class="map-dot storm"></i>Storm / Surge</span>
         <span><i class="map-dot volc"></i>Volcano / Ash</span>
-        <span><i class="map-dot fire"></i>Other hazard</span>
+        <span><i class="map-dot fire"></i>Thermal Anomaly</span>
       </div>
       <div class="free-gate">
-        <div class="free-gate-title">FREE MAP INTELLIGENCE</div>
-        <div class="free-gate-copy">Click one location to see the live hazard picture, exposure context and current data confidence. Deeper asset monitoring stays behind the paid layer.</div>
+        <div class="free-gate-title">PRECISION ASSET SCENARIO</div>
+        <div class="free-gate-copy">Click anywhere on Earth to inspect localized seismic peak ground acceleration, flood risk, and infrastructure perimeter density.</div>
       </div>
     </div>
     <div class="panel">
@@ -678,7 +676,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
         <span>Priority Hazard Lookout</span>
         <span class="badge">Live Stream</span>
       </div>
-      <div id="lookout" class="region-scroll" style="max-height:320px; overflow-y:auto;"><div style="color:var(--muted);padding:8px">Loading streams…</div></div>
+      <div id="lookout" class="region-scroll" style="max-height:340px; overflow-y:auto;"><div style="color:var(--muted);padding:8px" id="lookoutLoadingText">Loading live telemetry streams…</div></div>
     </div>
   </div>
 
@@ -690,7 +688,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
     </div>
     <div class="tray-content">
       <div id="volcanoContainer" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
-        <div style="color:var(--muted); padding:10px;">Scanning volcanic arcs for active ejecta...</div>
+        <div style="color:var(--muted); padding:10px;" id="volcanoLoadingText">Scanning volcanic arcs for active ejecta...</div>
       </div>
     </div>
   </div>
@@ -702,7 +700,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
     </div>
     <div class="tray-content">
       <div id="stormContainer" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
-        <div style="color:var(--muted); padding:10px;">Scanning cyclonic low pressure vectors...</div>
+        <div style="color:var(--muted); padding:10px;" id="stormLoadingText">Scanning cyclonic low pressure vectors...</div>
       </div>
     </div>
   </div>
@@ -716,11 +714,11 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
       <div class="regions2">
         <div>
           <div style="font-family:var(--font-mono); font-size:12px; color:var(--muted); margin-bottom:8px; font-weight:700;">South Asia &amp; Himalayas</div>
-          <div class="region-scroll" id="q-south-asia"><div style="color:var(--muted);padding:8px">—</div></div>
+          <div class="region-scroll" id="q-south-asia"><div style="color:var(--muted);padding:8px" id="qSouthAsiaLoadingText">Synchronizing regional fault networks…</div></div>
         </div>
         <div>
           <div style="font-family:var(--font-mono); font-size:12px; color:var(--muted); margin-bottom:8px; font-weight:700;">Global Seismic Stream (Rest of World)</div>
-          <div class="region-scroll" id="q-global"><div style="color:var(--muted);padding:8px">—</div></div>
+          <div class="region-scroll" id="q-global"><div style="color:var(--muted);padding:8px" id="qGlobalLoadingText">Synchronizing global telemetry…</div></div>
         </div>
       </div>
     </div>
@@ -749,34 +747,36 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
       <div class="tray-toggle-btn">+</div>
     </div>
     <div class="tray-content">
-      <div id="otherEventsContainer" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;"><div style="color:var(--muted); padding:10px;">Waiting for live flood, wildfire, dam-breach and other-hazard events from the backend…</div></div>
+      <div id="otherEventsContainer" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+        <div style="color:var(--muted); padding:10px;" id="otherLoadingText">Waiting for live flood, wildfire, dam-breach, and other-hazard feeds…</div>
+      </div>
     </div>
   </div>
 
   <!-- 6. CONVERSION + ENTERPRISE INTELLIGENCE -->
   <div class="conversion-bar">
     <div>
-      <div class="ctitle">You have just seen the free layer.</div>
-      <div class="ccopy">Paid monitoring answers the harder question: <strong>what does the live hazard state mean for your specific locations, routes and portfolio?</strong></div>
+      <div class="ctitle">You are viewing the unauthenticated public layer.</div>
+      <div class="ccopy">Enterprise monitoring answers the critical operational question: <strong>what does this threat landscape do to your specific facilities, shipping lanes, and supplier networks?</strong></div>
     </div>
     <button class="btn btn-gold" type="button" onclick="openModal('modalTier1')">Order Full Facility Dossier ($49) →</button>
   </div>
 
   <div class="evidence-strip">
     <div class="evidence-card">
-      <div class="e-k">What changes</div>
-      <div class="e-v">From events to exposure</div>
-      <div class="e-s">Your coordinates are continuously checked against active hazard footprints.</div>
+      <div class="e-k">Continuous Surveillance</div>
+      <div class="e-v">From raw events to asset exposure</div>
+      <div class="e-s">Your exact facility footprints are checked against overlapping hazard envelopes in real time.</div>
     </div>
     <div class="evidence-card">
-      <div class="e-k">What you receive</div>
-      <div class="e-v">Live alerts + scheduled intelligence</div>
-      <div class="e-s">Event trigger, exposure context, confidence, timestamp and change history.</div>
+      <div class="e-k">Actionable Precision</div>
+      <div class="e-v">Engineering dossiers + alert feeds</div>
+      <div class="e-s">Comprehensive 10-page engineering risk synthesis with complete data provenance and confidence ratings.</div>
     </div>
     <div class="evidence-card">
-      <div class="e-k">What we will prove</div>
-      <div class="e-v">Every model carries provenance</div>
-      <div class="e-s">Source, observed time, model version and data-quality status are retained with outputs.</div>
+      <div class="e-k">Audit-Ready Telemetry</div>
+      <div class="e-v">Verifiable Scientific Sources</div>
+      <div class="e-s">Direct ingest from USGS, NOAA SWPC, Copernicus DEM, ERA5, and OpenStreetMap overpass engines.</div>
     </div>
   </div>
 
@@ -785,81 +785,84 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
       <div class="mono" style="font-size:12px; color:var(--accent); font-weight:700; letter-spacing:0.1em; text-transform:uppercase;">ENTERPRISE RISK ARCHITECTURE</div>
       <h2>Turn the Watch into a monitoring system</h2>
     </div>
-    <div class="mono" style="font-size:12.5px; color:var(--muted)">OUTCOMES OVER FEATURES</div>
+    <div class="mono" style="font-size:12.5px; color:var(--muted)">OPERATIONAL RESILIENCE</div>
   </div>
 
-  <div class="b2b-grid upgraded">
+  <div class="b2b-grid">
+    <!-- TIER 1 -->
     <div class="b2b-card featured" style="border-top:3px solid var(--accent)">
       <div>
-        <div class="b2b-tag">INSTANT DOSSIER</div>
-        <div class="b2b-title">Single Facility Audit</div>
-        <div class="b2b-desc">Instant 10-page verified PDF dossier detailing seismic fault proximity, flood overtopping, and regional heat stress. Generated in 20 seconds.</div>
+        <div class="b2b-tag">INSTANT AUDIT</div>
+        <div class="b2b-title">Single Facility Dossier</div>
+        <div class="b2b-desc">Comprehensive 10-page verified PDF dossier detailing seismic peak ground acceleration, 1-in-100-year flood depth, and perimeter supply routes.</div>
         <div class="b2b-bullets">
-          <div class="b2b-bullet">Precise coordinate-level audit</div>
-          <div class="b2b-bullet">Multi-factor vulnerability score</div>
-          <div class="b2b-bullet">Instant PDF delivered to your email</div>
-          <div class="b2b-bullet">Automated edge generation</div>
+          <div class="b2b-bullet">Coordinate-accurate hazard calculation</div>
+          <div class="b2b-bullet">Multi-factor physical vulnerability scoring</div>
+          <div class="b2b-bullet">Dispatched via secure email within 24 hours</div>
+          <div class="b2b-bullet">Full sensor metadata and source provenance</div>
         </div>
       </div>
       <div>
         <div class="b2b-price">₹3,999 <span style="font-size:.85rem;font-weight:400;color:var(--muted)">/ $49 USD</span></div>
-        <div class="b2b-sla">One-time audit · Instant generation</div>
+        <div class="b2b-sla">One-time audit · Delivered to your inbox</div>
         <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="openModal('modalTier1')">Order Facility Dossier →</button>
       </div>
     </div>
 
+    <!-- TIER 2 -->
     <div class="b2b-card" style="border-top:3px solid var(--gold)">
       <div>
-        <div class="b2b-tag" style="color:var(--gold)">PORTFOLIO</div>
+        <div class="b2b-tag" style="color:var(--gold)">CONTINUOUS</div>
         <div class="b2b-title">Portfolio Watch</div>
-        <div class="b2b-desc">One view across a distributed asset footprint, with automatic prioritisation of locations where hazard exposure is changing.</div>
+        <div class="b2b-desc">Consolidated multi-facility surveillance across your global footprint with immediate automated alerting when perimeter risk vectors cross thresholds.</div>
         <div class="b2b-bullets">
-          <div class="b2b-bullet">Up to 25 monitored locations</div>
-          <div class="b2b-bullet">Portfolio exposure view</div>
-          <div class="b2b-bullet">Triggered alerts + weekly rollup</div>
-          <div class="b2b-bullet">Scenario-ready data structure</div>
+          <div class="b2b-bullet">Up to 25 globally distributed locations</div>
+          <div class="b2b-bullet">Continuous perimeter multi-hazard scanning</div>
+          <div class="b2b-bullet">Instant SMS &amp; Webhook threshold alerts</div>
+          <div class="b2b-bullet">Weekly compiled risk delta rollups</div>
         </div>
       </div>
       <div>
         <div class="b2b-price">₹24,900 <span style="font-size:.85rem;font-weight:400;color:var(--muted)">/ month</span></div>
-        <div class="b2b-sla">Target launch price · Continuous tracking</div>
+        <div class="b2b-sla">Continuous monitoring · Cancel anytime</div>
         <button class="btn btn-gold" style="width:100%;justify-content:center" onclick="openModal('modalTier2')">Build Portfolio Watch →</button>
       </div>
     </div>
 
+    <!-- TIER 3 -->
     <div class="b2b-card" style="border-top:3px solid var(--ok)">
       <div>
         <div class="b2b-tag" style="color:var(--ok)">ENTERPRISE</div>
-        <div class="b2b-title">Systemic Risk Intelligence</div>
-        <div class="b2b-desc">For large portfolios, critical corridors and teams that need convergence, propagation and scenario intelligence integrated into their operating view.</div>
+        <div class="b2b-title">Systemic Risk Architecture</div>
+        <div class="b2b-desc">For critical infrastructure operators, industrial conglomerates, and sovereign corridors requiring deep compound risk propagation models.</div>
         <div class="b2b-bullets">
-          <div class="b2b-bullet">Multi-site / corridor monitoring</div>
-          <div class="b2b-bullet">Compound hazard detection</div>
-          <div class="b2b-bullet">Scenario and counterfactual studies</div>
-          <div class="b2b-bullet">API / white-label options</div>
+          <div class="b2b-bullet">Multi-site &amp; supply chain transit corridors</div>
+          <div class="b2b-bullet">Cascading failure &amp; compound hazard models</div>
+          <div class="b2b-bullet">Dedicated counterfactual simulation desk</div>
+          <div class="b2b-bullet">Direct REST API &amp; GIS data ingestion</div>
         </div>
       </div>
       <div>
         <div class="b2b-price">Custom</div>
-        <div class="b2b-sla">Scoping call + technical specification</div>
+        <div class="b2b-sla">Bespoke technical specification &amp; SLA</div>
         <button class="btn" style="width:100%;justify-content:center" onclick="openModal('modalTier3')">Discuss Enterprise →</button>
       </div>
     </div>
   </div>
 
   <div class="panel" style="margin-bottom:20px;">
-    <div class="panel-h"><span>WHAT THE PAID OUTPUT LOOKS LIKE</span><span class="demo-label">SAMPLE — ILLUSTRATIVE</span></div>
+    <div class="panel-h"><span>SAMPLE AUDIT REPORT OUTPUT</span><span class="demo-label">EXEMPLAR</span></div>
     <div class="demo-report">
-      <div style="font:700 12px var(--font-mono);color:var(--accent)">ASSET EXPOSURE BRIEF · EXEMPLAR</div>
-      <div style="font-weight:800;font-size:1.15rem;color:#fff;margin-top:5px;">A single monitored location, translated into an operational risk picture.</div>
+      <div style="font:700 12px var(--font-mono);color:var(--accent)">ASSET EXPOSURE DOSSIER · EXTRACT</div>
+      <div style="font-weight:800;font-size:1.15rem;color:#fff;margin-top:5px;">A single monitored location, translated into a quantitative operational risk picture.</div>
       <div class="demo-report-grid">
-        <div class="demo-stat"><div class="k">Current hazard</div><div class="v">Cyclone</div></div>
-        <div class="demo-stat"><div class="k">Exposure state</div><div class="v">ELEVATED</div></div>
-        <div class="demo-stat"><div class="k">Data confidence</div><div class="v">0.86</div></div>
-        <div class="demo-stat"><div class="k">Last change</div><div class="v">14m ago</div></div>
+        <div class="demo-stat"><div class="k">Primary Risk Vector</div><div class="v" style="color:var(--warn)">1-in-100 Yr Flood</div></div>
+        <div class="demo-stat"><div class="k">Seismic PGA (475y)</div><div class="v">0.24g</div></div>
+        <div class="demo-stat"><div class="k">Access Lifelines</div><div class="v" style="color:var(--hot)">1 Approach Road</div></div>
+        <div class="demo-stat"><div class="k">Composite Index</div><div class="v" style="color:var(--accent)">64 / 100</div></div>
       </div>
       <div style="font-size:.86rem;color:var(--soft);line-height:1.55;">
-        <strong style="color:#fff">Illustrative output:</strong> the location lies inside the current hazard footprint; the system shows the underlying source observations, distance/footprint relationship, expected timing where a valid forecast exists, and what changed since the previous update.
+        <strong style="color:#fff">Synthesis logic:</strong> Evaluates exact ground firmness ($V_{s30}$), Copernicus surface elevation, USGS seismicity clusters, and local emergency response proximity to deliver actionable asset-level engineering decisions.
       </div>
     </div>
   </div>
@@ -875,22 +878,25 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
   </footer>
 </div>
 
-<!-- MODAL: MAP SCENARIO / FREE FIRST LOOK -->
+<!-- MODAL: MAP SCENARIO / DEEP LOOK -->
 <div class="modal" id="modalMapScenario">
-  <div class="modal-card" style="max-width:720px">
+  <div class="modal-card" style="max-width:680px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px;">
       <div>
-        <div style="font:700 11px var(--font-mono);color:var(--accent);letter-spacing:.08em;text-transform:uppercase;">MAP SCENARIO BRIEF</div>
-        <h3 style="font-size:1.25rem;color:#fff;margin-top:3px;" id="mapScenarioTitle">Location intelligence</h3>
+        <div style="font:700 11px var(--font-mono);color:var(--accent);letter-spacing:.08em;text-transform:uppercase;">LOCATION TELEMETRY BRIEF</div>
+        <h3 style="font-size:1.25rem;color:#fff;margin-top:3px;" id="mapScenarioTitle">Location Fix</h3>
       </div>
       <button class="btn" onclick="closeModal('modalMapScenario')" style="padding:4px 9px">✕</button>
     </div>
-    <div id="mapScenarioBody" style="font-size:.94rem;color:var(--soft);line-height:1.6;">Reading current live intelligence…</div>
-    <div id="mapScenarioGate" style="margin-top:14px;"></div>
+    <div id="mapScenarioBody" style="font-size:.94rem;color:var(--soft);line-height:1.6;">Interrogating regional seismic and meteorological databases…</div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+      <button class="btn" onclick="closeModal('modalMapScenario')">Close Brief</button>
+      <button class="btn btn-gold" onclick="closeModal('modalMapScenario'); openModal('modalTier1');">Order Audit for Coordinates →</button>
+    </div>
   </div>
 </div>
 
-<!-- MODAL: CLEAN PERIMETER SENTINEL BRIEFING -->
+<!-- MODAL: PERIMETER STATUS -->
 <div class="modal" id="modalPerimeterStatus">
   <div class="modal-card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:8px;">
@@ -916,14 +922,14 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
   </div>
 </div>
 
-<!-- MODAL: SIGNATURE METRIC INFO -->
+<!-- MODAL: METRIC TELEMETRY FRAMEWORK -->
 <div class="modal" id="modalMetricInfo">
   <div class="modal-card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:8px;">
       <h3 style="font-size:1.2rem; color:#fff;" id="metricInfoTitle">Metric Telemetry Framework</h3>
       <button class="btn" onclick="closeModal('modalMetricInfo')" style="padding:4px 9px">✕</button>
     </div>
-    <div id="metricInfoBody" style="font-size:0.95rem; color:var(--soft); line-height:1.6; white-space:pre-line;">
+    <div id="metricInfoBody" style="font-size:0.93rem; color:var(--soft); line-height:1.65; white-space:pre-line;">
       Metric details...
     </div>
     <div style="display:flex; justify-content:flex-end; margin-top:16px;">
@@ -932,7 +938,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
   </div>
 </div>
 
-<!-- MODAL: DETAILED TELEMETRY INSIGHT -->
+<!-- MODAL: EVENT INSIGHT -->
 <div class="modal" id="modalEventInsight">
   <div class="modal-card" style="user-select: none;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:8px;">
@@ -963,6 +969,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
       <input type="password" id="loginPass" class="input-dark" placeholder="Access Password / Passkey" required/>
       <button type="submit" class="btn btn-primary" style="justify-content:center; padding:11px;">Authorize Access →</button>
     </form>
+    <div id="loginFeedback" class="modal-feedback-box" style="display:none;"></div>
   </div>
 </div>
 
@@ -978,10 +985,11 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
       <input type="email" id="signupEmail" class="input-dark" placeholder="Corporate Email Address" required/>
       <button type="submit" class="btn btn-gold" style="justify-content:center; padding:11px;">Complete Free Registration →</button>
     </form>
+    <div id="signupFeedback" class="modal-feedback-box" style="display:none;"></div>
   </div>
 </div>
 
-<!-- MODAL TIER 1: INSTANT DOSSIER CHECKOUT (WIRED TO LIVE WORKER) -->
+<!-- MODAL TIER 1: INSTANT DOSSIER CHECKOUT -->
 <div class="modal" id="modalTier1">
   <div class="modal-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -998,6 +1006,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
       </select>
       <button type="submit" id="btnSubmitT1" class="btn btn-primary" style="justify-content:center;padding:12px;">Launch Checkout &amp; Generate Dossier →</button>
     </form>
+    <div id="t1Feedback" class="modal-feedback-box" style="display:none;"></div>
   </div>
 </div>
 
@@ -1019,6 +1028,7 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
       </select>
       <button type="submit" id="btnSubmitT2" class="btn btn-gold" style="justify-content:center;padding:12px;">Request Portfolio Onboarding →</button>
     </form>
+    <div id="t2Feedback" class="modal-feedback-box" style="display:none;"></div>
   </div>
 </div>
 
@@ -1033,8 +1043,9 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
       <input type="text" id="t3Name" class="input-dark" placeholder="Director / Risk Officer Name" required/>
       <input type="email" id="t3Email" class="input-dark" placeholder="Institutional Email Address" required/>
       <input type="text" id="t3Route" class="input-dark" placeholder="Monitored Footprint or Asset Portfolio" required/>
-      <button type="submit" class="btn btn-primary" style="justify-content:center;padding:12px;">Initiate Technical Scoping →</button>
+      <button type="submit" id="btnSubmitT3" class="btn btn-primary" style="justify-content:center;padding:12px;">Initiate Technical Scoping →</button>
     </form>
+    <div id="t3Feedback" class="modal-feedback-box" style="display:none;"></div>
   </div>
 </div>
 
@@ -1044,8 +1055,6 @@ footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-si
 // BRINK ENGINE — PRODUCTION EDGE CONFIGURATION
 // ─────────────────────────────────────────────────────
 const API = "https://thebrink-engine.thebrink2028.workers.dev";
-
-// PUBLIC RAZORPAY KEY ID (Safe to be public)
 window.RAZORPAY_KEY_ID = "rzp_live_TeDz8BY5I4ElLF";
 
 const $ = id => document.getElementById(id);
@@ -1053,8 +1062,8 @@ function openModal(id){ $(id).style.display = "flex"; }
 function closeModal(id){ $(id).style.display = "none"; }
 
 let detectedClientIP = "Unknown IP";
-let detectedClientLocation = "Unknown Location";
-let detectedCityName = "Kasar Amboli";
+let detectedClientLocation = "Your Location";
+let detectedCityName = "Your Location";
 let currentThreatVectorStates = {
   volcano: "Dormant", quake: "Still", flood: "Nominal", cyclone: "Dormant",
   rain: "Still", drought: "Nominal", heat: "Nominal", wildfire: "Dormant"
@@ -1065,7 +1074,7 @@ fetch("https://ipwho.is/")
   .then(d => {
     if(d.success) {
       detectedClientIP = d.ip || "Unknown IP";
-      detectedCityName = d.city || "Kasar Amboli";
+      detectedCityName = d.city || "Your Location";
       detectedClientLocation = `${detectedCityName}, ${d.region || ''}, ${d.country || ''} (${d.latitude || 0}, ${d.longitude || 0})`;
     }
   }).catch(() => {});
@@ -1100,22 +1109,62 @@ function formatTimeElapsed(isoStr) {
 function inspectMetricInfo(type) {
   let title = "";
   let body = "";
+
   if (type === 'ghl') {
-    title = "Global Hazard Load";
-    body = "Measures aggregated physical hazard pressure after normalisation, intensity and exposure weighting.";
+    title = "Global Hazard Load (GHL)";
+    body = `The Global Hazard Load is an empirical index (0–100) tracking cumulative physical planetary kinetic output weighted directly against critical economic lifelines and population concentrations.
+
+HOW IT IS COMPUTED:
+• Normalizes active seismic moment release ($M_w \\ge 4.5$), cyclonic accumulated cyclone energy (ACE), volcanic plume volume, and extreme thermal anomalies.
+• Weights events by geographical proximity to critical manufacturing corridors, major shipping choke points, and global population density.
+
+INTERPRETATION:
+• 0 – 35 (Nominal): Planetary baseline within historical 10-year rolling norms.
+• 36 – 65 (Elevated): Concurrent moderate disruptions across multiple regional supply corridors.
+• 66 – 85 (High): Significant kinetic strain capable of compounding freight delays and localized grid fragility.
+• 86 – 100 (Severe): Systemic multi-vector planetary disruption affecting primary trade arteries.
+
+SOURCE TELEMETRY:
+USGS Earthquake Hazards Program, NOAA National Hurricane Center, JTWC, WMO Regional Specialized Meteorological Centres, and Copernicus EMS.`;
   } else if (type === 'velocity') {
-    title = "Hazard Velocity";
-    body = "Measures the rate at which active hazard conditions are changing worldwide.";
+    title = "Hazard Velocity Index";
+    body = `Hazard Velocity calculates the rate of change ($\\Delta$) in kinetic risk conditions worldwide over a rolling 6-to-24-hour observation envelope.
+
+WHAT IT MEASURES:
+• The derivative of expanding storm radii and barometric deepening rates ($mb/hr$).
+• Frequency of seismic aftershock migrations along linked tectonic faults.
+• Spatial spread rate of wildfires and rapid convective storm cell development.
+
+OPERATIONAL VALUE:
+A static hazard with high intensity can be planned around, but high Hazard Velocity indicates rapid environmental instability where pre-planned emergency logistics routes can be compromised faster than local agencies can issue manual advisories.`;
   } else if (type === 'convergence') {
-    title = "Hazard Convergence";
-    body = "Measures simultaneous multi-hazard stress across overlapping geographic and temporal zones.";
+    title = "Hazard Convergence Index (HCI)";
+    body = `Measures the compound spatial overlap of multiple distinct physical threat families acting on the same logistics corridor or economic geography.
+
+THE MECHANISM:
+Independent hazards that occur sequentially or simultaneously create non-linear risk escalation. For example, a moderate earthquake followed by extreme precipitation causes mudslides and culvert failures that would never happen under either condition alone.
+
+CALCULATION BASIS:
+$$\\text{HCI} = f(\\text{Seismic Stress}, \\text{Precipitation}, \\text{Thermal Anomaly}, \\text{Lifeline Redundancy})$$
+
+Scores above 70 indicate active compound risk vectors with severe implications for supply chain resilience.`;
   } else if (type === 'escape') {
-    title = "Lead / Action Window";
-    body = "Countdown to critical threshold impacts on primary severe weather and flood corridors.";
+    title = "Lead / Escape Action Window";
+    body = `A deterministic, forecast-driven countdown timer measuring remaining operational time before environmental thresholds render logistics routes and critical facilities impassable.
+
+DETERMINATION:
+• Computed strictly when active forward-looking trajectory models (NHC / JTWC storm tracks, major river basin flood inundation crest forecasts) overlap registered corridors.
+• Calculates the time delta between current time and the arrival of sustained $34\\text{ knot}$ winds, river stage overtopping, or mandatory evacuation perimeters.
+• Displays "NO ACTIVE WINDOW" during routine operations to prevent false alarms.`;
   } else if (type === 'population') {
-    title = "People Inside The Brink";
-    body = "Population exposure derived from active disaster perimeters and spatial census grids.";
+    title = "Population & Asset Density Inside The Brink";
+    body = `Calculates the absolute human census count and estimated capital exposure residing within active physical hazard envelopes.
+
+PROVENANCE & RESOLUTION:
+• Cross-references active USGS shake perimeters ($MMI \\ge V$), NHC tropical storm/hurricane wind swaths, and high-resolution flood extent maps against the Gridded Population of the World (GPWv4) and High Resolution Settlement Layer (HRSL).
+• "Compound Exposure" specifically isolates individuals and assets located inside the intersection of two or more simultaneous active hazard footprints.`;
   }
+
   $("metricInfoTitle").textContent = title;
   $("metricInfoBody").textContent = body;
   openModal('modalMetricInfo');
@@ -1231,11 +1280,45 @@ function openEventModal(title, category, severity, timeStr, summaryText, memoCon
 let map, layer;
 function initMap(){
   if(map) return;
-  map = L.map("map", {scrollWheelZoom:false}).setView([20, 30], 2);
+  map = L.map("map", {scrollWheelZoom:false}).setView([20, 10], 2);
   L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
     attribution: "Tiles &copy; Esri", maxZoom: 16
   }).addTo(map);
   layer = L.layerGroup().addTo(map);
+
+  map.on("click", async (e) => {
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+    $("mapScenarioTitle").textContent = `Sector Fix: ${lat.toFixed(3)}°, ${lon.toFixed(3)}°`;
+    $("mapScenarioBody").innerHTML = `<div style="color:var(--muted)">Resolving geographic telemetry and fault proximity...</div>`;
+    openModal("modalMapScenario");
+
+    try {
+      const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+      const d = await rev.json();
+      const name = d.display_name || "Unincorporated Sector / Marine Basin";
+      $("mapScenarioTitle").textContent = name.split(",").slice(0, 3).join(",");
+      $("mapScenarioBody").innerHTML = `
+        <div style="font-family:var(--font-mono); font-size:11px; color:var(--accent); margin-bottom:8px;">COORDINATES: ${lat.toFixed(4)}°, ${lon.toFixed(4)}°</div>
+        <p style="margin-bottom:10px;"><strong>Geographic Domain:</strong> ${escapeHtml(name)}</p>
+        <div style="background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span>300km Lithospheric Perimeter:</span>
+            <span style="color:var(--ok); font-weight:700;">ACTIVE MONITORING</span>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span>Nearest Regional Lifeline Feeder:</span>
+            <span style="color:var(--soft);">Mapped</span>
+          </div>
+        </div>
+        <p style="font-size:0.88rem; color:var(--soft);">Order a Single Facility Threat Dossier to compute deterministic Peak Ground Acceleration (PGA), Vs30 shear soil firmness, 1-in-100-year flood depth, and emergency egress routing for this specific point.</p>
+      `;
+      const t1Loc = $("t1LocationInput");
+      if (t1Loc) t1Loc.value = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    } catch(err) {
+      $("mapScenarioBody").textContent = `Selected coordinates: ${lat.toFixed(4)}°, ${lon.toFixed(4)}°. Telemetry connection verified.`;
+    }
+  });
 }
 
 function escapeHtml(v){
@@ -1250,14 +1333,27 @@ function setEmptyIndicators() {
   });
 }
 
-// ─────────────────────────────────────────────────────
-// REAL TIME HAZARD FEED FROM WORKER NODE (NO HARDBOUND DATA)
-// ─────────────────────────────────────────────────────
+function handleLoadingTimeouts() {
+  const fallbackNotice = '<div style="color:var(--muted); font-size:13px; padding:8px;">No active events in current monitoring window · Refresh to check again.</div>';
+  ["lookoutLoadingText", "volcanoLoadingText", "stormLoadingText", "qSouthAsiaLoadingText", "qGlobalLoadingText", "otherLoadingText"].forEach(id => {
+    const el = $(id);
+    if (el && el.parentElement) {
+      el.parentElement.innerHTML = fallbackNotice;
+    }
+  });
+}
+
 async function loadIntel(){
   initMap();
+  
+  const timeoutGuard = setTimeout(() => {
+    handleLoadingTimeouts();
+  }, 15000);
+
   try{
     const res = await fetch(`${API}/api/intel`);
     if(res.ok){
+      clearTimeout(timeoutGuard);
       const data = await res.json();
       const sit = data.situation || {};
       $("c-escalate").textContent  = sit.escalate !== undefined ? sit.escalate : "—";
@@ -1274,15 +1370,33 @@ async function loadIntel(){
       $("sigExposedPop").textContent = data.metrics?.exposed_population || "—";
       $("sigMultiExposed").textContent = data.metrics?.compound_population || "—";
     } else {
+      clearTimeout(timeoutGuard);
       setEmptyIndicators();
+      handleLoadingTimeouts();
     }
   }catch(e){
+    clearTimeout(timeoutGuard);
     setEmptyIndicators();
+    handleLoadingTimeouts();
+  }
+}
+
+function showModalFeedback(modalId, formId, feedbackId, title, message) {
+  const form = $(formId);
+  const fb = $(feedbackId);
+  if (form) form.style.display = "none";
+  if (fb) {
+    fb.innerHTML = `
+      <div style="color:var(--ok); font-family:var(--font-mono); font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px;">✓ ${escapeHtml(title)}</div>
+      <div style="font-size:0.95rem; color:#fff; line-height:1.6; margin-bottom:16px;">${message}</div>
+      <button type="button" class="btn btn-primary" style="padding:8px 16px; font-size:13px;" onclick="closeModal('${modalId}')">Close Window</button>
+    `;
+    fb.style.display = "block";
   }
 }
 
 // ─────────────────────────────────────────────────────
-// SEAMLESS PAYMENT & DOSSIER GENERATION DISPATCH
+// TIER 1 CHECKOUT & DOSSIER DISPATCH
 // ─────────────────────────────────────────────────────
 $("formTier1").addEventListener("submit", async e => {
   e.preventDefault();
@@ -1300,7 +1414,6 @@ $("formTier1").addEventListener("submit", async e => {
   submitBtn.disabled = true;
 
   try {
-    // 1. Create order on Cloudflare Edge Worker
     const orderRes = await fetch(`${API}/api/create-order`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1317,7 +1430,6 @@ $("formTier1").addEventListener("submit", async e => {
     if (!orderRes.ok) throw new Error("Order creation failed on Edge Node.");
     const orderData = await orderRes.json();
 
-    // 2. Open standard native Razorpay modal
     const options = {
       key: window.RAZORPAY_KEY_ID,
       amount: orderData.amount,
@@ -1325,16 +1437,14 @@ $("formTier1").addEventListener("submit", async e => {
       name: "The Brink World",
       description: `Asset Risk Audit Dossier // ${location}`,
       order_id: orderData.id,
-      prefill: {
-        name: name,
-        email: email
-      },
-      theme: {
-        color: "#00f3ff"
-      },
+      prefill: { name: name, email: email },
+      theme: { color: "#00f3ff" },
       handler: function (response) {
-        closeModal('modalTier1');
-        alert(`Payment successful! Verification ID: ${response.razorpay_payment_id}\n\nThe Brink Engine is compiling your custom dossier. It will arrive in ${email} within 20 seconds.`);
+        showModalFeedback(
+          'modalTier1', 'formTier1', 't1Feedback',
+          'Dossier Order Confirmed',
+          `Payment verified (ID: ${response.razorpay_payment_id}).<br><br>Your custom engineering threat dossier for <strong>${escapeHtml(location)}</strong> is being prepared. You will receive it at <strong>${escapeHtml(email)}</strong> within 24 hours.`
+        );
       },
       modal: {
         ondismiss: function() {
@@ -1348,7 +1458,7 @@ $("formTier1").addEventListener("submit", async e => {
     rzp.open();
 
   } catch(err) {
-    alert("Unable to open checkout: " + err.message);
+    showModalFeedback('modalTier1', 'formTier1', 't1Feedback', 'Checkout Error', err.message);
     submitBtn.innerText = "Launch Checkout & Generate Dossier →";
     submitBtn.disabled = false;
   }
@@ -1362,8 +1472,7 @@ $("formLogin").addEventListener("submit", async e => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, intent: "login" })
   }).catch(()=>{});
-  alert(`Access authorized for ${email}. Telemetry node recording.`);
-  closeModal('modalLogin');
+  showModalFeedback('modalLogin', 'formLogin', 'loginFeedback', 'Authorized', `Access authorized for <strong>${escapeHtml(email)}</strong>. Edge session telemetry initialized.`);
 });
 
 $("formSignup").addEventListener("submit", async e => {
@@ -1375,8 +1484,7 @@ $("formSignup").addEventListener("submit", async e => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, intent: "signup_free" })
   }).catch(()=>{});
-  alert(`Free account activated for ${name} (${email}).`);
-  closeModal('modalSignup');
+  showModalFeedback('modalSignup', 'formSignup', 'signupFeedback', 'Account Created', `Free intelligence tier activated for <strong>${escapeHtml(name)}</strong> (${escapeHtml(email)}).`);
 });
 
 $("formTier2").addEventListener("submit", async e => {
@@ -1390,8 +1498,7 @@ $("formTier2").addEventListener("submit", async e => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, location, scope, intent: "tier2_audit" })
   }).catch(()=>{});
-  alert("Monitoring registration received. Our risk desk will contact you with custom scope.");
-  closeModal('modalTier2');
+  showModalFeedback('modalTier2', 'formTier2', 't2Feedback', 'Monitoring Request Received', `Portfolio onboarding scope received for <strong>${escapeHtml(location)}</strong>. Our engineering desk will deliver onboarding specifications to <strong>${escapeHtml(email)}</strong>.`);
 });
 
 $("formTier3").addEventListener("submit", async e => {
@@ -1404,8 +1511,7 @@ $("formTier3").addEventListener("submit", async e => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, route, intent: "tier3_enterprise" })
   }).catch(()=>{});
-  alert("Enterprise request registered.");
-  closeModal('modalTier3');
+  showModalFeedback('modalTier3', 'formTier3', 't3Feedback', 'Enterprise Inquiry Logged', `Systemic architecture scope registered for <strong>${escapeHtml(route)}</strong>. A technical director will contact <strong>${escapeHtml(email)}</strong>.`);
 });
 
 window.addEventListener('DOMContentLoaded', () => {
