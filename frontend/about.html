@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>About — THE BRINK WORLD</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg-deep: #06090e; --bg-panel: #0c121b; --accent-cyan: #00f3ff; --accent-red: #ff2a2a;
+  --text-pure: #ffffff; --text-muted: #94a3b8; --text-dim: #cbd5e1; --border-subtle: #1e2a38;
+  --font-display: 'Archivo Black', sans-serif; --font-body: 'Space Grotesk', sans-serif; --font-mono: 'JetBrains Mono', monospace;
+}
+html, body { width: 100%; overflow-x: hidden; background: var(--bg-deep); color: var(--text-dim); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
+.brand-fixed-bar {
+  position: fixed; top: 0; left: 0; width: 100%; height: 48px; z-index: 99999;
+  background: rgba(6, 9, 14, 0.96); backdrop-filter: blur(12px); border-bottom: 2px solid rgba(0, 243, 255, 0.4); padding: 0 16px; display: flex; align-items: center; justify-content: space-between;
+}
+.brand-fixed-title { font-family: var(--font-mono); font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-transform: uppercase; }
+.brand-fixed-pill { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; padding: 3px 8px; border-radius: 4px; }
+
+nav {
+  margin-top: 48px; display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 6%; border-bottom: 1px solid var(--border-subtle); background: rgba(10, 11, 14, 0.92);
+  position: sticky; top: 48px; z-index: 100; flex-wrap: wrap; gap: 12px;
+}
+.logo { font-family: var(--font-display); font-size: 21px; color: var(--text-pure); text-decoration: none; text-transform: uppercase; }
+.logo span { color: var(--accent-red); }
+.nav-links { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.nav-link { font-family: var(--font-mono); font-size: 13.5px; color: var(--text-muted); text-decoration: none; text-transform: uppercase; font-weight: 700; }
+.nav-link:hover, .nav-link.active { color: var(--accent-cyan); }
+.nav-actions { display: flex; align-items: center; gap: 10px; }
+.btn-hdr { font-family: var(--font-mono); font-size: 12px; font-weight: 700; text-transform: uppercase; padding: 6px 12px; border-radius: 4px; cursor: pointer; text-decoration: none; }
+.btn-login { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-pure); }
+.btn-signup { background: var(--accent-cyan); color: var(--bg-deep); border: 1px solid var(--accent-cyan); }
+
+.content-shell { max-width: 900px; margin: 4rem auto; padding: 0 6%; }
+.section-label { font-family: var(--font-mono); font-size: 13.5px; text-transform: uppercase; color: var(--text-pure); letter-spacing: 0.15em; padding-bottom: 12px; border-bottom: 2px solid var(--border-subtle); margin-bottom: 28px; font-weight: 700; }
+.about-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 40px; }
+.about-card h1 { font-family: var(--font-display); font-size: clamp(28px, 4vw, 42px); color: #fff; text-transform: uppercase; margin-bottom: 24px; letter-spacing: -0.02em; }
+.about-card p { font-size: 18px; line-height: 1.7; color: var(--text-dim); margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<div class="brand-fixed-bar">
+  <div class="brand-fixed-title">THE BRINK WORLD // ABOUT</div>
+  <div class="brand-fixed-pill">MANIFESTO</div>
+</div>
+
+<nav>
+  <a href="/" class="logo">The Brink <span>World</span></a>
+  <div class="nav-links">
+    <a href="/intel.html" class="nav-link">Intel</a>
+    <a href="/watch.html" class="nav-link">Earth</a>
+    <a href="/health.html" class="nav-link">Health</a>
+    <a href="/about.html" class="nav-link active">About</a>
+    <a href="/contact.html" class="nav-link">Contact</a>
+  </div>
+  <div class="nav-actions">
+    <button class="btn-hdr btn-login" onclick="window.location.href='/intel.html'">Login</button>
+    <button class="btn-hdr btn-signup" onclick="window.location.href='/intel.html'">Signup</button>
+  </div>
+</nav>
+
+<div class="content-shell">
+  <div class="section-label">// SYSTEM OVERVIEW</div>
+  <div class="about-card">
+    <h1>About The Brink</h1>
+    <p>The Brink is engineered to track macro shifts, environmental volatility, and biological risks before they become mainstream consensus. By filtering out the noise of the daily news cycle, our tools provide sharp, real-time situational awareness across economies, geography, and human health.</p>
+    <p>We believe that understanding change requires looking across multiple vectors simultaneously—connecting physical planet metrics with economic shifts and public health tracking.</p>
+  </div>
+</div>
+
+</body>
+</html>

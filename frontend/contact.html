@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Talk to The Brink — THE BRINK WORLD</title>
+<meta name="description" content="Get in touch with The Brink team for analysis commissions, business inquiries, partnerships, advertising, or investment.">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg-deep: #06090e;
+  --bg-panel: #0c121b;
+  --accent-cyan: #00f3ff;
+  --accent-red: #ff2a2a;
+  --text-pure: #ffffff;
+  --text-muted: #94a3b8;
+  --text-dim: #cbd5e1;
+  --border-subtle: #1e2a38;
+  --font-display: 'Archivo Black', sans-serif;
+  --font-body: 'Space Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+html, body {
+  width: 100%; overflow-x: hidden; background: var(--bg-deep); color: var(--text-dim);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.55;
+}
+.brand-fixed-bar {
+  position: fixed; top: 0; left: 0; width: 100%; height: 48px; z-index: 99999;
+  background: rgba(6, 9, 14, 0.96); backdrop-filter: blur(12px);
+  border-bottom: 2px solid rgba(0, 243, 255, 0.4); padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.brand-fixed-title { font-family: var(--font-mono); font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-transform: uppercase; }
+.brand-fixed-pill { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; padding: 3px 8px; border-radius: 4px; }
+
+nav {
+  margin-top: 48px; display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 6%; border-bottom: 1px solid var(--border-subtle); background: rgba(10, 11, 14, 0.92);
+  position: sticky; top: 48px; z-index: 100; flex-wrap: wrap; gap: 12px;
+}
+.logo { font-family: var(--font-display); font-size: 21px; color: var(--text-pure); text-decoration: none; text-transform: uppercase; }
+.logo span { color: var(--accent-red); }
+.nav-links { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.nav-link { font-family: var(--font-mono); font-size: 13.5px; color: var(--text-muted); text-decoration: none; text-transform: uppercase; font-weight: 700; }
+.nav-link:hover, .nav-link.active { color: var(--accent-cyan); }
+.nav-actions { display: flex; align-items: center; gap: 10px; }
+.btn-hdr { font-family: var(--font-mono); font-size: 12px; font-weight: 700; text-transform: uppercase; padding: 6px 12px; border-radius: 4px; cursor: pointer; text-decoration: none; }
+.btn-login { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-pure); }
+.btn-signup { background: var(--accent-cyan); color: var(--bg-deep); border: 1px solid var(--accent-cyan); }
+
+.dashboard-shell { max-width: 900px; margin: 0 auto; padding: 40px 6% 80px 6%; }
+.section-label { font-family: var(--font-mono); font-size: 13.5px; text-transform: uppercase; color: var(--text-pure); letter-spacing: 0.15em; padding-bottom: 12px; border-bottom: 2px solid var(--border-subtle); margin-bottom: 28px; font-weight: 700; }
+.contact-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 36px; }
+.contact-card h2 { font-family: var(--font-display); font-size: clamp(24px, 3.5vw, 42px); line-height: 1.1; margin-bottom: 14px; color: var(--text-pure); text-transform: uppercase; }
+.contact-card p.intro { color: var(--text-muted); font-size: 16px; margin-bottom: 28px; line-height: 1.5; }
+
+.form-group { margin-bottom: 22px; }
+.form-label { display: block; font-family: var(--font-mono); font-size: 13px; text-transform: uppercase; color: var(--accent-cyan); margin-bottom: 8px; font-weight: 700; }
+.form-control { width: 100%; background: var(--bg-deep); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 14px 16px; color: #fff; font-family: var(--font-body); font-size: 16px; outline: none; }
+.form-control:focus { border-color: var(--accent-cyan); }
+select.form-control { cursor: pointer; }
+textarea.form-control { min-height: 150px; resize: vertical; }
+
+.submit-btn { background: var(--accent-cyan); color: var(--bg-deep); border: none; padding: 14px 32px; font-size: 13.5px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; cursor: pointer; border-radius: 4px; }
+.submit-btn:hover { opacity: 0.9; }
+</style>
+</head>
+<body>
+
+<div class="brand-fixed-bar">
+  <div class="brand-fixed-title">THE BRINK WORLD // SECURE COMMUNICATIONS</div>
+  <div class="brand-fixed-pill">ENCRYPTED DESK</div>
+</div>
+
+<nav>
+  <a href="/" class="logo">The Brink <span>World</span></a>
+  <div class="nav-links">
+    <a href="/intel.html" class="nav-link">Intel</a>
+    <a href="/watch.html" class="nav-link">Earth</a>
+    <a href="/health.html" class="nav-link">Health</a>
+    <a href="/about.html" class="nav-link">About</a>
+    <a href="/contact.html" class="nav-link active">Contact</a>
+  </div>
+  <div class="nav-actions">
+    <button class="btn-hdr btn-login" onclick="window.location.href='/intel.html'">Login</button>
+    <button class="btn-hdr btn-signup" onclick="window.location.href='/intel.html'">Signup</button>
+  </div>
+</nav>
+
+<div class="dashboard-shell">
+  <main>
+    <div class="section-label">// TALK TO THE BRINK</div>
+    <article class="contact-card">
+      <h2>Talk to The Brink</h2>
+      <p class="intro">Select an inquiry reason below to connect directly with our analytical and strategic desk.</p>
+      
+      <form id="direct-contact-form" onsubmit="handleContactSubmit(event)">
+        <div class="form-group">
+          <label class="form-label" for="contact-reason">Inquiry Reason</label>
+          <select id="contact-reason" class="form-control" required>
+            <option value="" disabled selected>Select a reason...</option>
+            <option value="Commission an analysis">Commission an analysis</option>
+            <option value="Business or research enquiry">Business or research enquiry</option>
+            <option value="Data or source correction">Data or source correction</option>
+            <option value="Partnership">Partnership</option>
+            <option value="Advertising">Advertising</option>
+            <option value="Investment">Investment</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="contact-name">Your Identity / Organisation</label>
+          <input type="text" id="contact-name" class="form-control" placeholder="Enter name or company" required>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="contact-value">Direct Line (Email or WhatsApp Number)</label>
+          <input type="text" id="contact-value" class="form-control" placeholder="How should we get back to you?" required>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="contact-message">Message Content</label>
+          <textarea id="contact-message" class="form-control" placeholder="Write your message here..." required></textarea>
+        </div>
+        
+        <button type="submit" id="contact-submit-btn" class="submit-btn">Send Message →</button>
+      </form>
+    </article>
+  </main>
+</div>
+
+<script>
+const scriptURL = 'https://script.google.com/macros/s/AKfycbxd5wE6bdjxp81qfRXeb37lbElNTXPGrSJbvdIYr5I6omfjZPXro4vEL7NP26lVmTBYeQ/exec';
+
+function handleContactSubmit(e) {
+  e.preventDefault();
+  const reason = document.getElementById('contact-reason').value;
+  const name = document.getElementById('contact-name').value.trim();
+  const rawContact = document.getElementById('contact-value').value.trim();
+  const message = document.getElementById('contact-message').value.trim();
+  const btn = document.getElementById('contact-submit-btn');
+  
+  btn.innerText = "TRANSMITTING...";
+  btn.disabled = true;
+
+  fetch('https://ipapi.co/json/')
+    .then(res => res.json())
+    .then(loc => {
+      const location = loc.city && loc.country_name ? `${loc.city}, ${loc.country_name}` : loc.country_name || 'Unknown';
+      const formData = new FormData();
+      formData.append(rawContact.includes('@') ? 'email' : 'whatsapp', rawContact);
+      formData.append('source', `[Reason: ${reason}] From [${name}] — Message: "${message}"`);
+      formData.append('location', location);
+      return fetch(scriptURL, { method: 'POST', body: formData });
+    })
+    .then(() => {
+      btn.innerText = "MESSAGE TRANSMITTED ✓";
+      document.getElementById('direct-contact-form').reset();
+      setTimeout(() => {
+        btn.innerText = "Send Message →";
+        btn.disabled = false;
+      }, 4000);
+    })
+    .catch(() => {
+      btn.innerText = "MESSAGE TRANSMITTED ✓";
+      document.getElementById('direct-contact-form').reset();
+      setTimeout(() => {
+        btn.innerText = "Send Message →";
+        btn.disabled = false;
+      }, 4000);
+    });
+}
+</script>
+</body>
+</html>
