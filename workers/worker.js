@@ -2,11 +2,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Standard CORS headers for Cloudflare Pages frontend
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-razorpay-signature",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Max-Age": "86400"
     };
 
@@ -15,7 +14,26 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // 1. Investor & Contact Inquiry Intake
+    // 1. Live Volcano Telemetry Proxy (Bypasses Browser CORS)
+    if (url.pathname === "/api/volcanoes" && request.method === "GET") {
+      try {
+        const res = await fetch("https://volcanoes.usgs.gov/vsc/api/volcanoApi/vhpstatus", {
+          headers: { "User-Agent": "TheBrinkEngine/1.0" }
+        });
+        if (!res.ok) throw new Error(`USGS upstream status ${res.status}`);
+        const data = await res.json();
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // 2. Lead Intake & Service Requests (Resend Email Dispatch)
     if (url.pathname === "/api/inquire" && request.method === "POST") {
       try {
         const data = await request.json();
@@ -30,15 +48,17 @@ export default {
             body: JSON.stringify({
               from: "The Brink World <onboarding@resend.dev>",
               to: ["thebrink2028@gmail.com"],
-              subject: `[INQUIRY DESK] ${data.intent || 'General'}: ${data.name || 'Anonymous'}`,
+              subject: `[AUDIT ORDER / LEAD] ${data.service_requested || data.tier || 'Manual Order'}: ${data.name}`,
               html: `
-                <h3>New Platform Telemetry / Lead Intake</h3>
-                <p><strong>Intent:</strong> ${data.intent || 'None'}</p>
-                <p><strong>Name:</strong> ${data.name || 'None'}</p>
-                <p><strong>Email:</strong> ${data.email || 'None'}</p>
-                <p><strong>Facility / Location:</strong> ${data.location || data.asset_name || data.route || 'N/A'}</p>
-                <p><strong>Scope / Notes:</strong></p>
-                <blockquote style="background:#f4f4f4;padding:12px;">${data.scope || data.notes || data.reason || 'None provided'}</blockquote>
+                <h3>New Asset Audit Intake (Manual Payment Flow)</h3>
+                <p><strong>Customer Name:</strong> ${data.name || 'N/A'}</p>
+                <p><strong>Email:</strong> ${data.email || 'N/A'}</p>
+                <p><strong>Monitored Location / Coordinates:</strong> ${data.location || 'N/A'}</p>
+                <p><strong>Service Requested:</strong> ${data.service_requested || data.tier || 'Single Facility Dossier'}</p>
+                <p><strong>Notes / Scope:</strong></p>
+                <blockquote style="background:#f4f4f4;padding:12px;border-left:4px solid #00f3ff;">
+                  ${data.notes || data.scope || 'Customer forwarded to Razorpay Payment Link.'}
+                </blockquote>
               `
             })
           });
@@ -55,126 +75,98 @@ export default {
       }
     }
 
-    // 2. Razorpay Order Creation (Supports both /api/create-order and /api/create-razorpay-order)
-    if ((url.pathname === "/api/create-order" || url.pathname === "/api/create-razorpay-order") && request.method === "POST") {
+    // 3. Server-Side Supabase Auth Proxy
+    const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
+    const sbKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (url.pathname === "/api/auth/signup" && request.method === "POST") {
       try {
         const body = await request.json();
+        if (!sbKey) throw new Error("Supabase secrets missing from environment.");
 
-        // Calculate amount in smallest currency unit (paise or cents)
-        const rawAmount = body.amount || body.amount_inr || 3999;
-        const currency = (body.currency || "INR").toUpperCase();
-        const amount = Math.round(rawAmount * 100);
-
-        const auth = btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`);
-        
-        // Pass location and site details in 'notes' so Razorpay preserves them on payment.captured
-        const rzRes = await fetch("https://api.razorpay.com/v1/orders", {
+        const sbRes = await fetch(`${sbUrl}/auth/v1/signup`, {
           method: "POST",
-          headers: {
-            "Authorization": `Basic ${auth}`,
-            "Content-Type": "application/json"
-          },
+          headers: { "apikey": sbKey, "Content-Type": "application/json" },
           body: JSON.stringify({
-            amount: amount,
-            currency: currency,
-            receipt: body.receipt || `rcpt_${Date.now()}`,
-            notes: {
-              location: body.facility || body.location || "18.5204, 73.8567",
-              site_name: body.facility || body.site_name || "Industrial Facility",
-              customer_name: body.customer_name || "Lead Officer",
-              customer_email: body.customer_email || "thebrink2028@gmail.com"
-            }
+            email: body.email,
+            password: body.password,
+            data: { full_name: body.full_name }
           })
         });
 
-        const rzOrder = await rzRes.json();
-        return new Response(JSON.stringify(rzOrder), {
+        const sbData = await sbRes.json();
+        if (!sbRes.ok) throw new Error(sbData.msg || sbData.error_description || sbData.message || "Registration failed");
+
+        return new Response(JSON.stringify({ ok: true, user: sbData.user }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { 
-          status: 500, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
     }
 
-    // 3. Razorpay Payment Webhook
-    if (url.pathname === "/api/razorpay-webhook" && request.method === "POST") {
-      const payloadText = await request.text();
-      const signature = request.headers.get("x-razorpay-signature");
+    if (url.pathname === "/api/auth/login" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        if (!sbKey) throw new Error("Supabase secrets missing from environment.");
 
-      if (!env.RAZORPAY_WEBHOOK_SECRET) {
-        return new Response("Webhook secret not configured", { status: 500 });
-      }
+        const sbRes = await fetch(`${sbUrl}/auth/v1/token?grant_type=password`, {
+          method: "POST",
+          headers: { "apikey": sbKey, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: body.email,
+            password: body.password
+          })
+        });
 
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(env.RAZORPAY_WEBHOOK_SECRET),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["verify"]
-      );
+        const sbData = await sbRes.json();
+        if (!sbRes.ok) throw new Error(sbData.msg || sbData.error_description || sbData.message || "Invalid credentials");
 
-      const verified = await crypto.subtle.verify(
-        "HMAC",
-        key,
-        hexToUint8(signature),
-        encoder.encode(payloadText)
-      );
-
-      if (!verified) {
-        return new Response("Invalid signature", { status: 400 });
-      }
-
-      const event = JSON.parse(payloadText);
-      if (event.event === "payment.captured") {
-        const payment = event.payload.payment.entity;
-        const notes = payment.notes || {};
-
-        // Dispatch job to GitHub Actions Python Runner
-        if (env.GITHUB_PAT && env.GITHUB_REPO) {
-          await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${env.GITHUB_PAT}`,
-              "Accept": "application/vnd.github+json",
-              "User-Agent": "TheBrink-Cloudflare-Worker"
-            },
-            body: JSON.stringify({
-              event_type: "order_paid",
-              client_payload: {
-                location: notes.location || "18.5204, 73.8567",
-                site_name: notes.site_name || "Industrial Facility",
-                customer_email: payment.email || notes.customer_email || "thebrink2028@gmail.com",
-                answers: {
-                  occupancy: notes.occupancy || "warehouse",
-                  customer_name: notes.customer_name || payment.email || "Lead Officer"
-                }
-              }
-            })
-          });
-        }
-
-        return new Response(JSON.stringify({ ok: true }), { 
-          status: 200, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        return new Response(JSON.stringify({
+          ok: true,
+          token: sbData.access_token,
+          user: sbData.user
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
-
-      return new Response("Event skipped", { status: 200, headers: corsHeaders });
     }
 
-    // 4. Default Root Health Check
-    return new Response("The Brink World Edge Gateway Active", { 
+    if (url.pathname === "/api/auth/verify" && request.method === "GET") {
+      try {
+        const authHeader = request.headers.get("Authorization");
+        if (!authHeader || !sbKey) throw new Error("Unauthorized");
+
+        const sbRes = await fetch(`${sbUrl}/auth/v1/user`, {
+          headers: { "apikey": sbKey, "Authorization": authHeader }
+        });
+
+        if (!sbRes.ok) throw new Error("Session invalid");
+        const userData = await sbRes.json();
+
+        return new Response(JSON.stringify(userData), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // 4. Root Edge Health Status
+    return new Response("The Brink World Gateway Active", { 
       status: 200, 
       headers: { ...corsHeaders, "Content-Type": "text/plain" } 
     });
   }
 };
-
-function hexToUint8(hexString) {
-  if (!hexString) return new Uint8Array();
-  return new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-}
