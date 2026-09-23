@@ -926,12 +926,17 @@ async function fetchLiveUSGS() {
       const item = { place, magnitude: mag, depth_km: Math.round(depth), latitude: lat, longitude: lon, time: new Date(time).toISOString(), level };
       EVENT_STORE.global.push(item);
 
-      if (mag >= 5.0) {
+      if (mag >= 3.0) {
+        let alertKind = "Seismic Watch";
+        if (mag >= 6.0) alertKind = "Severe Rupture";
+        else if (mag >= 5.0) alertKind = "Seismic Alert";
+        else if (mag >= 4.0) alertKind = "Moderate Tremor";
+
         EVENT_STORE.lookout.push({
           headline: `Magnitude ${mag.toFixed(1)} Dislocation: ${place}`,
-          summary: `Hypocenter recorded at depth of ${Math.round(depth)} km. Structural shaking acceleration active across regional fault buffer.`,
+          summary: `Hypocenter recorded at depth of ${Math.round(depth)} km. Crustal shaking active across regional perimeter.`,
           time: new Date(time).toISOString(),
-          kind: "Seismic Alert",
+          kind: alertKind,
           lat, lon
         });
       }
