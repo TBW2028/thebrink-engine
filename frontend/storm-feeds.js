@@ -1,8 +1,7 @@
 /**
- * Global Storm Feed Registry
- * 100% dynamic, multi-source cyclone and hurricane ingestion.
+ * Global Multi-Basin Storm & Cyclone Feed
+ * Uses open public mirrors directly to bypass worker routing errors.
  */
-const BACKEND_BASE = "https://thebrink-engine.thebrink2028.workers.dev";
 window.STORM_FEED_REGISTRY = [
   // 1. NOAA NHC (Atlantic & Eastern/Central Pacific)
   {
@@ -11,14 +10,10 @@ window.STORM_FEED_REGISTRY = [
     enabled: true,
     fetch: async () => {
       try {
-        let res = await fetch(`${BACKEND_BASE}/api/storms/noaa`).catch(() => null);
-        let text = res && res.ok ? await res.text() : "";
-        
-        // If worker hasn't been deployed yet and returns plain text, avoid crashing
-        if (!text.trim().startsWith("{") && !text.trim().startsWith("[")) {
-          return [];
-        }
-        
+        const res = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://www.nhc.noaa.gov/CurrentStorms.json"));
+        if (!res.ok) return [];
+        const text = await res.text();
+        if (!text.includes("activeStorms")) return [];
         const data = JSON.parse(text);
         const storms = [];
 
@@ -44,13 +39,13 @@ window.STORM_FEED_REGISTRY = [
               windSpeed: `${windKt} knots`,
               barometricPressure: s.pressure ? `${s.pressure} hPa` : "Live Monitored",
               time: s.lastUpdate || new Date().toISOString(),
-              summary: `NOAA NHC advisory for ${s.name}: Max sustained winds ${windKt} kt (${s.intensityMPH || Math.round(windKt * 1.15)} mph). Pressure: ${s.pressure ? s.pressure + ' mb' : 'N/A'}.`
+              summary: `NOAA NHC active advisory for ${s.name}: Max sustained winds ${windKt} kt (${s.intensityMPH || Math.round(windKt * 1.15)} mph). Central pressure: ${s.pressure ? s.pressure + ' mb' : 'N/A'}.`
             });
           }
         }
         return storms;
       } catch (err) {
-        console.warn("NOAA NHC feed fetch error:", err);
+        console.warn("NOAA NHC fetch failed:", err);
         return [];
       }
     }
@@ -63,67 +58,11 @@ window.STORM_FEED_REGISTRY = [
     enabled: true,
     fetch: async () => {
       try {
-        let res = await fetch(`${BACKEND_BASE}/api/storms/gdacs`).catch(() => null);
-        let text = res && res.ok ? await res.text() : "";
-
-        if (!text.trim().startsWith("{") && !text.trim().startsWith("[")) {
-          return [];
-        }
-
-        const data = JSON.parse(text);
-        const storms = [];
-
-        for (const f of data.features || []) {
-          const p = f.properties || {};
-          const coords = f.geometry?.coordinates || [];
-          if (coords.length >= 2) {
-            const windKt = Number(p.wind_speed_kts) || Math.round((Number(p.wind_speed_kmh) || 60) / 1.852);
-            const stormName = (p.name || 'CYCLONE').toUpperCase();
-            
-            let catStr = "TROPICAL CYCLONE";
-            if (windKt >= 137) catStr = "CAT 5 SUPER TYPHOON";
-            else if (windKt >= 113) catStr = "CAT 4 SEVERE CYCLONE";
-            else if (windKt >= 96) catStr = "CAT 3 MAJOR CYCLONE";
-            else if (windKt >= 64) catStr = "CAT 1-2 CYCLONE";
-            else if (windKt < 34) catStr = "TROPICAL DEPRESSION";
-
-            storms.push({
-              id: `GDACS-${p.eventid || stormName}`,
-              name: stormName,
-              title: `${stormName} · ${catStr}`,
-              category: catStr,
-              severity: p.alertlevel === 'Red' ? "CRITICAL HAZARD" : "CYCLONIC WATCH",
-              lat: coords[1],
-              lon: coords[0],
-              windSpeed: `${windKt} knots`,
-              barometricPressure: p.pressure ? `${p.pressure} hPa` : "Live Monitored",
-              time: p.fromdate || new Date().toISOString(),
-              summary: `GDACS Alert for ${stormName}. Level: ${p.alertlevel || 'Active'}. Wind speed: ${windKt} kt.`
-            });
-          }
-        }
-        return storms;
-      } catch (err) {
-        console.warn("GDACS feed fetch error:", err);
-        return [];
-      }
-    }
-  }
-];
-
-  // 2. GDACS Global (Worldwide Safety Net: West Pacific, Indian Ocean, etc.)
-  {
-    id: "GDACS_GLOBAL",
-    name: "GDACS Global Multi-Basin",
-    enabled: true,
-    fetch: async () => {
-      try {
-        let res = await fetch(`${BACKEND_BASE}/api/storms/gdacs`).catch(() => null);
-        if (!res || !res.ok) {
-          res = await fetch("https://www.gdacs.org/datareport/resources/TC/events.geojson");
-        }
+        const res = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://www.gdacs.org/datareport/resources/TC/events.geojson"));
         if (!res.ok) return [];
-        const data = await res.json();
+        const text = await res.text();
+        if (!text.includes("features")) return [];
+        const data = JSON.parse(text);
         const storms = [];
 
         for (const f of data.features || []) {
@@ -157,17 +96,13 @@ window.STORM_FEED_REGISTRY = [
         }
         return storms;
       } catch (err) {
-        console.warn("GDACS feed fetch failed:", err);
+        console.warn("GDACS fetch failed:", err);
         return [];
       }
     }
   }
 ];
 
-/**
- * Universal Ingest Engine: Polls all enabled feeds concurrently,
- * prevents crashing if one source fails, and deduplicates events.
- */
 window.fetchGlobalStorms = async function() {
   const feeds = (window.STORM_FEED_REGISTRY || []).filter(f => f.enabled);
   const results = await Promise.allSettled(feeds.map(f => f.fetch()));

@@ -396,8 +396,8 @@ footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); fon
     </div>
     <div class="panel">
       <div class="panel-h">
-        <span>Priority Hazard Lookout (Last 24 Hours)</span>
-        <span class="badge">Strict 24H Window</span>
+        <span>Priority Apex Hazard (Global Maximum Threat)</span>
+        <span class="badge">Strict Apex Threshold</span>
       </div>
       <div id="lookout" class="region-scroll" style="max-height:430px;"><div style="color:var(--muted);padding:8px">Synchronizing live streams…</div></div>
     </div>
@@ -482,7 +482,7 @@ footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); fon
 
   <div class="services-fomo-banner">
     <div class="mono" style="font-size: 12px; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">// BEYOND THE LIVE FEED</div>
-    <h2>When risk lands on your exact doorstep, general feeds are not enough.</h2>
+    <h2>When risk lands on your doorstep, general feeds are not enough.</h2>
     <p>
       You are watching the macro signals. But whether you are evaluating a critical supply chain corridor, timing a high-exposure cross-border journey, protecting agricultural yield against unseasonal climate anomalies, or managing complex pilgrimage logistics under extreme heat—tailored intelligence changes everything.
     </p>
@@ -869,6 +869,98 @@ function toggleRadarPlay() {
   }
 }
 
+// UNIFIED CROSS-HAZARD APEX RANKING ENGINE (ZERO SECONDARY CALLS)
+function rebuildPriorityLookout() {
+  const candidatePool = [];
+
+  // 1. Ingest existing earthquakes
+  (EVENT_STORE.global || []).forEach(q => {
+    let score = 0;
+    let badgeText = "SEISMIC";
+    if (q.magnitude >= 7.0) { score = 100; badgeText = "CATASTROPHIC SLIP"; }
+    else if (q.magnitude >= 6.0) { score = 90; badgeText = "SEVERE RUPTURE"; }
+    else if (q.magnitude >= 5.0) { score = 80; badgeText = "MAJOR DISLOCATION"; }
+    else if (q.magnitude >= 4.5) { score = 65; badgeText = "MODERATE SHOCK"; }
+
+    if (score > 0) {
+      candidatePool.push({
+        score,
+        headline: `⚡ Magnitude ${q.magnitude.toFixed(1)}: ${q.place}`,
+        summary: `Hypocenter recorded at depth of ${q.depth_km} km. Active lithospheric strain monitored within regional perimeter.`,
+        kind: badgeText,
+        time: q.time,
+        lat: q.latitude,
+        lon: q.longitude
+      });
+    }
+  });
+
+  // 2. Ingest existing storms & hurricanes
+  (EVENT_STORE.storms || []).forEach(s => {
+    let score = 70;
+    const catUpper = (s.category || "").toUpperCase();
+    if (catUpper.includes("CATEGORY 5") || catUpper.includes("SUPER TYPHOON")) score = 100;
+    else if (catUpper.includes("CATEGORY 4") || catUpper.includes("SEVERE")) score = 95;
+    else if (catUpper.includes("CATEGORY 3") || catUpper.includes("MAJOR")) score = 88;
+    else if (catUpper.includes("CATEGORY 2")) score = 82;
+    else if (catUpper.includes("CATEGORY 1")) score = 75;
+
+    candidatePool.push({
+      score,
+      headline: `🌀 ${s.title}`,
+      summary: s.summary || `Maximum sustained winds logged at ${s.windSpeed}. Barometric pressure: ${s.barometricPressure}.`,
+      kind: s.severity || "CYCLONIC APEX",
+      time: s.time,
+      lat: s.lat,
+      lon: s.lon
+    });
+  });
+
+  // 3. Ingest existing volcanic alerts
+  (EVENT_STORE.volcanoes || []).forEach(v => {
+    let score = 0;
+    const intUpper = (v.intensity || "").toUpperCase();
+    if (intUpper.includes("WARNING") || intUpper.includes("RED")) score = 92;
+    else if (intUpper.includes("WATCH") || intUpper.includes("ORANGE")) score = 82;
+    else if (intUpper.includes("ADVISORY") || intUpper.includes("YELLOW")) score = 65;
+
+    if (score > 0) {
+      candidatePool.push({
+        score,
+        headline: `🌋 ${v.title} · ${v.intensity}`,
+        summary: v.summary || `Volcanic observatory alert active. Elevated eruptive or degassing phase logged.`,
+        kind: "VOLCANIC APEX",
+        time: v.time,
+        lat: v.lat || 0,
+        lon: v.lon || 0
+      });
+    }
+  });
+
+  // Rank strictly descending by threat severity, slice to exactly 1 event (THE APEX THREAT)
+  candidatePool.sort((a, b) => b.score - a.score || new Date(b.time) - new Date(a.time));
+  EVENT_STORE.lookout = candidatePool.slice(0, 1);
+
+  // Render to Lookout Panel
+  $("lookout").innerHTML = EVENT_STORE.lookout.length > 0 ? EVENT_STORE.lookout.map(n => {
+    const t = formatTimeElapsed(n.time);
+    const borderColor = n.score >= 90 ? "var(--hot)" : (n.score >= 80 ? "var(--gold)" : "var(--accent)");
+    return `
+      <div class="hazard-card-row" style="border-left:3px solid ${borderColor};">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+          <span style="font-weight:700; color:#fff; font-size:0.95rem;">${n.headline}</span>
+          <span class="badge" style="color:${borderColor}; border-color:${borderColor}; white-space:nowrap; margin-left:8px;">${n.kind}</span>
+        </div>
+        <div style="font-size:0.88rem; color:var(--soft); line-height:1.45;">${n.summary}</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px solid rgba(30,42,56,.6); padding-top:6px;">
+          <span class="mono" style="font-size:11px; color:var(--gold);">🕒 ${t.elapsed} · ${t.fullDate}</span>
+          ${n.lat && n.lon ? `<button type="button" class="btn" style="padding:2px 8px; font-size:11px; background:rgba(0,243,255,0.1); border-color:var(--accent); color:var(--accent);" onclick="focusMapOnEvent(${n.lat},${n.lon})">Zoom Map ↗</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join("") : '<div style="color:var(--ok); padding:10px; font-weight:700;">✓ Planetary baseline nominal across all active vectors. No critical apex hazards currently detected.</div>';
+}
+
 // USGS REAL SEISMIC STREAM
 async function fetchLiveUSGS() {
   try {
@@ -926,21 +1018,6 @@ async function fetchLiveUSGS() {
       const item = { place, magnitude: mag, depth_km: Math.round(depth), latitude: lat, longitude: lon, time: new Date(time).toISOString(), level };
       EVENT_STORE.global.push(item);
 
-      if (mag >= 3.0) {
-        let alertKind = "Seismic Watch";
-        if (mag >= 6.0) alertKind = "Severe Rupture";
-        else if (mag >= 5.0) alertKind = "Seismic Alert";
-        else if (mag >= 4.0) alertKind = "Moderate Tremor";
-
-        EVENT_STORE.lookout.push({
-          headline: `Magnitude ${mag.toFixed(1)} Dislocation: ${place}`,
-          summary: `Hypocenter recorded at depth of ${Math.round(depth)} km. Crustal shaking active across regional perimeter.`,
-          time: new Date(time).toISOString(),
-          kind: alertKind,
-          lat, lon
-        });
-      }
-
       const isPriority = mag >= 5.0;
       let pinClass = mag >= 6.0 ? "custom-hazard-pin pin-quake-major" : "custom-hazard-pin pin-quake";
       if (isPriority) pinClass += " pulse-priority";
@@ -957,7 +1034,7 @@ async function fetchLiveUSGS() {
     try {
       let volcRes = await fetch(`${BACKEND_API}/api/volcanoes`).catch(() => null);
       if (!volcRes || !volcRes.ok) {
-        volcRes = await fetch("https://volcanoes.usgs.gov/vsc/api/volcanoApi/vhpstatus").catch(() => null);
+        volcRes = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://volcanoes.usgs.gov/vsc/api/volcanoApi/vhpstatus")).catch(() => null);
       }
 
       if (volcRes && volcRes.ok) {
@@ -980,7 +1057,6 @@ async function fetchLiveUSGS() {
           const lon = parseFloat(v.long || v.longitude || 0);
           const vTime = v.updateTime || v.time || new Date().toISOString();
           
-          // Pure real-world observations from authoritative observatory feeds
           const observatory = v.observatory || "USGS / Global Volcanism Network";
           const obsNotice = v.activitySummary || v.statusDescription || v.hazardStatement || `Active alert level: ${alertLvl} (${colorCd}) logged by ${observatory}. Continuous baseline monitoring operational.`;
 
@@ -989,7 +1065,9 @@ async function fetchLiveUSGS() {
             intensity: `${alertLvl} (${colorCd})`,
             observatory: observatory,
             summary: obsNotice,
-            time: vTime
+            time: vTime,
+            lat: lat,
+            lon: lon
           });
 
           if (lat !== 0 && lon !== 0) {
@@ -1026,6 +1104,9 @@ async function fetchLiveUSGS() {
     } catch (stormErr) {
       console.error("Global storm sync failed:", stormErr);
     }
+
+    // REBUILD UNIFIED APEX LOOKOUT ACROSS ALL COLLECTED DATA
+    rebuildPriorityLookout();
 
     $("c-escalate").textContent = escalateCount;
     $("c-alert").textContent = alertCount;
@@ -1075,23 +1156,6 @@ async function fetchLiveUSGS() {
         </div>
       `;
     }).join("") : '<div style="color:var(--ok); padding:10px; font-family:var(--font-mono); font-size:13px;">✓ Global volcanic arcs are in a state of background quiescence; no significant elevated eruptive phases or ash dispersion advisories are currently detected.</div>';
-
-    $("lookout").innerHTML = EVENT_STORE.lookout.length > 0 ? EVENT_STORE.lookout.map((n, idx) => {
-      const t = formatTimeElapsed(n.time);
-      return `
-        <div class="hazard-card-row" style="border-left:3px solid var(--gold);">
-          <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-            <span style="font-weight:700; color:#fff;">${n.headline}</span>
-            <span class="badge" style="color:var(--gold); border-color:var(--gold);">${n.kind}</span>
-          </div>
-          <div style="font-size:0.9rem; color:var(--soft);">${n.summary}</div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px solid rgba(30,42,56,.6); padding-top:6px;">
-            <span class="mono" style="font-size:11px; color:var(--gold);">🕒 ${t.elapsed} · ${t.fullDate}</span>
-            <button type="button" class="btn" style="padding:3px 8px; font-size:11px; background:rgba(0,243,255,0.1); border-color:var(--accent); color:var(--accent);" onclick="focusMapOnEvent(${n.lat}, ${n.lon})">Zoom Map ↗</button>
-          </div>
-        </div>
-      `;
-    }).join("") : '<div style="color:var(--muted); padding:10px;">No critical escalating seismic events in past 24 hours.</div>';
 
     const logEnergy = Math.log10(totalSeismicEnergyJoules || 1e9);
     const seismicScore = Math.min(100, Math.max(8, Math.round(((logEnergy - 10) / 6) * 100)));
@@ -1173,12 +1237,11 @@ async function fetchSpaceWeather() {
   try {
     let pRes = await fetch(`${BACKEND_API}/api/space/solar-wind`).catch(() => null);
     if (!pRes || !pRes.ok) {
-      pRes = await fetch("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-hour.json").catch(() => null);
+      pRes = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-hour.json")).catch(() => null);
     }
 
     if (pRes && pRes.ok) {
       const plasmaRows = await pRes.json();
-      // Format: [time_tag, density, speed, temperature]
       if (Array.isArray(plasmaRows) && plasmaRows.length > 1) {
         for (let i = plasmaRows.length - 1; i >= 1; i--) {
           const row = plasmaRows[i];
@@ -1187,7 +1250,6 @@ async function fetchSpaceWeather() {
           if (!isNaN(speed) && speed > 0) {
             windSpeedKmS = Math.round(speed);
             protonDensity = !isNaN(density) ? Math.round(density * 10) / 10 : null;
-            // Solar wind dynamic pressure: P = 1.6726e-6 * n * v^2 (nPa)
             if (protonDensity) {
               dynamicPressureNpa = (1.6726e-6 * protonDensity * (windSpeedKmS ** 2)).toFixed(2);
             }
