@@ -14,11 +14,52 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // 1. Live Volcano Telemetry Proxy (Bypasses Browser CORS)
+    // 1. Live NOAA NHC Active Storms Proxy (CORS-Bypass + Edge Cache)
+    if (url.pathname === "/api/storms/noaa" && request.method === "GET") {
+      try {
+        const upstream = await fetch("https://www.nhc.noaa.gov/CurrentStorms.json", {
+          headers: { "User-Agent": "TheBrinkEngine/1.0" },
+          cf: { cacheTtl: 300, cacheEverything: true }
+        });
+        if (!upstream.ok) throw new Error(`NOAA upstream status ${upstream.status}`);
+        const data = await upstream.text();
+        return new Response(data, {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, activeStorms: [] }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // 2. GDACS Global Tropical Cyclones Proxy (Worldwide Multi-Basin)
+    if (url.pathname === "/api/storms/gdacs" && request.method === "GET") {
+      try {
+        const upstream = await fetch("https://www.gdacs.org/datareport/resources/TC/events.geojson", {
+          headers: { "User-Agent": "TheBrinkEngine/1.0" },
+          cf: { cacheTtl: 300, cacheEverything: true }
+        });
+        if (!upstream.ok) throw new Error(`GDACS upstream status ${upstream.status}`);
+        const data = await upstream.text();
+        return new Response(data, {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, features: [] }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // 3. Live Volcano Telemetry Proxy (USGS Volcano Hazards Program)
     if (url.pathname === "/api/volcanoes" && request.method === "GET") {
       try {
         const res = await fetch("https://volcanoes.usgs.gov/vsc/api/volcanoApi/vhpstatus", {
-          headers: { "User-Agent": "TheBrinkEngine/1.0" }
+          headers: { "User-Agent": "TheBrinkEngine/1.0" },
+          cf: { cacheTtl: 600, cacheEverything: true }
         });
         if (!res.ok) throw new Error(`USGS upstream status ${res.status}`);
         const data = await res.json();
@@ -33,11 +74,55 @@ export default {
       }
     }
 
-    // 2. Lead Intake & Service Requests (Resend Email Dispatch)
+    // 4. NOAA DSCOVR Satellite Solar Wind Plasma Stream
+    if (url.pathname === "/api/space/solar-wind" && request.method === "GET") {
+      try {
+        const res = await fetch("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-hour.json", {
+          headers: { "User-Agent": "TheBrinkEngine/1.0" },
+          cf: { cacheTtl: 180, cacheEverything: true }
+        });
+        if (!res.ok) throw new Error(`NOAA SWPC upstream status ${res.status}`);
+        const data = await res.text();
+        return new Response(data, {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify([]), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // 5. Lead Intake & Service Requests (Resend Email Dispatch + Supabase Logging)
     if (url.pathname === "/api/inquire" && request.method === "POST") {
       try {
         const data = await request.json();
         
+        const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
+        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+
+        if (sbKey) {
+          await fetch(`${sbUrl}/rest/v1/audit_orders`, {
+            method: "POST",
+            headers: {
+              "apikey": sbKey,
+              "Authorization": `Bearer ${sbKey}`,
+              "Content-Type": "application/json",
+              "Prefer": "return=minimal"
+            },
+            body: JSON.stringify({
+              customer_name: data.name || "Anonymous",
+              customer_email: data.email,
+              location_query: data.location,
+              service_tier: data.service_requested || data.tier || "Single Facility Dossier",
+              notes: data.notes || data.scope || "",
+              payment_status: "manual_pending",
+              created_at: new Date().toISOString()
+            })
+          });
+        }
+
         if (env.RESEND_API_KEY) {
           await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -75,7 +160,7 @@ export default {
       }
     }
 
-    // 3. Server-Side Supabase Auth Proxy
+    // 6. Server-Side Supabase Auth Proxy
     const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
     const sbKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -163,7 +248,7 @@ export default {
       }
     }
 
-    // 4. Root Edge Health Status
+    // 7. Root Gateway Status
     return new Response("The Brink World Gateway Active", { 
       status: 200, 
       headers: { ...corsHeaders, "Content-Type": "text/plain" } 
