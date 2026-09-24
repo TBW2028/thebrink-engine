@@ -116,6 +116,17 @@ nav {
 .nav-link.climate-pill { color: #f59e0b; }
 .nav-link.health-pill { color: var(--accent-purple); }
 
+/* BUTTON STYLES */
+.btn {
+  display: inline-flex; align-items: center; border: 1px solid var(--border-subtle);
+  background: transparent; color: var(--text-pure); border-radius: 4px; padding: 6px 12px;
+  font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-mono);
+  text-transform: uppercase; text-decoration: none; transition: all 0.2s ease;
+}
+.btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+.btn-primary { background: var(--accent-cyan); color: var(--bg-deep); border-color: var(--accent-cyan); }
+.btn-primary:hover { filter: brightness(1.1); color: var(--bg-deep); }
+
 /* HERO TERMINAL */
 .hero-terminal {
   max-width: 1400px; margin: 0 auto; padding: 40px 6% 24px 6%;
@@ -305,6 +316,29 @@ nav {
   text-decoration: none;
 }
 
+/* MODAL STYLES */
+.modal {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  display: none; align-items: center; justify-content: center; z-index: 999999;
+}
+.modal-card {
+  background: var(--bg-panel); border: 1px solid var(--border-subtle);
+  border-radius: 10px; padding: 24px; max-width: 460px; width: 92%;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6); max-height: 90vh; overflow-y: auto;
+}
+.input-dark {
+  background: var(--bg-panel-light); border: 1px solid var(--border-subtle);
+  border-radius: 6px; color: #fff; padding: 11px 13px; font-size: 15px;
+  width: 100%; font-family: var(--font-body); outline: none;
+}
+.input-dark:focus { border-color: var(--accent-cyan); }
+.modal-feedback-box {
+  padding: 12px 14px; border-radius: 6px; font-size: 13px;
+  font-family: var(--font-mono); background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.3); margin-top: 12px;
+}
+
 /* FOOTER */
 footer {
   background: var(--bg-panel); border-top: 1px solid var(--border-subtle); padding: 50px 6%; margin-top: 70px;
@@ -328,6 +362,9 @@ footer {
 
 <div class="brand-fixed-bar">
   <div class="brand-fixed-title">THE BRINK WORLD // NEWS &amp; MACRO INTEL</div>
+  <div id="authNavButtons" style="display:flex; align-items:center; gap:8px;">
+    <button type="button" class="btn btn-primary" style="padding:4px 10px; font-size:11px;" onclick="openModal('modalUniversalIdentity')">Preferences</button>
+  </div>
 </div>
 
 <div id="scroll-progress"></div>
@@ -389,6 +426,57 @@ footer {
   </div>
 </footer>
 
+<!-- UNIFIED BRINK IDENTITY & PREFERENCES MODAL -->
+<div class="modal" id="modalUniversalIdentity" style="display:none;">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
+      <span style="font-family:var(--font-mono); font-size:12px; font-weight:800; color:var(--accent-cyan); letter-spacing:0.1em;">THE BRINK WORLD // DISPATCH CONSOLE</span>
+      <button class="btn" onclick="closeModal('modalUniversalIdentity')" style="padding:2px 8px; border:none; color:#fff; font-size:18px;">✕</button>
+    </div>
+
+    <p style="font-size:14px; color:var(--text-dim); margin-bottom:16px;">
+      Access sensor tools and manage direct intelligence dispatches to your inbox.
+    </p>
+
+    <form id="formUniversalIdentity" onsubmit="handleUniversalSubmit(event)">
+      <input type="email" id="identityEmail" class="input-dark" placeholder="Enter corporate or personal email..." required style="margin-bottom:14px; width:100%;" />
+
+      <div style="background:var(--bg-panel-light); border:1px solid var(--border-subtle); border-radius:6px; padding:12px 14px; margin-bottom:16px;">
+        <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:700; margin-bottom:8px;">
+          Select Dispatch Vectors:
+        </div>
+        
+        <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:#fff; margin-bottom:8px; cursor:pointer;">
+          <input type="checkbox" id="subNews" checked style="accent-color:var(--accent-cyan);" />
+          <span>🌐 <strong>News &amp; Macro Intelligence</strong></span>
+        </label>
+        
+        <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:#fff; margin-bottom:8px; cursor:pointer;">
+          <input type="checkbox" id="subEarth" checked style="accent-color:var(--accent-cyan);" />
+          <span>⚡ <strong>Earth &amp; Climate Hazards</strong> (M4.5+, Cyclones)</span>
+        </label>
+
+        <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:#fff; cursor:pointer;">
+          <input type="checkbox" id="subHealth" checked style="accent-color:var(--accent-cyan);" />
+          <span>🛡️ <strong>Health &amp; Biological Outbreaks</strong></span>
+        </label>
+      </div>
+
+      <button type="submit" id="identitySubmitBtn" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px; font-weight:800;">
+        SAVE PREFERENCES &amp; ENTER →
+      </button>
+
+      <div style="text-align:center; margin-top:12px;">
+        <a href="#" onclick="handleUnsubscribeAll(event)" style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted); text-decoration:underline;">
+          Unsubscribe from all email dispatches
+        </a>
+      </div>
+    </form>
+    
+    <div id="identityFeedback" class="modal-feedback-box" style="display:none;"></div>
+  </div>
+</div>
+
 <script>
 const scriptURL = 'https://script.google.com/macros/s/AKfycbxd5wE6bdjxp81qfRXeb37lbElNTXPGrSJbvdIYr5I6omfjZPXro4vEL7NP26lVmTBYeQ/exec';
 const BACKEND_API = 'https://thebrink-engine.thebrink2028.workers.dev';
@@ -396,13 +484,31 @@ const BACKEND_API = 'https://thebrink-engine.thebrink2028.workers.dev';
 let cachedArticles = [];
 const expandedCardSet = new Set();
 
+// Modal Controls
+function openModal(id) { 
+  const el = document.getElementById(id);
+  if (el) el.style.display = "flex"; 
+}
+function closeModal(id) { 
+  const el = document.getElementById(id);
+  if (el) el.style.display = "none"; 
+}
+
+// Optimized scroll progress (eliminates Firefox warning)
+let scrollTicking = false;
 window.addEventListener('scroll', () => {
-  const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
-  const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-  const scrolled = (winScroll / height) * 100;
-  const bar = document.getElementById('scroll-progress');
-  if (bar) bar.style.width = scrolled + '%';
-});
+  if (!scrollTicking) {
+    window.requestAnimationFrame(() => {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = height > 0 ? (winScroll / height) * 100 : 0;
+      const bar = document.getElementById('scroll-progress');
+      if (bar) bar.style.width = scrolled + '%';
+      scrollTicking = false;
+    });
+    scrollTicking = true;
+  }
+}, { passive: true });
 
 function styleTitleWithRedAccent(titleText) {
   if (!titleText) return 'Untitled Story';
@@ -592,6 +698,84 @@ function copyIntelLink(url, button) {
   });
 }
 
+// Unified Identity & Preferences Submissions
+async function handleUniversalSubmit(e) {
+  e.preventDefault();
+  const email = document.getElementById("identityEmail").value.trim();
+  const prefNews = document.getElementById("subNews").checked;
+  const prefEarth = document.getElementById("subEarth").checked;
+  const prefHealth = document.getElementById("subHealth").checked;
+  const btn = document.getElementById("identitySubmitBtn");
+  const fb = document.getElementById("identityFeedback");
+
+  btn.innerText = "UPDATING...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${BACKEND_API}/api/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email,
+        pref_news: prefNews,
+        pref_earth: prefEarth,
+        pref_health: prefHealth,
+        source: window.location.pathname
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Update failed");
+
+    localStorage.setItem("brink_user_email", email);
+    fb.style.display = "block";
+    fb.style.color = "var(--accent-green)";
+    fb.innerText = "Preferences saved. Dispatches updated.";
+
+    setTimeout(() => {
+      closeModal("modalUniversalIdentity");
+      updateNavIdentityState();
+    }, 1200);
+  } catch (err) {
+    fb.style.display = "block";
+    fb.style.color = "var(--accent-red)";
+    fb.innerText = err.message;
+    btn.disabled = false;
+    btn.innerText = "TRY AGAIN";
+  }
+}
+
+async function handleUnsubscribeAll(e) {
+  e.preventDefault();
+  const email = document.getElementById("identityEmail").value.trim();
+  if (!email) {
+    alert("Please enter your email above to unsubscribe.");
+    return;
+  }
+
+  if (confirm(`Unsubscribe ${email} from all automated dispatches?`)) {
+    await fetch(`${BACKEND_API}/api/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, unsubscribe_all: true })
+    });
+    alert("You have been unsubscribed from automated dispatches. Your records remain preserved in our registry.");
+    closeModal("modalUniversalIdentity");
+  }
+}
+
+function updateNavIdentityState() {
+  const email = localStorage.getItem("brink_user_email");
+  const authNav = document.getElementById("authNavButtons");
+  if (authNav && email) {
+    authNav.innerHTML = `
+      <span style="font-family:var(--font-mono); font-size:12px; color:var(--accent-green);">👤 ${email.split('@')[0]}</span>
+      <button type="button" class="btn btn-primary" style="padding:4px 9px; font-size:11px;" onclick="openModal('modalUniversalIdentity')">Preferences</button>
+    `;
+  }
+}
+
+// Footer Subscription Hook
 function handleTerminalSubscribe(e, contextSource) {
   e.preventDefault();
   const inputEl = document.getElementById('footer-sub-value');
@@ -623,7 +807,10 @@ function sendData(value, source, location, btn, inputEl) {
     body: JSON.stringify({
       email: value,
       source: source,
-      location: location
+      location: location,
+      pref_news: true,
+      pref_earth: true,
+      pref_health: true
     })
   })
   .then(res => res.json())
@@ -631,6 +818,8 @@ function sendData(value, source, location, btn, inputEl) {
     if (data.ok) {
       if (btn) btn.innerText = "SUBSCRIBED ✓";
       if (inputEl) inputEl.value = "";
+      localStorage.setItem("brink_user_email", value);
+      updateNavIdentityState();
     } else {
       if (btn) btn.innerText = "FAILED ✕";
     }
@@ -652,7 +841,10 @@ function sendData(value, source, location, btn, inputEl) {
   });
 }
 
-window.addEventListener('DOMContentLoaded', loadArticles);
+window.addEventListener('DOMContentLoaded', () => {
+  loadArticles();
+  updateNavIdentityState();
+});
 </script>
 </body>
 </html>

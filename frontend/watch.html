@@ -258,10 +258,11 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .services-fomo-banner h2 { font-family: var(--font-display); font-size: clamp(1.4rem, 3.2vw, 2rem); color: #fff; text-transform: uppercase; margin-bottom: 14px; letter-spacing: -0.02em; }
 .services-fomo-banner p { color: var(--soft); font-size: 1.05rem; line-height: 1.6; max-width: 48rem; margin: 0 auto 24px; }
 
-.modal{ position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.88); display:none; align-items:center; justify-content:center; z-index:999999; }
+.modal{ position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.88); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; z-index:999999; }
 .modal-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; max-width:640px; width:92%; max-height:90vh; overflow-y:auto; box-shadow:var(--shadow); }
-.input-dark{ background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:#fff; padding:11px 13px; font-size:15px; width:100%; font-family:var(--font-body); }
-.modal-feedback-box{ padding: 16px; border-radius: 8px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); margin-top: 8px; }
+.input-dark{ background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:#fff; padding:11px 13px; font-size:15px; width:100%; font-family:var(--font-body); outline:none; }
+.input-dark:focus{ border-color:var(--accent); }
+.modal-feedback-box{ padding: 16px; border-radius: 8px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); margin-top: 8px; font-family:var(--font-mono); font-size:13px; }
 footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); font-size:0.88rem; color:var(--muted); display:flex; justify-content:space-between; }
 </style>
 </head>
@@ -276,11 +277,10 @@ footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); fon
     </div>
   </div>
   <div class="brand-fixed-right">
-    <a href="/" class="hdr-link hide-sm">← Intel</a>
+    <a href="/news.html" class="hdr-link hide-sm">News</a>
     <a href="/services.html" class="hdr-link hide-sm" style="color:var(--gold)">Services →</a>
     <div id="authNavButtons" style="display:flex; gap:8px; align-items:center;">
-      <button type="button" class="btn" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalLogin')">Login</button>
-      <button type="button" class="btn btn-primary" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalSignup')">Signup</button>
+      <button type="button" class="btn btn-primary" style="padding:4px 10px; font-size:11px;" onclick="openModal('modalUniversalIdentity')">Preferences</button>
     </div>
   </div>
 </div>
@@ -482,7 +482,7 @@ footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); fon
 
   <div class="services-fomo-banner">
     <div class="mono" style="font-size: 12px; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">// BEYOND THE LIVE FEED</div>
-    <h2>When risk lands on your doorstep, general feeds are not enough.</h2>
+    <h2>When risk lands on your exact doorstep, general feeds are not enough.</h2>
     <p>
       You are watching the macro signals. But whether you are evaluating a critical supply chain corridor, timing a high-exposure cross-border journey, protecting agricultural yield against unseasonal climate anomalies, or managing complex pilgrimage logistics under extreme heat—tailored intelligence changes everything.
     </p>
@@ -537,34 +537,54 @@ footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); fon
   </div>
 </div>
 
-<div class="modal" id="modalLogin">
-  <div class="modal-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
-      <h3 style="font-size:1.2rem; color:#fff">Platform Login</h3>
-      <button class="btn" onclick="closeModal('modalLogin')" style="padding:4px 9px">✕</button>
+<!-- UNIFIED BRINK IDENTITY & PREFERENCES MODAL -->
+<div class="modal" id="modalUniversalIdentity" style="display:none;">
+  <div class="modal-card" style="max-width:460px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:8px;">
+      <span style="font-family:var(--font-mono); font-size:12px; font-weight:800; color:var(--accent); letter-spacing:0.1em;">THE BRINK WORLD // DISPATCH CONSOLE</span>
+      <button class="btn" onclick="closeModal('modalUniversalIdentity')" style="padding:2px 8px; border:none; color:#fff; font-size:18px;">✕</button>
     </div>
-    <form id="formLogin" style="display:flex; flex-direction:column; gap:12px" onsubmit="handleBackendLogin(event)">
-      <input type="email" id="loginEmail" class="input-dark" placeholder="Registered Email Address" required/>
-      <input type="password" id="loginPass" class="input-dark" placeholder="Password" required/>
-      <button type="submit" class="btn btn-primary" style="justify-content:center; padding:11px;">Authorize Access →</button>
-    </form>
-    <div id="loginFeedback" class="modal-feedback-box" style="display:none;"></div>
-  </div>
-</div>
 
-<div class="modal" id="modalSignup">
-  <div class="modal-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
-      <h3 style="font-size:1.2rem; color:#fff">Free Platform Signup</h3>
-      <button class="btn" onclick="closeModal('modalSignup')" style="padding:4px 9px">✕</button>
-    </div>
-    <form id="formSignup" style="display:flex; flex-direction:column; gap:12px" onsubmit="handleBackendSignup(event)">
-      <input type="text" id="signupName" class="input-dark" placeholder="Full Name / Officer" required/>
-      <input type="email" id="signupEmail" class="input-dark" placeholder="Corporate Email Address" required/>
-      <input type="password" id="signupPass" class="input-dark" placeholder="Create Password" required/>
-      <button type="submit" class="btn btn-gold" style="justify-content:center; padding:11px;">Complete Free Registration →</button>
+    <p style="font-size:14px; color:var(--soft); margin-bottom:16px;">
+      Access sensor tools and manage direct intelligence dispatches to your inbox.
+    </p>
+
+    <form id="formUniversalIdentity" onsubmit="handleUniversalSubmit(event)">
+      <input type="email" id="identityEmail" class="input-dark" placeholder="Enter corporate or personal email..." required style="margin-bottom:14px; width:100%;" />
+
+      <div style="background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:12px 14px; margin-bottom:16px;">
+        <div style="font-family:var(--font-mono); font-size:11px; color:var(--muted); text-transform:uppercase; font-weight:700; margin-bottom:8px;">
+          Select Dispatch Vectors:
+        </div>
+        
+        <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:#fff; margin-bottom:8px; cursor:pointer;">
+          <input type="checkbox" id="subNews" checked style="accent-color:var(--accent);" />
+          <span>🌐 <strong>News &amp; Macro Intelligence</strong></span>
+        </label>
+        
+        <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:#fff; margin-bottom:8px; cursor:pointer;">
+          <input type="checkbox" id="subEarth" checked style="accent-color:var(--accent);" />
+          <span>⚡ <strong>Earth &amp; Climate Hazards</strong> (M4.5+, Cyclones)</span>
+        </label>
+
+        <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:#fff; cursor:pointer;">
+          <input type="checkbox" id="subHealth" checked style="accent-color:var(--accent);" />
+          <span>🛡️ <strong>Health &amp; Biological Outbreaks</strong></span>
+        </label>
+      </div>
+
+      <button type="submit" id="identitySubmitBtn" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px; font-weight:800;">
+        SAVE PREFERENCES &amp; ENTER →
+      </button>
+
+      <div style="text-align:center; margin-top:12px;">
+        <a href="#" onclick="handleUnsubscribeAll(event)" style="font-family:var(--font-mono); font-size:11px; color:var(--muted); text-decoration:underline;">
+          Unsubscribe from all email dispatches
+        </a>
+      </div>
     </form>
-    <div id="signupFeedback" class="modal-feedback-box" style="display:none;"></div>
+    
+    <div id="identityFeedback" class="modal-feedback-box" style="display:none;"></div>
   </div>
 </div>
 
@@ -572,16 +592,92 @@ footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); fon
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const BACKEND_API = "https://thebrink-engine.thebrink2028.workers.dev";
-let currentUserSession = null;
 
 const $ = id => document.getElementById(id);
-function openModal(id){ $(id).style.display = "flex"; }
-function closeModal(id){ $(id).style.display = "none"; }
+function openModal(id){ const el = $(id); if(el) el.style.display = "flex"; }
+function closeModal(id){ const el = $(id); if(el) el.style.display = "none"; }
 function toggleTray(id) { $(id).classList.toggle('open'); }
 function openTrayAndScroll(id) {
   const el = $(id);
   if (!el.classList.contains('open')) el.classList.add('open');
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Unified Identity & Dispatch Preferences Handler
+async function handleUniversalSubmit(e) {
+  e.preventDefault();
+  const email = $("identityEmail").value.trim();
+  const prefNews = $("subNews").checked;
+  const prefEarth = $("subEarth").checked;
+  const prefHealth = $("subHealth").checked;
+  const btn = $("identitySubmitBtn");
+  const fb = $("identityFeedback");
+
+  btn.innerText = "UPDATING...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${BACKEND_API}/api/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email,
+        pref_news: prefNews,
+        pref_earth: prefEarth,
+        pref_health: prefHealth,
+        source: window.location.pathname
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Update failed");
+
+    localStorage.setItem("brink_user_email", email);
+    fb.style.display = "block";
+    fb.style.color = "var(--ok)";
+    fb.innerText = "Preferences saved. Dispatches updated.";
+
+    setTimeout(() => {
+      closeModal("modalUniversalIdentity");
+      updateNavIdentityState();
+    }, 1200);
+  } catch (err) {
+    fb.style.display = "block";
+    fb.style.color = "var(--hot)";
+    fb.innerText = err.message;
+    btn.disabled = false;
+    btn.innerText = "TRY AGAIN";
+  }
+}
+
+async function handleUnsubscribeAll(e) {
+  e.preventDefault();
+  const email = $("identityEmail").value.trim();
+  if (!email) {
+    alert("Please enter your email above to unsubscribe.");
+    return;
+  }
+
+  if (confirm(`Unsubscribe ${email} from all automated dispatches?`)) {
+    await fetch(`${BACKEND_API}/api/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, unsubscribe_all: true })
+    });
+    alert("You have been unsubscribed from automated dispatches. Your records remain preserved in our registry.");
+    closeModal("modalUniversalIdentity");
+  }
+}
+
+function updateNavIdentityState() {
+  const email = localStorage.getItem("brink_user_email");
+  const authNav = $("authNavButtons");
+  if (authNav && email) {
+    authNav.innerHTML = `
+      <span style="font-family:var(--font-mono); font-size:12px; color:var(--ok);">👤 ${email.split('@')[0]}</span>
+      <button type="button" class="btn btn-primary" style="padding:4px 9px; font-size:11px;" onclick="openModal('modalUniversalIdentity')">Preferences</button>
+    `;
+  }
 }
 
 let userLat = null, userLon = null, userCity = "Detecting...";
@@ -1349,140 +1445,10 @@ function handlePerimeterClick() {
   alert(`300km Multi-Hazard Perimeter active around ${userCity}.\nActive events inside perimeter: ${nearby.length}`);
 }
 
-async function checkAuthSession() {
-  const token = localStorage.getItem("brink_auth_token");
-  if (!token) return;
-  try {
-    const res = await fetch(`${BACKEND_API}/api/auth/verify`, {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const user = await res.json();
-      currentUserSession = user;
-      updateAuthNav(user);
-    } else {
-      localStorage.removeItem("brink_auth_token");
-      updateAuthNav(null);
-    }
-  } catch(e) {
-    updateAuthNav(null);
-  }
-}
-
-function updateAuthNav(user) {
-  const nav = $("authNavButtons");
-  if (!nav) return;
-  if (user && user.email) {
-    nav.innerHTML = `
-      <span style="font-family:var(--font-mono); font-size:12px; color:var(--ok);">👤 ${user.email.split('@')[0]}</span>
-      <button type="button" class="btn" style="padding:4px 9px; font-size:12px;" onclick="handleLogout()">Logout</button>
-    `;
-  } else {
-    nav.innerHTML = `
-      <button type="button" class="btn" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalLogin')">Login</button>
-      <button type="button" class="btn btn-primary" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalSignup')">Signup</button>
-    `;
-  }
-}
-
-async function handleBackendLogin(e) {
-  e.preventDefault();
-  const email = $("loginEmail").value.trim();
-  const password = $("loginPass").value.trim();
-  const fb = $("loginFeedback");
-
-  fb.style.display = "block"; fb.style.color = "var(--soft)"; fb.textContent = "Authorizing session...";
-
-  try {
-    const res = await fetch(`${BACKEND_API}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Login failed");
-
-    if (data.token) localStorage.setItem("brink_auth_token", data.token);
-    fb.style.color = "var(--ok)"; fb.textContent = "Authorized. Redirecting...";
-    setTimeout(() => { closeModal('modalLogin'); window.location.reload(); }, 1000);
-  } catch(err) {
-    fb.style.color = "var(--hot)"; fb.textContent = err.message;
-  }
-}
-
-async function handleBackendSignup(e) {
-  e.preventDefault();
-  const name = $("signupName").value.trim();
-  const email = $("signupEmail").value.trim();
-  const password = $("signupPass").value.trim();
-  const fb = $("signupFeedback");
-
-  fb.style.display = "block"; fb.style.color = "var(--soft)"; fb.textContent = "Registering secure profile...";
-
-  try {
-    const res = await fetch(`${BACKEND_API}/api/auth/signup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ full_name: name, email, password })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Registration failed");
-
-    fb.style.color = "var(--ok)"; fb.textContent = "Account initialized. Verification dispatched to email.";
-  } catch(err) {
-    fb.style.color = "var(--hot)"; fb.textContent = err.message;
-  }
-}
-
-function handleLogout() {
-  localStorage.removeItem("brink_auth_token");
-  currentUserSession = null;
-  window.location.reload();
-}
-
-function inspectMetricInfo(type) {
-  let title = "", body = "";
-  if (type === 'ghl') {
-    title = "Seismic Activity Score";
-    body = "Empirical kinetic index measuring cumulative scalar seismic energy release (Joules) normalized against planetary fault strain norms.";
-  } else if (type === 'velocity') {
-    title = "Disruption Velocity Index";
-    body = "Calculates the mathematical rate of change in event incidence, comparing trailing 6-hour shock rates against the rolling 24-hour mean.";
-  } else if (type === 'convergence') {
-    title = "Proximity Clusters";
-    body = "Spatial algorithm tracking pairs of seismic dislocations co-located within 350 km of each other over rolling 24-hour envelopes.";
-  } else if (type === 'escape') {
-    title = "Major Shock Recency Timer";
-    body = "Deterministic timer logging the exact elapsed duration since the last severe crustal rupture (Magnitude 5.0+) on monitored fault blocks.";
-  } else if (type === 'population') {
-    title = "Monitored Epicenters";
-    body = "Exact count of discrete geographic fault blocks and epicenters currently undergoing recorded tectonic displacement.";
-  }
-  $("metricInfoTitle").textContent = title;
-  $("metricInfoBody").textContent = body;
-  openModal('modalMetricInfo');
-}
-
-function inspectEventDetail(type, idx) {
-  const q = EVENT_STORE[type][idx];
-  if (!q) return;
-  $("sciCategoryBadge").textContent = `${type.toUpperCase()} SEISMIC DOSSIER`;
-  $("sciMagnitudeBadge").textContent = `Magnitude ${q.magnitude.toFixed(1)}`;
-  $("sciMagnitudeBadge").className = `mag ${q.level}`;
-  $("sciEventHeadline").textContent = q.place;
-  $("sciTimestamp").textContent = `🕒 ${formatTimeElapsed(q.time).fullDate}`;
-  $("sciCoords").textContent = `${q.latitude.toFixed(3)}°N, ${q.longitude.toFixed(3)}°E`;
-  $("sciSource").textContent = "USGS Global Seismographic Network";
-  $("sciMetric1").textContent = `Depth: ${q.depth_km} km`;
-  $("sciMetric2").textContent = `Magnitude ${q.magnitude.toFixed(1)}`;
-  $("sciExplanationText").textContent = `A Magnitude ${q.magnitude.toFixed(1)} slip occurred at ${q.depth_km}km depth. Infrastructure within 150km should verify backup generators and inspect unreinforced structural joints.`;
-  openModal('modalScientistBrief');
-}
-
 window.addEventListener('DOMContentLoaded', () => {
   initMap();
   initUserLocation();
-  checkAuthSession();
+  updateNavIdentityState();
   fetchLiveUSGS();
   fetchSpaceWeather();
 
