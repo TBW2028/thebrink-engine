@@ -94,11 +94,75 @@ export default {
       }
     }
 
-    // 5. Lead Intake & Service Requests (Resend Email Dispatch + Supabase Logging)
+    // 5. Direct Supabase Newsletter Subscription (+ Resend Dispatch)
+    if (url.pathname === "/api/subscribe" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const email = (body.email || "").trim().toLowerCase();
+
+        if (!email || !email.includes("@")) {
+          return new Response(JSON.stringify({ error: "Invalid email format" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
+        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+
+        if (sbKey) {
+          await fetch(`${sbUrl}/rest/v1/subscribers`, {
+            method: "POST",
+            headers: {
+              "apikey": sbKey,
+              "Authorization": `Bearer ${sbKey}`,
+              "Content-Type": "application/json",
+              "Prefer": "resolution=merge-duplicates"
+            },
+            body: JSON.stringify({
+              email: email,
+              source: body.source || "News Page",
+              location: body.location || "Global Reader",
+              subscribed_at: new Date().toISOString()
+            })
+          });
+        }
+
+        if (env.RESEND_API_KEY) {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              from: "The Brink World <onboarding@resend.dev>",
+              to: [email],
+              subject: "Confirmed: The Brink World Macro Briefings",
+              html: `
+                <h3>Intel Subscription Confirmed</h3>
+                <p>You have been enrolled in direct dispatches from The Brink World Earth &amp; Climate Desk.</p>
+                <p>Prior briefs and live sensor telemetry are available on your console at <a href="https://thebrinkworld.com/watch.html">thebrinkworld.com/watch.html</a>.</p>
+              `
+            })
+          }).catch(e => console.warn("Resend email dispatch error:", e));
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // 6. Lead Intake & Service Requests (Resend Email Dispatch + Supabase Logging)
     if (url.pathname === "/api/inquire" && request.method === "POST") {
       try {
         const data = await request.json();
-        
         const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
         const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
 
@@ -160,7 +224,7 @@ export default {
       }
     }
 
-    // 6. Server-Side Supabase Auth Proxy
+    // 7. Server-Side Supabase Auth Proxy
     const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
     const sbKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -248,7 +312,7 @@ export default {
       }
     }
 
-    // 7. Root Gateway Status
+    // 8. Root Gateway Status
     return new Response("The Brink World Gateway Active", { 
       status: 200, 
       headers: { ...corsHeaders, "Content-Type": "text/plain" } 
