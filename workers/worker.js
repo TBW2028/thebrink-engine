@@ -94,14 +94,14 @@ export default {
       }
     }
 
-    // 5. Direct Supabase Newsletter Subscription (+ Resend Dispatch)
+    // 5. Unified Identity & Topic Vector Preferences
     if (url.pathname === "/api/subscribe" && request.method === "POST") {
       try {
         const body = await request.json();
         const email = (body.email || "").trim().toLowerCase();
 
         if (!email || !email.includes("@")) {
-          return new Response(JSON.stringify({ error: "Invalid email format" }), {
+          return new Response(JSON.stringify({ error: "Invalid email address" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
@@ -110,25 +110,36 @@ export default {
         const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
         const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
 
+        const payload = {
+          email: email,
+          pref_news: body.pref_news !== undefined ? body.pref_news : true,
+          pref_earth: body.pref_earth !== undefined ? body.pref_earth : true,
+          pref_health: body.pref_health !== undefined ? body.pref_health : true,
+          status: body.unsubscribe_all ? "unsubscribed" : "active",
+          source: body.source || "universal_gate",
+          location: body.location || "Global Reader",
+          updated_at: new Date().toISOString()
+        };
+
         if (sbKey) {
-          await fetch(`${sbUrl}/rest/v1/subscribers`, {
+          const sbRes = await fetch(`${sbUrl}/rest/v1/subscribers?on_conflict=email`, {
             method: "POST",
             headers: {
               "apikey": sbKey,
               "Authorization": `Bearer ${sbKey}`,
               "Content-Type": "application/json",
-              "Prefer": "resolution=merge-duplicates"
+              "Prefer": "resolution=merge-duplicates,return=minimal"
             },
-            body: JSON.stringify({
-              email: email,
-              source: body.source || "News Page",
-              location: body.location || "Global Reader",
-              subscribed_at: new Date().toISOString()
-            })
+            body: JSON.stringify(payload)
           });
+
+          if (!sbRes.ok) {
+            const errText = await sbRes.text();
+            throw new Error(`Database error: ${errText}`);
+          }
         }
 
-        if (env.RESEND_API_KEY) {
+        if (env.RESEND_API_KEY && !body.unsubscribe_all) {
           await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
@@ -136,19 +147,25 @@ export default {
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              from: "The Brink World <onboarding@resend.dev>",
+              from: "The Brink World <intel@thebrinkworld.com>",
               to: [email],
-              subject: "Confirmed: The Brink World Macro Briefings",
+              subject: "Confirmed: The Brink World Dispatches",
               html: `
                 <h3>Intel Subscription Confirmed</h3>
-                <p>You have been enrolled in direct dispatches from The Brink World Earth &amp; Climate Desk.</p>
-                <p>Prior briefs and live sensor telemetry are available on your console at <a href="https://thebrinkworld.com/watch.html">thebrinkworld.com/watch.html</a>.</p>
+                <p>Your dispatch channels are active:</p>
+                <ul>
+                  <li>News &amp; Macro Shifts: <strong>${payload.pref_news ? 'Active' : 'Muted'}</strong></li>
+                  <li>Earth &amp; Planetary Hazards: <strong>${payload.pref_earth ? 'Active' : 'Muted'}</strong></li>
+                  <li>Health &amp; Outbreak Radar: <strong>${payload.pref_health ? 'Active' : 'Muted'}</strong></li>
+                </ul>
+                <p>Manage your sensors live on <a href="https://thebrinkworld.com/watch.html">thebrinkworld.com/watch.html</a>.</p>
               `
             })
           }).catch(e => console.warn("Resend email dispatch error:", e));
         }
 
-        return new Response(JSON.stringify({ ok: true }), {
+        return new Response(JSON.stringify({ ok: true, preferences: payload }), {
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       } catch (err) {
