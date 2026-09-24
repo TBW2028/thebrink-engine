@@ -924,6 +924,7 @@ function switchUnit(u) {
 }
 
 function weatherCodeToGlyph(code) {
+  if (code === null || code === undefined) return { icon: "❓", text: "No Live Reading" };
   if (code === 0) return { icon: "☀️", text: "Clear Sky" };
   if (code <= 3) return { icon: "⛅", text: "Partly Cloudy" };
   if (code <= 48) return { icon: "🌫️", text: "Atmospheric Inversion / Haze" };
@@ -943,11 +944,13 @@ async function loadFullClimateEngine(lat, lon, label) {
     );
     if (forecastRes.ok) {
       const fd = await forecastRes.json();
-      climateState.curTempC = fd.current?.temperature_2m ?? 25;
-      climateState.weatherCode = fd.current?.weather_code ?? 0;
-      climateState.todayMaxC = fd.daily?.temperature_2m_max?.[0] ?? 28;
-      climateState.todayMinC = fd.daily?.temperature_2m_min?.[0] ?? 20;
-      
+      // Leave these null (not a fake default) if the API omits them — renderClimateWidget()
+      // already checks for null and will show an honest "no data" state instead of a fake reading.
+      climateState.curTempC = fd.current?.temperature_2m ?? null;
+      climateState.weatherCode = fd.current?.weather_code ?? null;
+      climateState.todayMaxC = fd.daily?.temperature_2m_max?.[0] ?? null;
+      climateState.todayMinC = fd.daily?.temperature_2m_min?.[0] ?? null;
+
       climateState.forecastDaily = (fd.daily?.time || []).map((t, idx) => ({
         date: t,
         maxC: fd.daily.temperature_2m_max[idx],
@@ -970,14 +973,18 @@ async function loadFullClimateEngine(lat, lon, label) {
           .then(r => r.ok ? r.json() : null)
           .then(d => {
             const val = d?.daily?.temperature_2m_mean?.[0];
-            return val !== undefined && val !== null ? { year: y, tempC: val } : { year: y, tempC: climateState.curTempC };
+            // Real reading only — a failed year is dropped, never backfilled with
+            // today's temperature, since that was silently skewing the anomaly calc.
+            return val !== undefined && val !== null ? { year: y, tempC: val } : null;
           })
-          .catch(() => ({ year: y, tempC: climateState.curTempC }))
+          .catch(() => null)
       );
     }
-    const resolvedArchive = await Promise.all(archivePromises);
+    const resolvedArchive = (await Promise.all(archivePromises)).filter(Boolean);
     resolvedArchive.sort((a, b) => a.year - b.year);
-    resolvedArchive.push({ year: "Today", tempC: climateState.curTempC, isCurrent: true });
+    if (climateState.curTempC !== null) {
+      resolvedArchive.push({ year: "Today", tempC: climateState.curTempC, isCurrent: true });
+    }
     climateState.histTempsC = resolvedArchive;
 
     renderClimateWidget();
