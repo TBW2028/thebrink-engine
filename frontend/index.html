@@ -514,7 +514,7 @@
         <h2>The world leaves signals.</h2>
         <p>The difficult part isn't finding more information. It's knowing what deserves attention.</p>
         <p style="color: var(--muted); font-size: 16px; margin-top: 12px;">
-          The Brink is being built as an independent intelligence layer for people who want to look beyond the news cycle, connecting signals across places,  human health and economies.
+          The Brink is being built as an independent intelligence layer for people who want to look beyond the news cycle, connecting signals across places, human health and economies.
         </p>
         <div class="sig-phrase">
           See the signals. Understand the change.
@@ -578,9 +578,8 @@
   </footer>
 
   <script>
-  const BACKEND_API = "https://thebrink-engine.thebrink2028.workers.dev";
   const SUPABASE_URL = "https://jxapuzsgyoetrpnmohct.supabase.co";
-  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4YXB1enNneW9ldHJwbm1vaGN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjY3Mzk4MTIsImV4cCI6MjA0MjMxNTgxMn0.0f316PzC5zWp0qF1_jYwO5vGZ4X5mY9n8b0k";
+  const SUPABASE_ANON = "sb_publishable_VLQoHAEpKndcjxO3BLRQuw_7UFA3orI";
 
   // Scroll progress bar
   let scrollTicking = false;
@@ -598,13 +597,14 @@
     }
   }, { passive: true });
 
-  // Resilient Dual-Engine Subscriber Intake
+  // Direct, Bulletproof Supabase Enrollment Engine
   async function handleDispatchSubscribe(e) {
     e.preventDefault();
-    const email = document.getElementById("footerSubEmail").value.trim().toLowerCase();
-    const prefNews = document.getElementById("prefNews").checked;
-    const prefEarth = document.getElementById("prefEarth").checked;
-    const prefHealth = document.getElementById("prefHealth").checked;
+    const emailInput = document.getElementById("footerSubEmail");
+    const email = emailInput ? emailInput.value.trim().toLowerCase() : "";
+    const prefNews = document.getElementById("prefNews") ? document.getElementById("prefNews").checked : true;
+    const prefEarth = document.getElementById("prefEarth") ? document.getElementById("prefEarth").checked : true;
+    const prefHealth = document.getElementById("prefHealth") ? document.getElementById("prefHealth").checked : true;
     const btn = document.getElementById("footerSubBtn");
     const notice = document.getElementById("footerSubNotice");
 
@@ -618,51 +618,30 @@
       pref_news: prefNews,
       pref_earth: prefEarth,
       pref_health: prefHealth,
-      source: window.location.pathname,
+      source: window.location.pathname || "index",
       location: "Global Reader",
       updated_at: new Date().toISOString()
     };
 
-    let confirmed = false;
-
-    // Attempt 1: Cloudflare Worker
     try {
-      const res = await fetch(`${BACKEND_API}/api/subscribe`, {
+      // Direct call straight to Supabase REST API with mandatory conflict resolution
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/subscribers?on_conflict=email`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "apikey": SUPABASE_ANON,
+          "Authorization": `Bearer ${SUPABASE_ANON}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates,return=representation"
+        },
         body: JSON.stringify(payload)
       });
-      const raw = await res.text();
-      if (raw.trim().startsWith("{")) {
-        const data = JSON.parse(raw);
-        if (res.ok && data.ok) confirmed = true;
-      }
-    } catch (workerErr) {
-      console.warn("Worker proxy offline, initiating direct Supabase link...");
-    }
 
-    // Attempt 2: Direct Failover to Supabase REST (Guarantees Success)
-    if (!confirmed) {
-      try {
-        const sbRes = await fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
-          method: "POST",
-          headers: {
-            "apikey": SUPABASE_ANON,
-            "Authorization": `Bearer ${SUPABASE_ANON}`,
-            "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates,return=minimal"
-          },
-          body: JSON.stringify(payload)
-        });
-        if (sbRes.ok || sbRes.status === 201 || sbRes.status === 409) {
-          confirmed = true;
-        }
-      } catch (sbErr) {
-        console.error("Direct failover error:", sbErr);
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Supabase rejection (${res.status}): ${errorText}`);
       }
-    }
 
-    if (confirmed) {
+      // Success confirmed directly from database response
       localStorage.setItem("brink_user_email", email);
       btn.innerText = "SUBSCRIBED ✓";
       btn.style.background = "var(--emerald)";
@@ -672,13 +651,15 @@
       notice.style.border = "1px solid var(--emerald)";
       notice.style.color = "var(--emerald)";
       notice.innerText = "✓ Channels confirmed. Strategic dispatches are active.";
-    } else {
-      btn.innerText = "SUBSCRIBED ✓";
+    } catch (err) {
+      console.error("Direct Supabase enrollment error:", err);
+      btn.disabled = false;
+      btn.innerText = "TRY AGAIN";
       notice.style.display = "block";
-      notice.style.background = "rgba(0, 243, 255, 0.1)";
-      notice.style.border = "1px solid var(--accent)";
-      notice.style.color = "var(--accent)";
-      notice.innerText = "✓ Registration queued. Welcome to The Brink World.";
+      notice.style.background = "rgba(239, 68, 68, 0.12)";
+      notice.style.border = "1px solid var(--accent-red)";
+      notice.style.color = "var(--accent-red)";
+      notice.innerText = "Database policy rejected request. Ensure RLS allows public inserts.";
     }
   }
 
@@ -692,7 +673,7 @@
 
     if (confirm(`Unsubscribe ${email} from automated dispatches?`)) {
       const payload = { email: email, status: "unsubscribed", pref_news: false, pref_earth: false, pref_health: false };
-      fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
+      fetch(`${SUPABASE_URL}/rest/v1/subscribers?on_conflict=email`, {
         method: "POST",
         headers: {
           "apikey": SUPABASE_ANON,
