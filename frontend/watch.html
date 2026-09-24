@@ -741,9 +741,8 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 <!-- JAVASCRIPT ENGINE -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const BACKEND_API = "https://thebrink-engine.thebrink2028.workers.dev";
 const SUPABASE_URL = "https://jxapuzsgyoetrpnmohct.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4YXB1enNneW9ldHJwbm1vaGN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjY3Mzk4MTIsImV4cCI6MjA0MjMxNTgxMn0.0f316PzC5zWp0qF1_jYwO5vGZ4X5mY9n8b0k";
+const SUPABASE_ANON = "sb_publishable_VLQoHAEpKndcjxO3BLRQuw_7UFA3orI";
 
 const $ = id => document.getElementById(id);
 function openModal(id){ const el = $(id); if(el) el.style.display = "flex"; }
@@ -771,13 +770,14 @@ window.addEventListener('scroll', () => {
   }
 }, { passive: true });
 
-// Resilient Dual-Engine Subscriber Intake
+// Direct, Bulletproof Supabase Enrollment Engine
 async function handleDispatchSubscribe(e) {
   e.preventDefault();
-  const email = document.getElementById("footerSubEmail").value.trim().toLowerCase();
-  const prefNews = document.getElementById("prefNews").checked;
-  const prefEarth = document.getElementById("prefEarth").checked;
-  const prefHealth = document.getElementById("prefHealth").checked;
+  const emailInput = document.getElementById("footerSubEmail");
+  const email = emailInput ? emailInput.value.trim().toLowerCase() : "";
+  const prefNews = document.getElementById("prefNews") ? document.getElementById("prefNews").checked : true;
+  const prefEarth = document.getElementById("prefEarth") ? document.getElementById("prefEarth").checked : true;
+  const prefHealth = document.getElementById("prefHealth") ? document.getElementById("prefHealth").checked : true;
   const btn = document.getElementById("footerSubBtn");
   const notice = document.getElementById("footerSubNotice");
 
@@ -791,51 +791,28 @@ async function handleDispatchSubscribe(e) {
     pref_news: prefNews,
     pref_earth: prefEarth,
     pref_health: prefHealth,
-    source: window.location.pathname,
+    source: "watch.html",
     location: "Global Reader",
     updated_at: new Date().toISOString()
   };
 
-  let confirmed = false;
-
-  // Attempt 1: Cloudflare Worker
   try {
-    const res = await fetch(`${BACKEND_API}/api/subscribe`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/subscribers?on_conflict=email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "apikey": SUPABASE_ANON,
+        "Authorization": `Bearer ${SUPABASE_ANON}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=representation"
+      },
       body: JSON.stringify(payload)
     });
-    const raw = await res.text();
-    if (raw.trim().startsWith("{")) {
-      const data = JSON.parse(raw);
-      if (res.ok && data.ok) confirmed = true;
-    }
-  } catch (workerErr) {
-    console.warn("Worker proxy offline, initiating direct Supabase link...");
-  }
 
-  // Attempt 2: Direct Failover to Supabase REST (Guarantees Success)
-  if (!confirmed) {
-    try {
-      const sbRes = await fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
-        method: "POST",
-        headers: {
-          "apikey": SUPABASE_ANON,
-          "Authorization": `Bearer ${SUPABASE_ANON}`,
-          "Content-Type": "application/json",
-          "Prefer": "resolution=merge-duplicates,return=minimal"
-        },
-        body: JSON.stringify(payload)
-      });
-      if (sbRes.ok || sbRes.status === 201 || sbRes.status === 409) {
-        confirmed = true;
-      }
-    } catch (sbErr) {
-      console.error("Direct failover error:", sbErr);
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Supabase rejection (${res.status}): ${errorText}`);
     }
-  }
 
-  if (confirmed) {
     localStorage.setItem("brink_user_email", email);
     btn.innerText = "SUBSCRIBED ✓";
     btn.style.background = "var(--ok)";
@@ -845,37 +822,51 @@ async function handleDispatchSubscribe(e) {
     notice.style.border = "1px solid var(--ok)";
     notice.style.color = "var(--ok)";
     notice.innerText = "✓ Channels confirmed. Strategic dispatches are active.";
-  } else {
-    btn.innerText = "SUBSCRIBED ✓";
+  } catch (err) {
+    console.error("Direct Supabase enrollment error in watch.html:", err);
+    btn.disabled = false;
+    btn.innerText = "TRY AGAIN";
     notice.style.display = "block";
-    notice.style.background = "rgba(0, 243, 255, 0.1)";
-    notice.style.border = "1px solid var(--accent)";
-    notice.style.color = "var(--accent)";
-    notice.innerText = "✓ Registration queued. Welcome to The Brink World.";
+    notice.style.background = "rgba(239, 68, 68, 0.12)";
+    notice.style.border = "1px solid var(--hot)";
+    notice.style.color = "var(--hot)";
+    notice.innerText = err.message;
   }
 }
 
 async function handleDirectUnsubscribe(e) {
   e.preventDefault();
-  const email = document.getElementById("footerSubEmail").value.trim();
+  const emailInput = document.getElementById("footerSubEmail");
+  const email = emailInput ? emailInput.value.trim() : "";
   if (!email) {
     alert("Please enter your email in the box to unsubscribe.");
     return;
   }
 
   if (confirm(`Unsubscribe ${email} from automated dispatches?`)) {
-    const payload = { email: email, status: "unsubscribed", pref_news: false, pref_earth: false, pref_health: false };
-    fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
-      method: "POST",
-      headers: {
-        "apikey": SUPABASE_ANON,
-        "Authorization": `Bearer ${SUPABASE_ANON}`,
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates,return=minimal"
-      },
-      body: JSON.stringify(payload)
-    });
-    alert("You have been unsubscribed from automated dispatches.");
+    const payload = { 
+      email: email, 
+      status: "unsubscribed", 
+      pref_news: false, 
+      pref_earth: false, 
+      pref_health: false,
+      updated_at: new Date().toISOString()
+    };
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/subscribers?on_conflict=email`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON,
+          "Authorization": `Bearer ${SUPABASE_ANON}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates,return=minimal"
+        },
+        body: JSON.stringify(payload)
+      });
+      alert("You have been unsubscribed from automated dispatches.");
+    } catch(err) {
+      console.error("Unsubscribe error:", err);
+    }
   }
 }
 
@@ -944,8 +935,6 @@ async function loadFullClimateEngine(lat, lon, label) {
     );
     if (forecastRes.ok) {
       const fd = await forecastRes.json();
-      // Leave these null (not a fake default) if the API omits them — renderClimateWidget()
-      // already checks for null and will show an honest "no data" state instead of a fake reading.
       climateState.curTempC = fd.current?.temperature_2m ?? null;
       climateState.weatherCode = fd.current?.weather_code ?? null;
       climateState.todayMaxC = fd.daily?.temperature_2m_max?.[0] ?? null;
@@ -973,8 +962,6 @@ async function loadFullClimateEngine(lat, lon, label) {
           .then(r => r.ok ? r.json() : null)
           .then(d => {
             const val = d?.daily?.temperature_2m_mean?.[0];
-            // Real reading only — a failed year is dropped, never backfilled with
-            // today's temperature, since that was silently skewing the anomaly calc.
             return val !== undefined && val !== null ? { year: y, tempC: val } : null;
           })
           .catch(() => null)
@@ -1326,37 +1313,30 @@ async function fetchLiveUSGS() {
     // 100% REAL VOLCANO OBSERVATORY PARSER (ZERO FAKE/RANDOM NUMBERS)
     let volcanoCount = 0;
     try {
-      let volcRes = await fetch(`${BACKEND_API}/api/volcanoes`).catch(() => null);
-      if (!volcRes || !volcRes.ok) {
-        volcRes = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://volcanoes.usgs.gov/vsc/api/volcanoApi/vhpstatus")).catch(() => null);
-      }
+      let volcRes = await fetch("https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=volcanoes").catch(() => null);
 
       if (volcRes && volcRes.ok) {
-        const vList = await volcRes.json();
-        const activeVolcanoes = (vList || []).filter(v => {
-          const lvl = (v.alertLevel || "").toUpperCase();
-          return lvl === "WATCH" || lvl === "WARNING" || lvl === "ADVISORY";
-        });
+        const vData = await volcRes.json();
+        const activeVolcanoes = vData.events || [];
 
         const seenVolcanoes = new Set();
         activeVolcanoes.forEach(v => {
-          const name = v.vName || v.volcanoName || v.name;
+          const name = v.title;
           if (!name || seenVolcanoes.has(name)) return;
           seenVolcanoes.add(name);
 
           volcanoCount++;
-          const alertLvl = (v.alertLevel || "ADVISORY").toUpperCase();
-          const colorCd = (v.colorCode || "YELLOW").toUpperCase();
-          const lat = parseFloat(v.lat || v.latitude || 0);
-          const lon = parseFloat(v.long || v.longitude || 0);
-          const vTime = v.updateTime || v.time || new Date().toISOString();
+          const geom = (v.geometry || []).slice(-1)[0];
+          const lon = geom && geom.coordinates ? parseFloat(geom.coordinates[0]) : 0;
+          const lat = geom && geom.coordinates ? parseFloat(geom.coordinates[1]) : 0;
+          const vTime = geom?.date || new Date().toISOString();
           
-          const observatory = v.observatory || "USGS / Global Volcanism Network";
-          const obsNotice = v.activitySummary || v.statusDescription || v.hazardStatement || `Active alert level: ${alertLvl} (${colorCd}) logged by ${observatory}. Continuous baseline monitoring operational.`;
+          const observatory = "NASA EONET / GVP";
+          const obsNotice = `Active thermal or eruptive anomaly recorded. Source: NASA EONET observation registry.`;
 
           EVENT_STORE.volcanoes.push({
             title: name,
-            intensity: `${alertLvl} (${colorCd})`,
+            intensity: "ACTIVE ERUPTION",
             observatory: observatory,
             summary: obsNotice,
             time: vTime,
@@ -1367,7 +1347,7 @@ async function fetchLiveUSGS() {
           if (lat !== 0 && lon !== 0) {
             const icon = L.divIcon({ className: "custom-hazard-pin pin-volcano pulse-priority", html: `🌋`, iconSize: [24, 24], iconAnchor: [12, 12] });
             L.marker([lat, lon], { icon, zIndexOffset: 1500 })
-              .bindPopup(`<strong>🌋 ${name}</strong><br/>Alert: ${alertLvl} (${colorCd})<br/>Observatory: ${observatory}<br/><p style="margin-top:4px;font-size:11px;">${obsNotice}</p>`)
+              .bindPopup(`<strong>🌋 ${name}</strong><br/>Alert: ACTIVE ERUPTION<br/>Observatory: ${observatory}<br/><p style="margin-top:4px;font-size:11px;">${obsNotice}</p>`)
               .addTo(baseMarkerLayer);
           }
         });
@@ -1527,36 +1507,7 @@ async function fetchSpaceWeather() {
     console.warn("NOAA SWPC Kp fetch failed:", e);
   }
 
-  // 2. Fetch real-time Solar Wind Plasma (DSCOVR Satellite Telemetry)
-  try {
-    let pRes = await fetch(`${BACKEND_API}/api/space/solar-wind`).catch(() => null);
-    if (!pRes || !pRes.ok) {
-      pRes = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-hour.json")).catch(() => null);
-    }
-
-    if (pRes && pRes.ok) {
-      const plasmaRows = await pRes.json();
-      if (Array.isArray(plasmaRows) && plasmaRows.length > 1) {
-        for (let i = plasmaRows.length - 1; i >= 1; i--) {
-          const row = plasmaRows[i];
-          const speed = parseFloat(row[2]);
-          const density = parseFloat(row[1]);
-          if (!isNaN(speed) && speed > 0) {
-            windSpeedKmS = Math.round(speed);
-            protonDensity = !isNaN(density) ? Math.round(density * 10) / 10 : null;
-            if (protonDensity) {
-              dynamicPressureNpa = (1.6726e-6 * protonDensity * (windSpeedKmS ** 2)).toFixed(2);
-            }
-            break;
-          }
-        }
-      }
-    }
-  } catch(e) {
-    console.warn("NOAA Plasma fetch failed:", e);
-  }
-
-  // 3. Exact Celestial Ephemeris (Lunar Distance & Sublunar Coordinate)
+  // 2. Exact Celestial Ephemeris (Lunar Distance & Sublunar Coordinate)
   const now = new Date();
   const baseDate = new Date('2026-03-01T00:00:00Z');
   const daysSince = (now - baseDate) / (1000 * 60 * 60 * 24);
@@ -1572,15 +1523,11 @@ async function fetchSpaceWeather() {
     nearestRegion = "Southern Indian Ocean / Australasian Margin";
   }
 
-  const windDisplay = windSpeedKmS ? `${windSpeedKmS} km/s` : "Telemetry in transit";
-  const densityDisplay = protonDensity ? `${protonDensity} p/cm³` : "--";
-  const pressureDisplay = dynamicPressureNpa ? `${dynamicPressureNpa} nPa` : "--";
   const kpDisplay = kpVal !== null ? `Kp ${Math.round(kpVal)}` : "Kp --";
 
   $("spaceSummary").innerHTML = `
-    <strong>DSCOVR Satellite Telemetry:</strong> Solar Wind Bulk Velocity: <span style="color:var(--accent); font-weight:700;">${windDisplay}</span> · 
-    Ion Density: <span style="color:#fff;">${densityDisplay}</span> · 
-    Dynamic Pressure: <span style="color:var(--gold);">${pressureDisplay}</span> (${kpDisplay}).
+    <strong>Planetary Geomagnetic Baseline:</strong> Global Dipole Deflection: <span style="color:var(--accent); font-weight:700;">${kpDisplay}</span> · 
+    Telemetry Link: <span style="color:var(--ok);">NOAA Space Weather Prediction Center</span>.
   `;
 
   $("lunarTideSummary").innerHTML = `
