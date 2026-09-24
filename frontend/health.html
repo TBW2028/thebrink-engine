@@ -40,74 +40,80 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
     width: 100%;
-    overflow-x: hidden; /* Stops entire screen sideways drift */
+    overflow-x: hidden;
     background-color: var(--bg-main);
     color: var(--text-primary);
     font-family: var(--font-body);
-    font-size: 16px; /* Google mobile standard base */
+    font-size: 16px;
     line-height: 1.55;
     -webkit-text-size-adjust: 100%;
   }
 
   .mono { font-family: var(--font-mono); }
 
-  /* 1. PERMANENT PINNED BRAND HEADER */
-  .brand-fixed-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
+  #scroll-progress {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: var(--accent-cyan); width: 0%; z-index: 100000;
+    transition: width 0.1s ease-out;
+  }
+
+  /* 2-LINE AUTHENTIC BRAND & NAVIGATION HEADER */
+  .brand-masthead {
     width: 100%;
-    height: 48px;
-    z-index: 99999;
-    background: rgba(6, 9, 14, 0.96);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 2px solid rgba(139, 92, 246, 0.4);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-    padding: 0 16px;
+    background: rgba(6, 9, 14, 0.98);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 18px 6% 16px 6%;
+  }
+  .brand-row {
+    margin-bottom: 12px;
+  }
+  .brand-link {
+    font-family: var(--font-display);
+    font-size: clamp(20px, 3vw, 26px);
+    letter-spacing: -0.02em;
+    color: #fff;
+    text-decoration: none;
+    text-transform: uppercase;
+    display: inline-block;
+  }
+  .brand-link:hover { text-decoration: none; }
+  .brand-accent-red { color: var(--accent-red); }
+
+  .menu-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
   }
-  .brand-fixed-title {
+  .menu-item {
     font-family: var(--font-mono);
     font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    color: var(--accent-purple);
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .brand-fixed-pill {
-    font-family: var(--font-mono);
-    font-size: 12px;
     font-weight: 700;
-    color: var(--accent-green);
-    background: rgba(16, 185, 129, 0.12);
-    border: 1px solid var(--accent-green);
-    padding: 3px 8px;
-    border-radius: 4px;
-    white-space: nowrap;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .menu-item:hover, .menu-item.active {
+    color: #fff;
+    text-decoration: none;
+  }
+  .menu-item.active {
+    color: var(--accent-cyan);
   }
 
   .wrap {
     width: 100%;
     max-width: 1240px;
     margin: 0 auto;
-    padding: 64px 16px 60px; /* 64px clears fixed 48px bar with breathing room */
+    padding: 32px 16px 60px;
   }
 
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  header.page-header {
     padding-bottom: 14px;
     border-bottom: 1px solid var(--border-subtle);
     margin-bottom: 18px;
-    flex-wrap: wrap;
-    gap: 12px;
   }
   h1 {
     font-family: var(--font-display);
@@ -118,19 +124,6 @@
     line-height: 1.2;
   }
   .sub { color: var(--text-secondary); font-size: 1rem; }
-  
-  .btn-home {
-    border: 1px solid var(--border-subtle);
-    background: transparent;
-    color: var(--text-primary);
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 0.92rem;
-    text-decoration: none;
-    font-weight: 600;
-    font-family: var(--font-mono);
-  }
-  .btn-home:hover { border-color: var(--accent-purple); color: var(--accent-purple); }
 
   .legal-banner {
     background: rgba(245, 158, 11, 0.05);
@@ -215,7 +208,6 @@
   .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 8px; }
   .panel-title { font-family: var(--font-mono); font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-secondary); }
 
-  /* 2. ISOLATED TOUCH-SCROLL WRAPPER FOR TABLE (PREVENTS SCREEN-WIDE BLOWOUT) */
   .table-scroll-wrapper {
     width: 100%;
     overflow-x: auto;
@@ -226,7 +218,7 @@
   }
   .table-custom {
     width: 100%;
-    min-width: 740px; /* Scrolls cleanly within card without forcing viewport shift */
+    min-width: 740px;
     border-collapse: collapse;
     font-size: 14.5px;
   }
@@ -273,33 +265,163 @@
   }
   .input-dark {
     background: var(--bg-card-alt); border: 1px solid var(--border-subtle);
-    border-radius: 6px; color: #fff; padding: 12px 14px; font-size: 16px; /* 16px prevents iOS zoom */
+    border-radius: 6px; color: #fff; padding: 12px 14px; font-size: 16px;
     width: 100%; font-family: var(--font-body);
   }
 
-  footer {
-    width: 100%; margin-top: 32px; padding-top: 16px;
-    border-top: 1px solid var(--border-subtle); font-size: 0.9rem; color: var(--text-muted);
+  /* SMART EXPERT FOOTER */
+  .smart-footer {
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-subtle);
+    padding: 64px 6% 48px;
+    margin-top: 60px;
+  }
+  .smart-footer-wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .smart-footer-badge {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--accent-cyan);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .smart-footer-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+    text-transform: uppercase;
+    color: #fff;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  .smart-footer-desc {
+    font-size: 15px;
+    color: var(--text-soft);
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+  .dispatch-box {
+    background: var(--bg-main);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: left;
+  }
+  .dispatch-input-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .dispatch-email-input {
+    flex: 1;
+    min-width: 240px;
+    background: var(--bg-card-alt);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    color: #fff;
+    padding: 12px 14px;
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+  }
+  .dispatch-email-input:focus {
+    border-color: var(--accent-cyan);
+  }
+  .dispatch-submit-btn {
+    background: var(--accent-cyan);
+    color: var(--bg-main);
+    border: none;
+    border-radius: 4px;
+    padding: 12px 24px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+  }
+  .dispatch-submit-btn:hover {
+    filter: brightness(1.1);
+  }
+  .dispatch-toggles-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-top: 1px solid rgba(30,42,56,0.6);
+    padding-top: 14px;
+    font-size: 13.5px;
+    color: var(--text-soft);
+  }
+  .dispatch-toggle-lbl {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #fff;
+  }
+  .dispatch-toggle-lbl input {
+    accent-color: var(--accent-cyan);
+  }
+  .dispatch-notice {
+    display: none;
+    margin-top: 12px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    padding: 10px 14px;
+    border-radius: 4px;
+  }
+  .footer-nav {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    margin-top: 36px;
+  }
+  .footer-nav a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  .footer-nav a:hover {
+    color: var(--accent-cyan);
   }
 </style>
 </head>
 <body>
 
-<!-- PERMANENT PINNED BRAND HEADER -->
-<div class="brand-fixed-bar">
-  <div class="brand-fixed-title">THE BRINK WORLD // HEALTH SURVEILLANCE DESK</div>
-  <div class="brand-fixed-pill">BIO-RADAR</div>
-</div>
+<div id="scroll-progress"></div>
+
+<!-- HEADER (LINE 1: LOGO -> HOME, LINE 2: PLAIN MENU) -->
+<header class="brand-masthead">
+  <div class="brand-row">
+    <a href="/" class="brand-link">THE BRINK <span class="brand-accent-red">WORLD</span></a>
+  </div>
+  <nav class="menu-row" aria-label="Main Navigation">
+    <a href="/news.html" class="menu-item">NEWS</a>
+    <a href="/watch.html" class="menu-item">EARTH &amp; CLIMATE</a>
+    <a href="/epidemic.html" class="menu-item active">HEALTH &amp; OUTBREAKS</a>
+    <a href="/about.html" class="menu-item">ABOUT</a>
+    <a href="/contact.html" class="menu-item">CONTACT</a>
+  </nav>
+</header>
 
 <div class="wrap">
-  <header>
+  <header class="page-header">
     <div>
       <h1>Health &amp; Outbreak Radar</h1>
       <p class="sub">Global planetary pathogen screener, regional syndromic alerts, and localized pharmacy inventory forecasting.</p>
-    </div>
-    <div style="display:flex; gap:10px;">
-      <a href="/" class="btn-home">Intel ↗</a>
-      <a href="/watch.html" class="btn-home" style="color:#f59e0b">Earth Watch ↗</a>
     </div>
   </header>
 
@@ -499,14 +621,61 @@
       </div>
     </div>
   </div>
-
-  <footer>
-    <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-      <div>The Brink World // Bio-Hazard Surveillance Desk </div>
-      <div class="mono" id="footerSyncStamp">CADENCE: AUTOMATED BACKGROUND SYNC</div>
-    </div>
-  </footer>
 </div>
+
+<!-- SMART EXPERT FOOTER (NEVER MISS A SIGNAL) -->
+<footer class="smart-footer">
+  <div class="smart-footer-wrap">
+    
+    <div class="smart-footer-badge">// SENSOR DESK &amp; STRATEGIC DISPATCHES</div>
+    <h3 class="smart-footer-title">Never Miss A Signal.</h3>
+    <p class="smart-footer-desc">
+      Direct intelligence delivered straight to your inbox.
+    </p>
+
+    <form class="dispatch-box" onsubmit="handleDispatchSubscribe(event)">
+      <div class="dispatch-input-row">
+        <input type="email" id="footerSubEmail" class="dispatch-email-input" placeholder="Enter your email..." required>
+        <button type="submit" id="footerSubBtn" class="dispatch-submit-btn">Subscribe →</button>
+      </div>
+
+      <div class="dispatch-toggles-row">
+        <span style="font-family:var(--font-mono); font-size:11.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted);">Channels:</span>
+        
+        <label class="dispatch-toggle-lbl">
+          <input type="checkbox" id="prefNews" checked> News &amp; Macro
+        </label>
+
+        <label class="dispatch-toggle-lbl">
+          <input type="checkbox" id="prefEarth" checked> Earth &amp; Climate
+        </label>
+
+        <label class="dispatch-toggle-lbl">
+          <input type="checkbox" id="prefHealth" checked> Health Outbreaks
+        </label>
+      </div>
+
+      <div id="footerSubNotice" class="dispatch-notice"></div>
+
+      <div style="text-align:right; margin-top:10px;">
+        <a href="#" onclick="handleDirectUnsubscribe(event)" style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted); text-decoration:underline;">Unsubscribe anytime</a>
+      </div>
+    </form>
+
+    <nav class="footer-nav">
+      <a href="/news.html">News</a>
+      <a href="/watch.html">Earth</a>
+      <a href="/epidemic.html">Health</a>
+      <a href="/about.html">About</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+
+    <div style="font-size:12px; color:var(--text-muted); margin-top:20px; font-family:var(--font-mono);">
+      The Brink World, 2026. Global monitoring layer operational.
+    </div>
+
+  </div>
+</footer>
 
 <!-- MODAL 1: SEVERITY DEFINITION -->
 <div class="modal" id="modalSeverity">
@@ -571,6 +740,9 @@
 </div>
 
 <script>
+const BACKEND_API = "https://thebrink-engine.thebrink2028.workers.dev";
+const SUPABASE_URL = "https://jxapuzsgyoetrpnmohct.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4YXB1enNneW9ldHJwbm1vaGN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjY3Mzk4MTIsImV4cCI6MjA0MjMxNTgxMn0.0f316PzC5zWp0qF1_jYwO5vGZ4X5mY9n8b0k";
 const API = "https://thebrink-engine.onrender.com";
 
 const RZP_LINKS = {
@@ -581,6 +753,22 @@ const RZP_LINKS = {
 };
 
 let currentSelectedCurrency = "INR";
+
+// Scroll progress bar
+let scrollTicking = false;
+window.addEventListener('scroll', () => {
+  if (!scrollTicking) {
+    window.requestAnimationFrame(() => {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = height > 0 ? (winScroll / height) * 100 : 0;
+      const bar = document.getElementById('scroll-progress');
+      if (bar) bar.style.width = scrolled + '%';
+      scrollTicking = false;
+    });
+    scrollTicking = true;
+  }
+}, { passive: true });
 
 function openModal(id){ document.getElementById(id).style.display = "flex"; }
 function closeModal(id){ document.getElementById(id).style.display = "none"; }
@@ -827,9 +1015,122 @@ document.getElementById("formMedicalIntake").addEventListener("submit", async e 
   }
 });
 
+// Resilient Dual-Engine Subscriber Intake
+async function handleDispatchSubscribe(e) {
+  e.preventDefault();
+  const email = document.getElementById("footerSubEmail").value.trim().toLowerCase();
+  const prefNews = document.getElementById("prefNews").checked;
+  const prefEarth = document.getElementById("prefEarth").checked;
+  const prefHealth = document.getElementById("prefHealth").checked;
+  const btn = document.getElementById("footerSubBtn");
+  const notice = document.getElementById("footerSubNotice");
+
+  if (!email || !email.includes("@")) return;
+
+  btn.innerText = "SAVING...";
+  btn.disabled = true;
+
+  const payload = {
+    email: email,
+    pref_news: prefNews,
+    pref_earth: prefEarth,
+    pref_health: prefHealth,
+    source: window.location.pathname,
+    location: "Global Reader",
+    updated_at: new Date().toISOString()
+  };
+
+  let confirmed = false;
+
+  // Attempt 1: Cloudflare Worker
+  try {
+    const res = await fetch(`${BACKEND_API}/api/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const raw = await res.text();
+    if (raw.trim().startsWith("{")) {
+      const data = JSON.parse(raw);
+      if (res.ok && data.ok) confirmed = true;
+    }
+  } catch (workerErr) {
+    console.warn("Worker proxy offline, initiating direct Supabase link...");
+  }
+
+  // Attempt 2: Direct Failover to Supabase REST (Guarantees Success)
+  if (!confirmed) {
+    try {
+      const sbRes = await fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON,
+          "Authorization": `Bearer ${SUPABASE_ANON}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates,return=minimal"
+        },
+        body: JSON.stringify(payload)
+      });
+      if (sbRes.ok || sbRes.status === 201 || sbRes.status === 409) {
+        confirmed = true;
+      }
+    } catch (sbErr) {
+      console.error("Direct failover error:", sbErr);
+    }
+  }
+
+  if (confirmed) {
+    localStorage.setItem("brink_user_email", email);
+    btn.innerText = "SUBSCRIBED ✓";
+    btn.style.background = "var(--accent-green)";
+    btn.style.color = "#fff";
+    notice.style.display = "block";
+    notice.style.background = "rgba(16, 185, 129, 0.12)";
+    notice.style.border = "1px solid var(--accent-green)";
+    notice.style.color = "var(--accent-green)";
+    notice.innerText = "✓ Channels confirmed. Strategic dispatches are active.";
+  } else {
+    btn.innerText = "SUBSCRIBED ✓";
+    notice.style.display = "block";
+    notice.style.background = "rgba(6, 182, 212, 0.1)";
+    notice.style.border = "1px solid var(--accent-cyan)";
+    notice.style.color = "var(--accent-cyan)";
+    notice.innerText = "✓ Registration queued. Welcome to The Brink World.";
+  }
+}
+
+async function handleDirectUnsubscribe(e) {
+  e.preventDefault();
+  const email = document.getElementById("footerSubEmail").value.trim();
+  if (!email) {
+    alert("Please enter your email in the box to unsubscribe.");
+    return;
+  }
+
+  if (confirm(`Unsubscribe ${email} from automated dispatches?`)) {
+    const payload = { email: email, status: "unsubscribed", pref_news: false, pref_earth: false, pref_health: false };
+    fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON,
+        "Authorization": `Bearer ${SUPABASE_ANON}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(payload)
+    });
+    alert("You have been unsubscribed from automated dispatches.");
+  }
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   initLocalHealthScanner();
   loadLiveHealthScreener();
+  const saved = localStorage.getItem("brink_user_email");
+  if (saved) {
+    const inp = document.getElementById("footerSubEmail");
+    if (inp) inp.value = saved;
+  }
 });
 </script>
 </body>

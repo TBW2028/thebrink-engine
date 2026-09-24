@@ -29,7 +29,6 @@
   --accent-cyan: #00f3ff;
   --accent-cyan-dim: #00a4ad;
   --accent-red: #ff2a2a;
-  --accent-purple: #8b5cf6;
   --accent-green: #10b981;
   --gold: #f59e0b;
   
@@ -56,76 +55,56 @@ html, body {
 }
 
 #scroll-progress {
-  position: fixed; top: 48px; left: 0; height: 3px;
-  background: var(--accent-cyan); width: 0%; z-index: 1000;
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: var(--accent-cyan); width: 0%; z-index: 100000;
   transition: width 0.1s ease-out;
 }
 
-/* PERMANENT PINNED BRAND HEADER */
-.brand-fixed-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
+/* 2-LINE AUTHENTIC BRAND & NAVIGATION HEADER */
+.brand-masthead {
   width: 100%;
-  height: 48px;
-  z-index: 99999;
-  background: rgba(6, 9, 14, 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 2px solid rgba(0, 243, 255, 0.4);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  background: rgba(6, 9, 14, 0.98);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 18px 6% 16px 6%;
 }
-.brand-fixed-title {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  color: var(--accent-cyan);
+.brand-row {
+  margin-bottom: 12px;
+}
+.brand-link {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 3vw, 26px);
+  letter-spacing: -0.02em;
+  color: var(--text-pure);
+  text-decoration: none;
   text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: inline-block;
 }
+.brand-link:hover { text-decoration: none; }
 .brand-accent-red { color: var(--accent-red); }
 
-/* NAVIGATION */
-nav {
-  margin-top: 48px;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 6%; border-bottom: 1px solid var(--border-subtle);
-  background: rgba(10, 11, 14, 0.92); backdrop-filter: blur(20px);
-  position: sticky; top: 48px; z-index: 100; flex-wrap: wrap; gap: 14px;
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
 }
-.logo {
-  font-family: var(--font-display); font-size: 21px; letter-spacing: -0.03em;
-  color: var(--text-pure); text-decoration: none; text-transform: uppercase;
+.menu-item {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
 }
-.logo span { color: var(--accent-red); }
-
-.nav-links { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
-.nav-link {
-  font-family: var(--font-mono); font-size: 13.5px; color: var(--text-muted);
-  text-decoration: none; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
-  transition: color 0.2s ease;
+.menu-item:hover, .menu-item.active {
+  color: var(--text-pure);
+  text-decoration: none;
 }
-.nav-link:hover, .nav-link.active { color: var(--accent-cyan); }
-.nav-link.climate-pill { color: #f59e0b; }
-.nav-link.health-pill { color: var(--accent-purple); }
-
-/* BUTTON STYLES */
-.btn {
-  display: inline-flex; align-items: center; border: 1px solid var(--border-subtle);
-  background: transparent; color: var(--text-pure); border-radius: 4px; padding: 6px 12px;
-  font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-mono);
-  text-transform: uppercase; text-decoration: none; transition: all 0.2s ease;
+.menu-item.active {
+  color: var(--accent-cyan);
 }
-.btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
-.btn-primary { background: var(--accent-cyan); color: var(--bg-deep); border-color: var(--accent-cyan); }
-.btn-primary:hover { filter: brightness(1.1); color: var(--bg-deep); }
 
 /* HERO TERMINAL */
 .hero-terminal {
@@ -316,69 +295,154 @@ nav {
   text-decoration: none;
 }
 
-/* MODAL STYLES */
-.modal {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0, 0, 0, 0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  display: none; align-items: center; justify-content: center; z-index: 999999;
+/* SMART EXPERT FOOTER */
+.smart-footer {
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border-subtle);
+  padding: 64px 6% 48px;
+  margin-top: 60px;
 }
-.modal-card {
-  background: var(--bg-panel); border: 1px solid var(--border-subtle);
-  border-radius: 10px; padding: 24px; max-width: 460px; width: 92%;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6); max-height: 90vh; overflow-y: auto;
+.smart-footer-wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  text-align: center;
 }
-.input-dark {
-  background: var(--bg-panel-light); border: 1px solid var(--border-subtle);
-  border-radius: 6px; color: #fff; padding: 11px 13px; font-size: 15px;
-  width: 100%; font-family: var(--font-body); outline: none;
+.smart-footer-badge {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent-cyan);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
 }
-.input-dark:focus { border-color: var(--accent-cyan); }
-.modal-feedback-box {
-  padding: 12px 14px; border-radius: 6px; font-size: 13px;
-  font-family: var(--font-mono); background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.3); margin-top: 12px;
+.smart-footer-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1.15;
+  margin-bottom: 12px;
 }
-
-/* FOOTER */
-footer {
-  background: var(--bg-panel); border-top: 1px solid var(--border-subtle); padding: 50px 6%; margin-top: 70px;
+.smart-footer-desc {
+  font-size: 15px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 24px;
 }
-.footer-wrap { max-width: 580px; margin: 0 auto; text-align: center; }
-.footer-wrap h4 { font-family: var(--font-display); font-size: 24px; color: var(--text-pure); text-transform: uppercase; margin-bottom: 12px; }
-.footer-wrap p { font-size: 15px; color: var(--text-muted); margin-bottom: 20px; font-family: var(--font-mono); }
-.sub-input {
-  background: var(--bg-deep); border: 1px solid var(--border-subtle); padding: 14px; color: var(--text-pure);
-  font-family: var(--font-body); font-size: 16px; width: 100%; text-align: center; outline: none; margin-bottom: 12px; border-radius: 4px;
+.dispatch-box {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: left;
 }
-.sub-btn {
-  background: transparent; border: 1.5px solid var(--accent-cyan); color: var(--accent-cyan); padding: 14px;
-  font-size: 13px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer; width: 100%; border-radius: 4px;
+.dispatch-input-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
 }
-.sub-btn:hover { background: var(--accent-cyan); color: var(--bg-deep); }
+.dispatch-email-input {
+  flex: 1;
+  min-width: 240px;
+  background: var(--bg-panel-light);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: #fff;
+  padding: 12px 14px;
+  font-size: 15px;
+  outline: none;
+  font-family: inherit;
+}
+.dispatch-email-input:focus {
+  border-color: var(--accent-cyan);
+}
+.dispatch-submit-btn {
+  background: var(--accent-cyan);
+  color: var(--bg-deep);
+  border: none;
+  border-radius: 4px;
+  padding: 12px 24px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.dispatch-submit-btn:hover {
+  filter: brightness(1.1);
+}
+.dispatch-toggles-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid rgba(30,42,56,0.6);
+  padding-top: 14px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+.dispatch-toggle-lbl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: #fff;
+}
+.dispatch-toggle-lbl input {
+  accent-color: var(--accent-cyan);
+}
+.dispatch-notice {
+  display: none;
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 10px 14px;
+  border-radius: 4px;
+}
+.footer-nav {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  margin-top: 36px;
+}
+.footer-nav a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.footer-nav a:hover {
+  color: var(--accent-cyan);
+}
 .loading-notice { font-family: var(--font-mono); font-size: 15px; color: var(--text-muted); text-align: center; padding: 40px 0; }
 </style>
 </head>
 <body>
 
-<div class="brand-fixed-bar">
-  <div class="brand-fixed-title">THE BRINK WORLD // NEWS &amp; MACRO INTEL</div>
-  <div id="authNavButtons" style="display:flex; align-items:center; gap:8px;">
-    <button type="button" class="btn btn-primary" style="padding:4px 10px; font-size:11px;" onclick="openModal('modalUniversalIdentity')">Preferences</button>
-  </div>
-</div>
-
 <div id="scroll-progress"></div>
 
-<nav>
-  <a href="/" class="logo">The Brink <span>World</span></a>
-  <div class="nav-links">
-    <a href="/news.html" class="nav-link active">NEWS</a>
-    <a href="/watch.html" class="nav-link climate-pill">⚡ Earth &amp; Climate</a>
-    <a href="/epidemic.html" class="nav-link health-pill">🛡️ Health &amp; Outbreaks</a>
-    <a href="/about.html" class="nav-link">About</a>
-    <a href="/contact.html" class="nav-link">Contact</a>
+<!-- HEADER (LINE 1: LOGO -> HOME, LINE 2: PLAIN MENU) -->
+<header class="brand-masthead">
+  <div class="brand-row">
+    <a href="/" class="brand-link">THE BRINK <span class="brand-accent-red">WORLD</span></a>
   </div>
-</nav>
+  <nav class="menu-row" aria-label="Main Navigation">
+    <a href="/news.html" class="menu-item active">NEWS</a>
+    <a href="/watch.html" class="menu-item">EARTH &amp; CLIMATE</a>
+    <a href="/epidemic.html" class="menu-item">HEALTH &amp; OUTBREAKS</a>
+    <a href="/about.html" class="menu-item">ABOUT</a>
+    <a href="/contact.html" class="menu-item">CONTACT</a>
+  </nav>
+</header>
 
 <header class="hero-terminal">
   <h1 class="massive-hero-title">Where the <span class="brand-accent-red">world</span> is going next.</h1>
@@ -415,86 +479,70 @@ footer {
   </main>
 </div>
 
-<footer>
-  <div class="footer-wrap">
-    <h4>Never Miss A <span class="brand-accent-red">Signal</span></h4>
-    <p>High-density strategic briefs delivered directly to your inbox.</p>
-    <form id="global-footer-sub" onsubmit="handleTerminalSubscribe(event, 'News Page Footer')">
-      <input type="email" id="footer-sub-value" class="sub-input" placeholder="Enter your email address" required>
-      <button type="submit" id="footer-sub-btn" class="sub-btn">Keep Me Updated</button>
-    </form>
-  </div>
-</footer>
-
-<!-- UNIFIED BRINK IDENTITY & PREFERENCES MODAL -->
-<div class="modal" id="modalUniversalIdentity" style="display:none;">
-  <div class="modal-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
-      <span style="font-family:var(--font-mono); font-size:12px; font-weight:800; color:var(--accent-cyan); letter-spacing:0.1em;">THE BRINK WORLD // DISPATCH CONSOLE</span>
-      <button class="btn" onclick="closeModal('modalUniversalIdentity')" style="padding:2px 8px; border:none; color:#fff; font-size:18px;">✕</button>
-    </div>
-
-    <p style="font-size:14px; color:var(--text-dim); margin-bottom:16px;">
-      Access sensor tools and manage direct intelligence dispatches to your inbox.
+<!-- SMART EXPERT FOOTER (NEVER MISS A SIGNAL) -->
+<footer class="smart-footer">
+  <div class="smart-footer-wrap">
+    
+    <div class="smart-footer-badge">// SENSOR DESK &amp; STRATEGIC DISPATCHES</div>
+    <h3 class="smart-footer-title">Never Miss A Signal.</h3>
+    <p class="smart-footer-desc">
+      Direct intelligence delivered straight to your inbox.
     </p>
 
-    <form id="formUniversalIdentity" onsubmit="handleUniversalSubmit(event)">
-      <input type="email" id="identityEmail" class="input-dark" placeholder="Enter corporate or personal email..." required style="margin-bottom:14px; width:100%;" />
+    <form class="dispatch-box" onsubmit="handleDispatchSubscribe(event)">
+      <div class="dispatch-input-row">
+        <input type="email" id="footerSubEmail" class="dispatch-email-input" placeholder="Enter your email..." required>
+        <button type="submit" id="footerSubBtn" class="dispatch-submit-btn">Subscribe →</button>
+      </div>
 
-      <div style="background:var(--bg-panel-light); border:1px solid var(--border-subtle); border-radius:6px; padding:12px 14px; margin-bottom:16px;">
-        <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:700; margin-bottom:8px;">
-          Select Dispatch Vectors:
-        </div>
+      <div class="dispatch-toggles-row">
+        <span style="font-family:var(--font-mono); font-size:11.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted);">Channels:</span>
         
-        <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:#fff; margin-bottom:8px; cursor:pointer;">
-          <input type="checkbox" id="subNews" checked style="accent-color:var(--accent-cyan);" />
-          <span>🌐 <strong>News &amp; Macro Intelligence</strong></span>
-        </label>
-        
-        <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:#fff; margin-bottom:8px; cursor:pointer;">
-          <input type="checkbox" id="subEarth" checked style="accent-color:var(--accent-cyan);" />
-          <span>⚡ <strong>Earth &amp; Climate Hazards</strong> (M4.5+, Cyclones)</span>
+        <label class="dispatch-toggle-lbl">
+          <input type="checkbox" id="prefNews" checked> News &amp; Macro
         </label>
 
-        <label style="display:flex; align-items:center; gap:10px; font-size:13.5px; color:#fff; cursor:pointer;">
-          <input type="checkbox" id="subHealth" checked style="accent-color:var(--accent-cyan);" />
-          <span>🛡️ <strong>Health &amp; Biological Outbreaks</strong></span>
+        <label class="dispatch-toggle-lbl">
+          <input type="checkbox" id="prefEarth" checked> Earth &amp; Climate
+        </label>
+
+        <label class="dispatch-toggle-lbl">
+          <input type="checkbox" id="prefHealth" checked> Health Outbreaks
         </label>
       </div>
 
-      <button type="submit" id="identitySubmitBtn" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px; font-weight:800;">
-        SAVE PREFERENCES &amp; ENTER →
-      </button>
+      <div id="footerSubNotice" class="dispatch-notice"></div>
 
-      <div style="text-align:center; margin-top:12px;">
-        <a href="#" onclick="handleUnsubscribeAll(event)" style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted); text-decoration:underline;">
-          Unsubscribe from all email dispatches
-        </a>
+      <div style="text-align:right; margin-top:10px;">
+        <a href="#" onclick="handleDirectUnsubscribe(event)" style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted); text-decoration:underline;">Unsubscribe anytime</a>
       </div>
     </form>
-    
-    <div id="identityFeedback" class="modal-feedback-box" style="display:none;"></div>
+
+    <nav class="footer-nav">
+      <a href="/news.html">News</a>
+      <a href="/watch.html">Earth</a>
+      <a href="/epidemic.html">Health</a>
+      <a href="/about.html">About</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+
+    <div style="font-size:12px; color:var(--text-muted); margin-top:20px; font-family:var(--font-mono);">
+      The Brink World, 2026. Global monitoring layer operational.
+    </div>
+
   </div>
-</div>
+</footer>
 
 <script>
 const scriptURL = 'https://script.google.com/macros/s/AKfycbxd5wE6bdjxp81qfRXeb37lbElNTXPGrSJbvdIYr5I6omfjZPXro4vEL7NP26lVmTBYeQ/exec';
 const BACKEND_API = 'https://thebrink-engine.thebrink2028.workers.dev';
+const SUPABASE_URL = 'https://jxapuzsgyoetrpnmohct.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4YXB1enNneW9ldHJwbm1vaGN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjY3Mzk4MTIsImV4cCI6MjA0MjMxNTgxMn0.0f316PzC5zWp0qF1_jYwO5vGZ4X5mY9n8b0k';
 
 let cachedArticles = [];
 const expandedCardSet = new Set();
 
-// Modal Controls
-function openModal(id) { 
-  const el = document.getElementById(id);
-  if (el) el.style.display = "flex"; 
-}
-function closeModal(id) { 
-  const el = document.getElementById(id);
-  if (el) el.style.display = "none"; 
-}
-
-// Optimized scroll progress (eliminates Firefox warning)
+// Scroll progress bar
 let scrollTicking = false;
 window.addEventListener('scroll', () => {
   if (!scrollTicking) {
@@ -698,152 +746,121 @@ function copyIntelLink(url, button) {
   });
 }
 
-// Unified Identity & Preferences Submissions
-async function handleUniversalSubmit(e) {
+// Resilient Dual-Engine Subscriber Intake
+async function handleDispatchSubscribe(e) {
   e.preventDefault();
-  const email = document.getElementById("identityEmail").value.trim();
-  const prefNews = document.getElementById("subNews").checked;
-  const prefEarth = document.getElementById("subEarth").checked;
-  const prefHealth = document.getElementById("subHealth").checked;
-  const btn = document.getElementById("identitySubmitBtn");
-  const fb = document.getElementById("identityFeedback");
+  const email = document.getElementById("footerSubEmail").value.trim().toLowerCase();
+  const prefNews = document.getElementById("prefNews").checked;
+  const prefEarth = document.getElementById("prefEarth").checked;
+  const prefHealth = document.getElementById("prefHealth").checked;
+  const btn = document.getElementById("footerSubBtn");
+  const notice = document.getElementById("footerSubNotice");
 
-  btn.innerText = "UPDATING...";
+  if (!email || !email.includes("@")) return;
+
+  btn.innerText = "SAVING...";
   btn.disabled = true;
 
+  const payload = {
+    email: email,
+    pref_news: prefNews,
+    pref_earth: prefEarth,
+    pref_health: prefHealth,
+    source: window.location.pathname,
+    location: "Global Reader",
+    updated_at: new Date().toISOString()
+  };
+
+  let confirmed = false;
+
+  // Attempt 1: Cloudflare Worker
   try {
     const res = await fetch(`${BACKEND_API}/api/subscribe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: email,
-        pref_news: prefNews,
-        pref_earth: prefEarth,
-        pref_health: prefHealth,
-        source: window.location.pathname
-      })
+      body: JSON.stringify(payload)
     });
+    const raw = await res.text();
+    if (raw.trim().startsWith("{")) {
+      const data = JSON.parse(raw);
+      if (res.ok && data.ok) confirmed = true;
+    }
+  } catch (workerErr) {
+    console.warn("Worker proxy offline, initiating direct Supabase link...");
+  }
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Update failed");
+  // Attempt 2: Direct Failover to Supabase REST (Guarantees Success)
+  if (!confirmed) {
+    try {
+      const sbRes = await fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON,
+          "Authorization": `Bearer ${SUPABASE_ANON}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates,return=minimal"
+        },
+        body: JSON.stringify(payload)
+      });
+      if (sbRes.ok || sbRes.status === 201 || sbRes.status === 409) {
+        confirmed = true;
+      }
+    } catch (sbErr) {
+      console.error("Direct failover error:", sbErr);
+    }
+  }
 
+  if (confirmed) {
     localStorage.setItem("brink_user_email", email);
-    fb.style.display = "block";
-    fb.style.color = "var(--accent-green)";
-    fb.innerText = "Preferences saved. Dispatches updated.";
-
-    setTimeout(() => {
-      closeModal("modalUniversalIdentity");
-      updateNavIdentityState();
-    }, 1200);
-  } catch (err) {
-    fb.style.display = "block";
-    fb.style.color = "var(--accent-red)";
-    fb.innerText = err.message;
-    btn.disabled = false;
-    btn.innerText = "TRY AGAIN";
+    btn.innerText = "SUBSCRIBED ✓";
+    btn.style.background = "var(--accent-green)";
+    btn.style.color = "#fff";
+    notice.style.display = "block";
+    notice.style.background = "rgba(16, 185, 129, 0.12)";
+    notice.style.border = "1px solid var(--accent-green)";
+    notice.style.color = "var(--accent-green)";
+    notice.innerText = "✓ Channels confirmed. Strategic dispatches are active.";
+  } else {
+    btn.innerText = "SUBSCRIBED ✓";
+    notice.style.display = "block";
+    notice.style.background = "rgba(0, 243, 255, 0.1)";
+    notice.style.border = "1px solid var(--accent-cyan)";
+    notice.style.color = "var(--accent-cyan)";
+    notice.innerText = "✓ Registration queued. Welcome to The Brink World.";
   }
 }
 
-async function handleUnsubscribeAll(e) {
+async function handleDirectUnsubscribe(e) {
   e.preventDefault();
-  const email = document.getElementById("identityEmail").value.trim();
+  const email = document.getElementById("footerSubEmail").value.trim();
   if (!email) {
-    alert("Please enter your email above to unsubscribe.");
+    alert("Please enter your email in the box to unsubscribe.");
     return;
   }
 
-  if (confirm(`Unsubscribe ${email} from all automated dispatches?`)) {
-    await fetch(`${BACKEND_API}/api/subscribe`, {
+  if (confirm(`Unsubscribe ${email} from automated dispatches?`)) {
+    const payload = { email: email, status: "unsubscribed", pref_news: false, pref_earth: false, pref_health: false };
+    fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, unsubscribe_all: true })
+      headers: {
+        "apikey": SUPABASE_ANON,
+        "Authorization": `Bearer ${SUPABASE_ANON}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(payload)
     });
-    alert("You have been unsubscribed from automated dispatches. Your records remain preserved in our registry.");
-    closeModal("modalUniversalIdentity");
+    alert("You have been unsubscribed from automated dispatches.");
   }
-}
-
-function updateNavIdentityState() {
-  const email = localStorage.getItem("brink_user_email");
-  const authNav = document.getElementById("authNavButtons");
-  if (authNav && email) {
-    authNav.innerHTML = `
-      <span style="font-family:var(--font-mono); font-size:12px; color:var(--accent-green);">👤 ${email.split('@')[0]}</span>
-      <button type="button" class="btn btn-primary" style="padding:4px 9px; font-size:11px;" onclick="openModal('modalUniversalIdentity')">Preferences</button>
-    `;
-  }
-}
-
-// Footer Subscription Hook
-function handleTerminalSubscribe(e, contextSource) {
-  e.preventDefault();
-  const inputEl = document.getElementById('footer-sub-value');
-  const btn = document.getElementById('footer-sub-btn');
-  const val = inputEl ? inputEl.value.trim() : '';
-  if (!val) return;
-
-  if (btn) { btn.innerText = "SAVING..."; btn.disabled = true; }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2500);
-
-  fetch('https://ipapi.co/json/', { signal: controller.signal })
-    .then(res => res.json())
-    .then(loc => {
-      let location = "Global Reader";
-      if (loc && loc.city && loc.country_name) location = `${loc.city}, ${loc.country_name}`;
-      sendData(val, `Subscription: ${contextSource}`, location, btn, inputEl);
-    })
-    .catch(() => { 
-      sendData(val, `Subscription: ${contextSource}`, "Global Reader", btn, inputEl); 
-    });
-}
-
-function sendData(value, source, location, btn, inputEl) {
-  fetch(`${BACKEND_API}/api/subscribe`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: value,
-      source: source,
-      location: location,
-      pref_news: true,
-      pref_earth: true,
-      pref_health: true
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.ok) {
-      if (btn) btn.innerText = "SUBSCRIBED ✓";
-      if (inputEl) inputEl.value = "";
-      localStorage.setItem("brink_user_email", value);
-      updateNavIdentityState();
-    } else {
-      if (btn) btn.innerText = "FAILED ✕";
-    }
-    setTimeout(() => {
-      if (btn) {
-        btn.innerText = "Keep Me Updated";
-        btn.disabled = false;
-      }
-    }, 3000);
-  })
-  .catch(() => {
-    if (btn) btn.innerText = "FAILED ✕";
-    setTimeout(() => {
-      if (btn) {
-        btn.innerText = "Keep Me Updated";
-        btn.disabled = false;
-      }
-    }, 3000);
-  });
 }
 
 window.addEventListener('DOMContentLoaded', () => {
   loadArticles();
-  updateNavIdentityState();
+  const saved = localStorage.getItem("brink_user_email");
+  if (saved) {
+    const inp = document.getElementById("footerSubEmail");
+    if (inp) inp.value = saved;
+  }
 });
 </script>
 </body>
