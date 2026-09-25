@@ -80,9 +80,7 @@ def fetch_and_publish_volcanoes():
                     continue
 
                 alert_level = p.get("alertlevel", "Green").capitalize()
-                # Ignore "Green" background degassing to prevent false alarms
-                if alert_level == "Green":
-                    continue
+                
 
                 events.append({
                     "id": f"VOLC_{p.get('eventid', p.get('name', 'Unknown'))}",
