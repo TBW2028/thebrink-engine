@@ -7,8 +7,6 @@
 <meta name="description" content="Real-time planetary tremors, cyclones, storm surge radar, and asset risk audits."/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
-<!-- MODULAR GLOBAL STORM FEEDS REGISTRY -->
-<script src="storm-feeds.js"></script>
 <style>
 :root{
   --bg:#06090e; --panel:#0c121b; --panel2:#111a26; --line:#1e2a38;
@@ -547,7 +545,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
     </div>
     <div class="panel">
       <div class="panel-h">
-        <span>Priority Apex Hazard (Global Maximum Threat)</span>
+        <span>Priority Apex Hazards (Apex System Per Hazard Vector)</span>
         <span class="badge">Strict Apex Threshold</span>
       </div>
       <div id="lookout" class="region-scroll" style="max-height:430px;"><div style="color:var(--muted);padding:8px">Synchronizing live streams…</div></div>
@@ -579,7 +577,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 
   <div class="tray-accordion" id="tray-volcanoes">
     <div class="tray-header" onclick="toggleTray('tray-volcanoes')">
-      <div class="tray-title"><span style="color:var(--hot)">🌋</span> Volcanic Eruptions &amp; Stratospheric Ash Plumes (Active Observatory Alerts)</div>
+      <div class="tray-title"><span style="color:var(--hot)">🌋</span> Volcanic Eruptions &amp; Stratospheric Ash Plumes (Active Alerts in Past 7 Days)</div>
       <div class="tray-toggle-btn">+</div>
     </div>
     <div class="tray-content">
@@ -1150,7 +1148,7 @@ function toggleRadarPlay() {
   }
 }
 
-// UNIFIED CROSS-HAZARD APEX RANKING ENGINE (ZERO SECONDARY CALLS)
+// UNIFIED CROSS-HAZARD APEX RANKING ENGINE (TOP APEX EVENT PER CATEGORY)
 function rebuildPriorityLookout() {
   const candidatePool = [];
 
@@ -1179,7 +1177,7 @@ function rebuildPriorityLookout() {
   // 2. Ingest existing storms & hurricanes
   (EVENT_STORE.storms || []).forEach(s => {
     let score = 70;
-    const catUpper = (s.category || "").toUpperCase();
+    const catUpper = (s.title + " " + (s.severity || "")).toUpperCase();
     if (catUpper.includes("CATEGORY 5") || catUpper.includes("SUPER TYPHOON")) score = 100;
     else if (catUpper.includes("CATEGORY 4") || catUpper.includes("SEVERE")) score = 95;
     else if (catUpper.includes("CATEGORY 3") || catUpper.includes("MAJOR")) score = 88;
@@ -1199,28 +1197,32 @@ function rebuildPriorityLookout() {
 
   // 3. Ingest existing volcanic alerts
   (EVENT_STORE.volcanoes || []).forEach(v => {
-    let score = 0;
+    let score = 75;
     const intUpper = (v.intensity || "").toUpperCase();
     if (intUpper.includes("WARNING") || intUpper.includes("RED")) score = 92;
     else if (intUpper.includes("WATCH") || intUpper.includes("ORANGE")) score = 82;
     else if (intUpper.includes("ADVISORY") || intUpper.includes("YELLOW")) score = 65;
 
-    if (score > 0) {
-      candidatePool.push({
-        score,
-        headline: `🌋 ${v.title} · ${v.intensity}`,
-        summary: v.summary || `Volcanic observatory alert active. Elevated eruptive or degassing phase logged.`,
-        kind: "VOLCANIC APEX",
-        time: v.time,
-        lat: v.lat || 0,
-        lon: v.lon || 0
-      });
-    }
+    candidatePool.push({
+      score,
+      headline: `🌋 ${v.title}`,
+      summary: v.summary || `Active observatory telemetry confirmed. Elevated eruptive or thermal phase logged.`,
+      kind: "VOLCANIC APEX",
+      time: v.time,
+      lat: v.lat || 0,
+      lon: v.lon || 0
+    });
   });
 
-  // Rank strictly descending by threat severity, slice to exactly 1 event (THE APEX THREAT)
+  // Rank candidatePool strictly descending by severity score
   candidatePool.sort((a, b) => b.score - a.score || new Date(b.time) - new Date(a.time));
-  EVENT_STORE.lookout = candidatePool.slice(0, 1);
+
+  // Extract the top apex hazard for EACH distinct hazard category
+  const topStorm = candidatePool.find(e => e.headline.includes('🌀') || (e.kind && e.kind.includes('CYCLON')));
+  const topQuake = candidatePool.find(e => e.headline.includes('⚡') || (e.kind && (e.kind.includes('SLIP') || e.kind.includes('RUPTURE') || e.kind.includes('DISLOCATION') || e.kind.includes('SHOCK') || e.kind.includes('SEISMIC'))));
+  const topVolcano = candidatePool.find(e => e.headline.includes('🌋') || (e.kind && e.kind.includes('VOLCAN')));
+
+  EVENT_STORE.lookout = [topStorm, topQuake, topVolcano].filter(Boolean);
 
   // Render to Lookout Panel
   $("lookout").innerHTML = EVENT_STORE.lookout.length > 0 ? EVENT_STORE.lookout.map(n => {
@@ -1242,7 +1244,7 @@ function rebuildPriorityLookout() {
   }).join("") : '<div style="color:var(--ok); padding:10px; font-weight:700;">✓ Planetary baseline nominal across all active vectors. No critical apex hazards currently detected.</div>';
 }
 
-// UNIFIED SUPABASE INGESTION (NO MORE FAKE NASA FEEDS)
+// UNIFIED SUPABASE INGESTION
 async function fetchLiveHazards() {
   try {
     // Retain a light call to USGS to populate the 7-day legacy watch table safely
@@ -1285,7 +1287,6 @@ async function fetchLiveHazards() {
       const lon = h.longitude;
       const timeMs = new Date(h.observed_at).getTime();
       
-      // Make the category lowercase to avoid case-sensitive errors
       const cat = (h.category || '').toLowerCase();
 
       ALL_ACTIVE_EVENTS.push({ lat, lon, time: timeMs });
@@ -1359,6 +1360,26 @@ async function fetchLiveHazards() {
     const seismicScore = Math.min(100, Math.max(8, Math.round(((logEnergy - 10) / 6) * 100)));
     $("sigGhl").textContent = `${seismicScore} / 100`;
 
+    // Disruption Velocity (trailing 6h vs rolling 24h)
+    const sixHoursAgo = Date.now() - (6 * 3600 * 1000);
+    const countLast6h = EVENT_STORE.global.filter(e => new Date(e.time).getTime() >= sixHoursAgo).length;
+    const countPrior18h = Math.max(0, EVENT_STORE.global.length - countLast6h);
+    const rate6h = countLast6h / 6;
+    const rate18h = countPrior18h / 18 || 0.1;
+    const velocityPct = Math.round(((rate6h - rate18h) / rate18h) * 100);
+    $("sigVelocity").textContent = `${velocityPct >= 0 ? '+' : ''}${velocityPct}%`;
+
+    // Proximity Clusters (co-located within 350km)
+    let clusterPairs = 0;
+    for (let i = 0; i < EVENT_STORE.global.length; i++) {
+      for (let j = i + 1; j < EVENT_STORE.global.length; j++) {
+        const dist = haversine(EVENT_STORE.global[i].latitude, EVENT_STORE.global[i].longitude,
+                               EVENT_STORE.global[j].latitude, EVENT_STORE.global[j].longitude);
+        if (dist <= 350) clusterPairs++;
+      }
+    }
+    $("sigConvergence").textContent = `${clusterPairs} Pairs`;
+
     if (mostRecentMajorTime > 0) {
       const elapsedMajorSec = Math.floor((Date.now() - mostRecentMajorTime) / 1000);
       $("sigEscapeWindow").textContent = `${Math.floor(elapsedMajorSec / 3600)}h ${Math.floor((elapsedMajorSec % 3600) / 60)}m Ago (M5+)`;
@@ -1394,7 +1415,6 @@ async function fetchSpaceWeather() {
   let protonDensity = null;
   let dynamicPressureNpa = null;
 
-  // 1. Fetch real-time planetary Kp Index from NOAA SWPC
   try {
     const res = await fetch("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json");
     if (res.ok) {
@@ -1413,7 +1433,6 @@ async function fetchSpaceWeather() {
     console.warn("NOAA SWPC Kp fetch failed:", e);
   }
 
-  // 2. Exact Celestial Ephemeris (Lunar Distance & Sublunar Coordinate)
   const now = new Date();
   const baseDate = new Date('2026-03-01T00:00:00Z');
   const daysSince = (now - baseDate) / (1000 * 60 * 60 * 24);
