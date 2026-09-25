@@ -29,33 +29,60 @@ html, body{
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 
-/* BRAND FIXED HEADER */
-.brand-fixed-bar {
-  position: fixed; top: 0; left: 0; width: 100%; height: 50px; z-index: 99999;
-  background: rgba(6, 9, 14, 0.96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border-bottom: 2px solid rgba(0, 243, 255, 0.4); box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-  padding: 0 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+#scroll-progress {
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: var(--accent); width: 0%; z-index: 100000;
+  transition: width 0.1s ease-out;
 }
-.brand-fixed-left { display: flex; align-items: center; gap: 16px; }
-.brand-fixed-title {
-  font-family: var(--font-mono); font-size: 13px; font-weight: 800;
-  letter-spacing: 0.12em; color: var(--gold); text-transform: uppercase; white-space: nowrap;
-}
-.brand-clock-bar {
-  font-family: var(--font-mono); font-size: 11px; color: var(--soft);
-  display: flex; gap: 12px; white-space: nowrap;
-}
-@media(max-width: 1024px){ .brand-clock-bar { display: none; } }
-.brand-fixed-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.hdr-link {
-  font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--text);
-  padding: 4px 8px; border-radius: 4px; border: 1px solid transparent; white-space: nowrap;
-}
-.hdr-link:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
-@media(max-width: 680px){ .hdr-link.hide-sm { display: none; } }
 
-.wrap{ max-width: 1240px; margin: 0 auto; padding: 64px 16px 72px; width: 100%; }
-header{ padding: 12px 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+/* 2-LINE AUTHENTIC BRAND & NAVIGATION HEADER */
+.brand-masthead {
+  width: 100%;
+  background: rgba(6, 9, 14, 0.98);
+  border-bottom: 1px solid var(--line);
+  padding: 18px 6% 16px 6%;
+}
+.brand-row {
+  margin-bottom: 12px;
+}
+.brand-link {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 3vw, 26px);
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-decoration: none;
+  text-transform: uppercase;
+  display: inline-block;
+}
+.brand-link:hover { text-decoration: none; }
+.brand-accent-red { color: var(--hot); }
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.menu-item {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.menu-item:hover, .menu-item.active {
+  color: #fff;
+  text-decoration: none;
+}
+.menu-item.active {
+  color: var(--accent);
+}
+
+.wrap{ max-width: 1240px; margin: 0 auto; padding: 32px 16px 72px; width: 100%; }
+header.page-header{ padding: 12px 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
 h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); letter-spacing:-.03em; margin:4px 0 6px; color:#fff; line-height:1.2; }
 .sub{ color:var(--muted); font-size:0.98rem; max-width:52rem; line-height:1.5; }
 
@@ -258,35 +285,159 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .services-fomo-banner h2 { font-family: var(--font-display); font-size: clamp(1.4rem, 3.2vw, 2rem); color: #fff; text-transform: uppercase; margin-bottom: 14px; letter-spacing: -0.02em; }
 .services-fomo-banner p { color: var(--soft); font-size: 1.05rem; line-height: 1.6; max-width: 48rem; margin: 0 auto 24px; }
 
-.modal{ position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.88); display:none; align-items:center; justify-content:center; z-index:999999; }
+.modal{ position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.88); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; z-index:999999; }
 .modal-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; max-width:640px; width:92%; max-height:90vh; overflow-y:auto; box-shadow:var(--shadow); }
-.input-dark{ background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:#fff; padding:11px 13px; font-size:15px; width:100%; font-family:var(--font-body); }
-.modal-feedback-box{ padding: 16px; border-radius: 8px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); margin-top: 8px; }
-footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); font-size:0.88rem; color:var(--muted); display:flex; justify-content:space-between; }
+
+/* SMART EXPERT FOOTER */
+.smart-footer {
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  padding: 64px 6% 48px;
+  margin-top: 60px;
+}
+.smart-footer-wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  text-align: center;
+}
+.smart-footer-badge {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.smart-footer-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1.15;
+  margin-bottom: 12px;
+}
+.smart-footer-desc {
+  font-size: 15px;
+  color: var(--soft);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+.dispatch-box {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: left;
+}
+.dispatch-input-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.dispatch-email-input {
+  flex: 1;
+  min-width: 240px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: #fff;
+  padding: 12px 14px;
+  font-size: 15px;
+  outline: none;
+  font-family: inherit;
+}
+.dispatch-email-input:focus {
+  border-color: var(--accent);
+}
+.dispatch-submit-btn {
+  background: var(--accent);
+  color: #06090e;
+  border: none;
+  border-radius: 4px;
+  padding: 12px 24px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.dispatch-submit-btn:hover {
+  filter: brightness(1.1);
+}
+.dispatch-toggles-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid rgba(30,42,56,0.6);
+  padding-top: 14px;
+  font-size: 13.5px;
+  color: var(--soft);
+}
+.dispatch-toggle-lbl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: #fff;
+}
+.dispatch-toggle-lbl input {
+  accent-color: var(--accent);
+}
+.dispatch-notice {
+  display: none;
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 10px 14px;
+  border-radius: 4px;
+}
+.footer-nav {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  margin-top: 36px;
+}
+.footer-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.footer-nav a:hover {
+  color: var(--accent);
+}
 </style>
 </head>
 <body>
 
-<div class="brand-fixed-bar">
-  <div class="brand-fixed-left">
-    <div class="brand-fixed-title">THE BRINK WORLD // WATCH</div>
-    <div class="brand-clock-bar">
-      <span id="utcClock">UTC: --:--:--</span>
-      <span id="localClock">Local: --:--:--</span>
-    </div>
+<div id="scroll-progress"></div>
+
+<!-- HEADER (LINE 1: LOGO -> HOME, LINE 2: PLAIN MENU) -->
+<header class="brand-masthead">
+  <div class="brand-row">
+    <a href="/" class="brand-link">THE BRINK <span class="brand-accent-red">WORLD</span></a>
   </div>
-  <div class="brand-fixed-right">
-    <a href="/" class="hdr-link hide-sm">← Intel</a>
-    <a href="/services.html" class="hdr-link hide-sm" style="color:var(--gold)">Services →</a>
-    <div id="authNavButtons" style="display:flex; gap:8px; align-items:center;">
-      <button type="button" class="btn" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalLogin')">Login</button>
-      <button type="button" class="btn btn-primary" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalSignup')">Signup</button>
-    </div>
-  </div>
-</div>
+  <nav class="menu-row" aria-label="Main Navigation">
+    <a href="/news.html" class="menu-item">NEWS</a>
+    <a href="/watch.html" class="menu-item active">EARTH &amp; CLIMATE</a>
+    <a href="/epidemic.html" class="menu-item">HEALTH &amp; OUTBREAKS</a>
+    <a href="/about.html" class="menu-item">ABOUT</a>
+    <a href="/contact.html" class="menu-item">CONTACT</a>
+  </nav>
+</header>
 
 <div class="wrap">
-  <header>
+  <header class="page-header">
     <h1>Earth &amp; Climate Watch</h1>
     <p class="sub">Curated planetary risk intelligence: real-time exposure modeling, compound hazard convergence, and critical engineering asset audits.</p>
   </header>
@@ -396,8 +547,8 @@ footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); fon
     </div>
     <div class="panel">
       <div class="panel-h">
-        <span>Priority Hazard Lookout (Last 24 Hours)</span>
-        <span class="badge">Strict 24H Window</span>
+        <span>Priority Apex Hazard (Global Maximum Threat)</span>
+        <span class="badge">Strict Apex Threshold</span>
       </div>
       <div id="lookout" class="region-scroll" style="max-height:430px;"><div style="color:var(--muted);padding:8px">Synchronizing live streams…</div></div>
     </div>
@@ -482,17 +633,67 @@ footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); fon
 
   <div class="services-fomo-banner">
     <div class="mono" style="font-size: 12px; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">// BEYOND THE LIVE FEED</div>
-    <h2>When risk lands on your exact doorstep, general feeds are not enough.</h2>
+    <h2>When risk lands on your doorstep, general feeds are not enough.</h2>
     <p>
-      You are watching the macro signals. But whether you are evaluating a critical supply chain corridor, timing a high-exposure cross-border journey, protecting agricultural yield against unseasonal climate anomalies, or managing complex pilgrimage logistics under extreme heat—tailored intelligence changes everything.
+      You are watching the macro signals. But whether you are evaluating your vacation, a critical supply chain corridor, timing a high-exposure cross-border journey, protecting agricultural yield against unseasonal climate anomalies, or managing complex pilgrimage logistics under extreme heat, tailored intelligence changes everything.
     </p>
     <a href="/services.html" class="btn btn-primary" style="display: inline-flex; padding: 12px 28px; font-size: 13.5px; text-transform: uppercase; font-weight: 750;">Explore Commissioned Services →</a>
   </div>
-
-  <footer>
-    <div>The Brink World // Earth &amp; Climate Desk · <a href="mailto:thebrink2028@gmail.com">Enterprise Inquiries</a></div>
-  </footer>
 </div>
+
+<!-- SMART EXPERT FOOTER (NEVER MISS A SIGNAL) -->
+<footer class="smart-footer">
+  <div class="smart-footer-wrap">
+    
+    <div class="smart-footer-badge">// SENSOR DESK &amp; STRATEGIC DISPATCHES</div>
+    <h3 class="smart-footer-title">Never Miss A Signal.</h3>
+    <p class="smart-footer-desc">
+      Direct intelligence delivered straight to your inbox.
+    </p>
+
+    <form class="dispatch-box" onsubmit="handleDispatchSubscribe(event)">
+      <div class="dispatch-input-row">
+        <input type="email" id="footerSubEmail" class="dispatch-email-input" placeholder="Enter your email..." required>
+        <button type="submit" id="footerSubBtn" class="dispatch-submit-btn">Subscribe →</button>
+      </div>
+
+      <div class="dispatch-toggles-row">
+        <span style="font-family:var(--font-mono); font-size:11.5px; font-weight:700; text-transform:uppercase; color:var(--muted);">Channels:</span>
+        
+        <label class="dispatch-toggle-lbl">
+          <input type="checkbox" id="prefNews" checked> News &amp; Macro
+        </label>
+
+        <label class="dispatch-toggle-lbl">
+          <input type="checkbox" id="prefEarth" checked> Earth &amp; Climate
+        </label>
+
+        <label class="dispatch-toggle-lbl">
+          <input type="checkbox" id="prefHealth" checked> Health Outbreaks
+        </label>
+      </div>
+
+      <div id="footerSubNotice" class="dispatch-notice"></div>
+
+      <div style="text-align:right; margin-top:10px;">
+        <a href="#" onclick="handleDirectUnsubscribe(event)" style="font-family:var(--font-mono); font-size:11px; color:var(--muted); text-decoration:underline;">Unsubscribe anytime</a>
+      </div>
+    </form>
+
+    <nav class="footer-nav">
+      <a href="/news.html">News</a>
+      <a href="/watch.html">Earth</a>
+      <a href="/epidemic.html">Health</a>
+      <a href="/about.html">About</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+
+    <div style="font-size:12px; color:var(--muted); margin-top:20px; font-family:var(--font-mono);">
+      The Brink World, 2026. Global monitoring layer operational.
+    </div>
+
+  </div>
+</footer>
 
 <!-- MODALS -->
 <div class="modal" id="modalScientistBrief">
@@ -537,51 +738,136 @@ footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--line); fon
   </div>
 </div>
 
-<div class="modal" id="modalLogin">
-  <div class="modal-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
-      <h3 style="font-size:1.2rem; color:#fff">Platform Login</h3>
-      <button class="btn" onclick="closeModal('modalLogin')" style="padding:4px 9px">✕</button>
-    </div>
-    <form id="formLogin" style="display:flex; flex-direction:column; gap:12px" onsubmit="handleBackendLogin(event)">
-      <input type="email" id="loginEmail" class="input-dark" placeholder="Registered Email Address" required/>
-      <input type="password" id="loginPass" class="input-dark" placeholder="Password" required/>
-      <button type="submit" class="btn btn-primary" style="justify-content:center; padding:11px;">Authorize Access →</button>
-    </form>
-    <div id="loginFeedback" class="modal-feedback-box" style="display:none;"></div>
-  </div>
-</div>
-
-<div class="modal" id="modalSignup">
-  <div class="modal-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
-      <h3 style="font-size:1.2rem; color:#fff">Free Platform Signup</h3>
-      <button class="btn" onclick="closeModal('modalSignup')" style="padding:4px 9px">✕</button>
-    </div>
-    <form id="formSignup" style="display:flex; flex-direction:column; gap:12px" onsubmit="handleBackendSignup(event)">
-      <input type="text" id="signupName" class="input-dark" placeholder="Full Name / Officer" required/>
-      <input type="email" id="signupEmail" class="input-dark" placeholder="Corporate Email Address" required/>
-      <input type="password" id="signupPass" class="input-dark" placeholder="Create Password" required/>
-      <button type="submit" class="btn btn-gold" style="justify-content:center; padding:11px;">Complete Free Registration →</button>
-    </form>
-    <div id="signupFeedback" class="modal-feedback-box" style="display:none;"></div>
-  </div>
-</div>
-
 <!-- JAVASCRIPT ENGINE -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const BACKEND_API = "https://thebrink-engine.thebrink2028.workers.dev";
-let currentUserSession = null;
+const SUPABASE_URL = "https://jxapuzsgyoetrpnmohct.supabase.co";
+const SUPABASE_ANON = "sb_publishable_VLQoHAEpKndcjxO3BLRQuw_7UFA3orI";
 
 const $ = id => document.getElementById(id);
-function openModal(id){ $(id).style.display = "flex"; }
-function closeModal(id){ $(id).style.display = "none"; }
+function openModal(id){ const el = $(id); if(el) el.style.display = "flex"; }
+function closeModal(id){ const el = $(id); if(el) el.style.display = "none"; }
 function toggleTray(id) { $(id).classList.toggle('open'); }
 function openTrayAndScroll(id) {
   const el = $(id);
   if (!el.classList.contains('open')) el.classList.add('open');
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Scroll progress bar
+let scrollTicking = false;
+window.addEventListener('scroll', () => {
+  if (!scrollTicking) {
+    window.requestAnimationFrame(() => {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = height > 0 ? (winScroll / height) * 100 : 0;
+      const bar = document.getElementById('scroll-progress');
+      if (bar) bar.style.width = scrolled + '%';
+      scrollTicking = false;
+    });
+    scrollTicking = true;
+  }
+}, { passive: true });
+
+// Direct, Bulletproof Supabase Enrollment Engine
+async function handleDispatchSubscribe(e) {
+  e.preventDefault();
+  const emailInput = document.getElementById("footerSubEmail");
+  const email = emailInput ? emailInput.value.trim().toLowerCase() : "";
+  const prefNews = document.getElementById("prefNews") ? document.getElementById("prefNews").checked : true;
+  const prefEarth = document.getElementById("prefEarth") ? document.getElementById("prefEarth").checked : true;
+  const prefHealth = document.getElementById("prefHealth") ? document.getElementById("prefHealth").checked : true;
+  const btn = document.getElementById("footerSubBtn");
+  const notice = document.getElementById("footerSubNotice");
+
+  if (!email || !email.includes("@")) return;
+
+  btn.innerText = "SAVING...";
+  btn.disabled = true;
+
+  const payload = {
+    email: email,
+    pref_news: prefNews,
+    pref_earth: prefEarth,
+    pref_health: prefHealth,
+    source: "watch.html",
+    location: "Global Reader",
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/subscribers?on_conflict=email`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON,
+        "Authorization": `Bearer ${SUPABASE_ANON}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=representation"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Supabase rejection (${res.status}): ${errorText}`);
+    }
+
+    localStorage.setItem("brink_user_email", email);
+    btn.innerText = "SUBSCRIBED ✓";
+    btn.style.background = "var(--ok)";
+    btn.style.color = "#fff";
+    notice.style.display = "block";
+    notice.style.background = "rgba(16, 185, 129, 0.12)";
+    notice.style.border = "1px solid var(--ok)";
+    notice.style.color = "var(--ok)";
+    notice.innerText = "✓ Channels confirmed. Strategic dispatches are active.";
+  } catch (err) {
+    console.error("Direct Supabase enrollment error in watch.html:", err);
+    btn.disabled = false;
+    btn.innerText = "TRY AGAIN";
+    notice.style.display = "block";
+    notice.style.background = "rgba(239, 68, 68, 0.12)";
+    notice.style.border = "1px solid var(--hot)";
+    notice.style.color = "var(--hot)";
+    notice.innerText = err.message;
+  }
+}
+
+async function handleDirectUnsubscribe(e) {
+  e.preventDefault();
+  const emailInput = document.getElementById("footerSubEmail");
+  const email = emailInput ? emailInput.value.trim() : "";
+  if (!email) {
+    alert("Please enter your email in the box to unsubscribe.");
+    return;
+  }
+
+  if (confirm(`Unsubscribe ${email} from automated dispatches?`)) {
+    const payload = { 
+      email: email, 
+      status: "unsubscribed", 
+      pref_news: false, 
+      pref_earth: false, 
+      pref_health: false,
+      updated_at: new Date().toISOString()
+    };
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/subscribers?on_conflict=email`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON,
+          "Authorization": `Bearer ${SUPABASE_ANON}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates,return=minimal"
+        },
+        body: JSON.stringify(payload)
+      });
+      alert("You have been unsubscribed from automated dispatches.");
+    } catch(err) {
+      console.error("Unsubscribe error:", err);
+    }
+  }
 }
 
 let userLat = null, userLon = null, userCity = "Detecting...";
@@ -591,14 +877,6 @@ let climateState = { curTempC: 25, weatherCode: 0, todayMaxC: 28, todayMinC: 20,
 let ALL_ACTIVE_EVENTS = [];
 let ALL_RECENT_WEEK_EVENTS = [];
 let EVENT_STORE = { global: [], lookout: [], storms: [], volcanoes: [] };
-
-function updateClocks() {
-  const now = new Date();
-  $("utcClock").textContent = `UTC: ${now.toUTCString().slice(17, 25)}`;
-  $("localClock").textContent = `Local (${userCity}): ${now.toLocaleTimeString()}`;
-}
-setInterval(updateClocks, 1000);
-updateClocks();
 
 function formatTimeElapsed(isoStr) {
   if (!isoStr) return { elapsed: "Recent", fullDate: "Undated" };
@@ -637,6 +915,7 @@ function switchUnit(u) {
 }
 
 function weatherCodeToGlyph(code) {
+  if (code === null || code === undefined) return { icon: "❓", text: "No Live Reading" };
   if (code === 0) return { icon: "☀️", text: "Clear Sky" };
   if (code <= 3) return { icon: "⛅", text: "Partly Cloudy" };
   if (code <= 48) return { icon: "🌫️", text: "Atmospheric Inversion / Haze" };
@@ -656,11 +935,11 @@ async function loadFullClimateEngine(lat, lon, label) {
     );
     if (forecastRes.ok) {
       const fd = await forecastRes.json();
-      climateState.curTempC = fd.current?.temperature_2m ?? 25;
-      climateState.weatherCode = fd.current?.weather_code ?? 0;
-      climateState.todayMaxC = fd.daily?.temperature_2m_max?.[0] ?? 28;
-      climateState.todayMinC = fd.daily?.temperature_2m_min?.[0] ?? 20;
-      
+      climateState.curTempC = fd.current?.temperature_2m ?? null;
+      climateState.weatherCode = fd.current?.weather_code ?? null;
+      climateState.todayMaxC = fd.daily?.temperature_2m_max?.[0] ?? null;
+      climateState.todayMinC = fd.daily?.temperature_2m_min?.[0] ?? null;
+
       climateState.forecastDaily = (fd.daily?.time || []).map((t, idx) => ({
         date: t,
         maxC: fd.daily.temperature_2m_max[idx],
@@ -683,14 +962,16 @@ async function loadFullClimateEngine(lat, lon, label) {
           .then(r => r.ok ? r.json() : null)
           .then(d => {
             const val = d?.daily?.temperature_2m_mean?.[0];
-            return val !== undefined && val !== null ? { year: y, tempC: val } : { year: y, tempC: climateState.curTempC };
+            return val !== undefined && val !== null ? { year: y, tempC: val } : null;
           })
-          .catch(() => ({ year: y, tempC: climateState.curTempC }))
+          .catch(() => null)
       );
     }
-    const resolvedArchive = await Promise.all(archivePromises);
+    const resolvedArchive = (await Promise.all(archivePromises)).filter(Boolean);
     resolvedArchive.sort((a, b) => a.year - b.year);
-    resolvedArchive.push({ year: "Today", tempC: climateState.curTempC, isCurrent: true });
+    if (climateState.curTempC !== null) {
+      resolvedArchive.push({ year: "Today", tempC: climateState.curTempC, isCurrent: true });
+    }
     climateState.histTempsC = resolvedArchive;
 
     renderClimateWidget();
@@ -869,6 +1150,98 @@ function toggleRadarPlay() {
   }
 }
 
+// UNIFIED CROSS-HAZARD APEX RANKING ENGINE (ZERO SECONDARY CALLS)
+function rebuildPriorityLookout() {
+  const candidatePool = [];
+
+  // 1. Ingest existing earthquakes
+  (EVENT_STORE.global || []).forEach(q => {
+    let score = 0;
+    let badgeText = "SEISMIC";
+    if (q.magnitude >= 7.0) { score = 100; badgeText = "CATASTROPHIC SLIP"; }
+    else if (q.magnitude >= 6.0) { score = 90; badgeText = "SEVERE RUPTURE"; }
+    else if (q.magnitude >= 5.0) { score = 80; badgeText = "MAJOR DISLOCATION"; }
+    else if (q.magnitude >= 4.5) { score = 65; badgeText = "MODERATE SHOCK"; }
+
+    if (score > 0) {
+      candidatePool.push({
+        score,
+        headline: `⚡ Magnitude ${q.magnitude.toFixed(1)}: ${q.place}`,
+        summary: `Hypocenter recorded at depth of ${q.depth_km} km. Active lithospheric strain monitored within regional perimeter.`,
+        kind: badgeText,
+        time: q.time,
+        lat: q.latitude,
+        lon: q.longitude
+      });
+    }
+  });
+
+  // 2. Ingest existing storms & hurricanes
+  (EVENT_STORE.storms || []).forEach(s => {
+    let score = 70;
+    const catUpper = (s.category || "").toUpperCase();
+    if (catUpper.includes("CATEGORY 5") || catUpper.includes("SUPER TYPHOON")) score = 100;
+    else if (catUpper.includes("CATEGORY 4") || catUpper.includes("SEVERE")) score = 95;
+    else if (catUpper.includes("CATEGORY 3") || catUpper.includes("MAJOR")) score = 88;
+    else if (catUpper.includes("CATEGORY 2")) score = 82;
+    else if (catUpper.includes("CATEGORY 1")) score = 75;
+
+    candidatePool.push({
+      score,
+      headline: `🌀 ${s.title}`,
+      summary: s.summary || `Maximum sustained winds logged at ${s.windSpeed}. Barometric pressure: ${s.barometricPressure}.`,
+      kind: s.severity || "CYCLONIC APEX",
+      time: s.time,
+      lat: s.lat,
+      lon: s.lon
+    });
+  });
+
+  // 3. Ingest existing volcanic alerts
+  (EVENT_STORE.volcanoes || []).forEach(v => {
+    let score = 0;
+    const intUpper = (v.intensity || "").toUpperCase();
+    if (intUpper.includes("WARNING") || intUpper.includes("RED")) score = 92;
+    else if (intUpper.includes("WATCH") || intUpper.includes("ORANGE")) score = 82;
+    else if (intUpper.includes("ADVISORY") || intUpper.includes("YELLOW")) score = 65;
+
+    if (score > 0) {
+      candidatePool.push({
+        score,
+        headline: `🌋 ${v.title} · ${v.intensity}`,
+        summary: v.summary || `Volcanic observatory alert active. Elevated eruptive or degassing phase logged.`,
+        kind: "VOLCANIC APEX",
+        time: v.time,
+        lat: v.lat || 0,
+        lon: v.lon || 0
+      });
+    }
+  });
+
+  // Rank strictly descending by threat severity, slice to exactly 1 event (THE APEX THREAT)
+  candidatePool.sort((a, b) => b.score - a.score || new Date(b.time) - new Date(a.time));
+  EVENT_STORE.lookout = candidatePool.slice(0, 1);
+
+  // Render to Lookout Panel
+  $("lookout").innerHTML = EVENT_STORE.lookout.length > 0 ? EVENT_STORE.lookout.map(n => {
+    const t = formatTimeElapsed(n.time);
+    const borderColor = n.score >= 90 ? "var(--hot)" : (n.score >= 80 ? "var(--gold)" : "var(--accent)");
+    return `
+      <div class="hazard-card-row" style="border-left:3px solid ${borderColor};">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+          <span style="font-weight:700; color:#fff; font-size:0.95rem;">${n.headline}</span>
+          <span class="badge" style="color:${borderColor}; border-color:${borderColor}; white-space:nowrap; margin-left:8px;">${n.kind}</span>
+        </div>
+        <div style="font-size:0.88rem; color:var(--soft); line-height:1.45;">${n.summary}</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px solid rgba(30,42,56,.6); padding-top:6px;">
+          <span class="mono" style="font-size:11px; color:var(--gold);">🕒 ${t.elapsed} · ${t.fullDate}</span>
+          ${n.lat && n.lon ? `<button type="button" class="btn" style="padding:2px 8px; font-size:11px; background:rgba(0,243,255,0.1); border-color:var(--accent); color:var(--accent);" onclick="focusMapOnEvent(${n.lat},${n.lon})">Zoom Map ↗</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join("") : '<div style="color:var(--ok); padding:10px; font-weight:700;">✓ Planetary baseline nominal across all active vectors. No critical apex hazards currently detected.</div>';
+}
+
 // USGS REAL SEISMIC STREAM
 async function fetchLiveUSGS() {
   try {
@@ -926,16 +1299,6 @@ async function fetchLiveUSGS() {
       const item = { place, magnitude: mag, depth_km: Math.round(depth), latitude: lat, longitude: lon, time: new Date(time).toISOString(), level };
       EVENT_STORE.global.push(item);
 
-      if (mag >= 5.0) {
-        EVENT_STORE.lookout.push({
-          headline: `Magnitude ${mag.toFixed(1)} Dislocation: ${place}`,
-          summary: `Hypocenter recorded at depth of ${Math.round(depth)} km. Structural shaking acceleration active across regional fault buffer.`,
-          time: new Date(time).toISOString(),
-          kind: "Seismic Alert",
-          lat, lon
-        });
-      }
-
       const isPriority = mag >= 5.0;
       let pinClass = mag >= 6.0 ? "custom-hazard-pin pin-quake-major" : "custom-hazard-pin pin-quake";
       if (isPriority) pinClass += " pulse-priority";
@@ -950,47 +1313,41 @@ async function fetchLiveUSGS() {
     // 100% REAL VOLCANO OBSERVATORY PARSER (ZERO FAKE/RANDOM NUMBERS)
     let volcanoCount = 0;
     try {
-      let volcRes = await fetch(`${BACKEND_API}/api/volcanoes`).catch(() => null);
-      if (!volcRes || !volcRes.ok) {
-        volcRes = await fetch("https://volcanoes.usgs.gov/vsc/api/volcanoApi/vhpstatus").catch(() => null);
-      }
+      let volcRes = await fetch("https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=volcanoes").catch(() => null);
 
       if (volcRes && volcRes.ok) {
-        const vList = await volcRes.json();
-        const activeVolcanoes = (vList || []).filter(v => {
-          const lvl = (v.alertLevel || "").toUpperCase();
-          return lvl === "WATCH" || lvl === "WARNING" || lvl === "ADVISORY";
-        });
+        const vData = await volcRes.json();
+        const activeVolcanoes = vData.events || [];
 
         const seenVolcanoes = new Set();
         activeVolcanoes.forEach(v => {
-          const name = v.vName || v.volcanoName || v.name;
+          const name = v.title;
           if (!name || seenVolcanoes.has(name)) return;
           seenVolcanoes.add(name);
 
           volcanoCount++;
-          const alertLvl = (v.alertLevel || "ADVISORY").toUpperCase();
-          const colorCd = (v.colorCode || "YELLOW").toUpperCase();
-          const lat = parseFloat(v.lat || v.latitude || 0);
-          const lon = parseFloat(v.long || v.longitude || 0);
-          const vTime = v.updateTime || v.time || new Date().toISOString();
+          const geom = (v.geometry || []).slice(-1)[0];
+          const lon = geom && geom.coordinates ? parseFloat(geom.coordinates[0]) : 0;
+          const lat = geom && geom.coordinates ? parseFloat(geom.coordinates[1]) : 0;
+          const vTime = geom?.date || new Date().toISOString();
           
-          // Pure real-world observations from authoritative observatory feeds
-          const observatory = v.observatory || "USGS / Global Volcanism Network";
-          const obsNotice = v.activitySummary || v.statusDescription || v.hazardStatement || `Active alert level: ${alertLvl} (${colorCd}) logged by ${observatory}. Continuous baseline monitoring operational.`;
+          const observatory = "NASA EONET / GVP";
+          const obsNotice = `Active thermal or eruptive anomaly recorded. Source: NASA EONET observation registry.`;
 
           EVENT_STORE.volcanoes.push({
             title: name,
-            intensity: `${alertLvl} (${colorCd})`,
+            intensity: "ACTIVE ERUPTION",
             observatory: observatory,
             summary: obsNotice,
-            time: vTime
+            time: vTime,
+            lat: lat,
+            lon: lon
           });
 
           if (lat !== 0 && lon !== 0) {
             const icon = L.divIcon({ className: "custom-hazard-pin pin-volcano pulse-priority", html: `🌋`, iconSize: [24, 24], iconAnchor: [12, 12] });
             L.marker([lat, lon], { icon, zIndexOffset: 1500 })
-              .bindPopup(`<strong>🌋 ${name}</strong><br/>Alert: ${alertLvl} (${colorCd})<br/>Observatory: ${observatory}<br/><p style="margin-top:4px;font-size:11px;">${obsNotice}</p>`)
+              .bindPopup(`<strong>🌋 ${name}</strong><br/>Alert: ACTIVE ERUPTION<br/>Observatory: ${observatory}<br/><p style="margin-top:4px;font-size:11px;">${obsNotice}</p>`)
               .addTo(baseMarkerLayer);
           }
         });
@@ -1021,6 +1378,9 @@ async function fetchLiveUSGS() {
     } catch (stormErr) {
       console.error("Global storm sync failed:", stormErr);
     }
+
+    // REBUILD UNIFIED APEX LOOKOUT ACROSS ALL COLLECTED DATA
+    rebuildPriorityLookout();
 
     $("c-escalate").textContent = escalateCount;
     $("c-alert").textContent = alertCount;
@@ -1070,23 +1430,6 @@ async function fetchLiveUSGS() {
         </div>
       `;
     }).join("") : '<div style="color:var(--ok); padding:10px; font-family:var(--font-mono); font-size:13px;">✓ Global volcanic arcs are in a state of background quiescence; no significant elevated eruptive phases or ash dispersion advisories are currently detected.</div>';
-
-    $("lookout").innerHTML = EVENT_STORE.lookout.length > 0 ? EVENT_STORE.lookout.map((n, idx) => {
-      const t = formatTimeElapsed(n.time);
-      return `
-        <div class="hazard-card-row" style="border-left:3px solid var(--gold);">
-          <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-            <span style="font-weight:700; color:#fff;">${n.headline}</span>
-            <span class="badge" style="color:var(--gold); border-color:var(--gold);">${n.kind}</span>
-          </div>
-          <div style="font-size:0.9rem; color:var(--soft);">${n.summary}</div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px solid rgba(30,42,56,.6); padding-top:6px;">
-            <span class="mono" style="font-size:11px; color:var(--gold);">🕒 ${t.elapsed} · ${t.fullDate}</span>
-            <button type="button" class="btn" style="padding:3px 8px; font-size:11px; background:rgba(0,243,255,0.1); border-color:var(--accent); color:var(--accent);" onclick="focusMapOnEvent(${n.lat}, ${n.lon})">Zoom Map ↗</button>
-          </div>
-        </div>
-      `;
-    }).join("") : '<div style="color:var(--muted); padding:10px;">No critical escalating seismic events in past 24 hours.</div>';
 
     const logEnergy = Math.log10(totalSeismicEnergyJoules || 1e9);
     const seismicScore = Math.min(100, Math.max(8, Math.round(((logEnergy - 10) / 6) * 100)));
@@ -1164,38 +1507,7 @@ async function fetchSpaceWeather() {
     console.warn("NOAA SWPC Kp fetch failed:", e);
   }
 
-  // 2. Fetch real-time Solar Wind Plasma (DSCOVR Satellite Telemetry)
-  try {
-    let pRes = await fetch(`${BACKEND_API}/api/space/solar-wind`).catch(() => null);
-    if (!pRes || !pRes.ok) {
-      pRes = await fetch("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-hour.json").catch(() => null);
-    }
-
-    if (pRes && pRes.ok) {
-      const plasmaRows = await pRes.json();
-      // Format: [time_tag, density, speed, temperature]
-      if (Array.isArray(plasmaRows) && plasmaRows.length > 1) {
-        for (let i = plasmaRows.length - 1; i >= 1; i--) {
-          const row = plasmaRows[i];
-          const speed = parseFloat(row[2]);
-          const density = parseFloat(row[1]);
-          if (!isNaN(speed) && speed > 0) {
-            windSpeedKmS = Math.round(speed);
-            protonDensity = !isNaN(density) ? Math.round(density * 10) / 10 : null;
-            // Solar wind dynamic pressure: P = 1.6726e-6 * n * v^2 (nPa)
-            if (protonDensity) {
-              dynamicPressureNpa = (1.6726e-6 * protonDensity * (windSpeedKmS ** 2)).toFixed(2);
-            }
-            break;
-          }
-        }
-      }
-    }
-  } catch(e) {
-    console.warn("NOAA Plasma fetch failed:", e);
-  }
-
-  // 3. Exact Celestial Ephemeris (Lunar Distance & Sublunar Coordinate)
+  // 2. Exact Celestial Ephemeris (Lunar Distance & Sublunar Coordinate)
   const now = new Date();
   const baseDate = new Date('2026-03-01T00:00:00Z');
   const daysSince = (now - baseDate) / (1000 * 60 * 60 * 24);
@@ -1211,15 +1523,11 @@ async function fetchSpaceWeather() {
     nearestRegion = "Southern Indian Ocean / Australasian Margin";
   }
 
-  const windDisplay = windSpeedKmS ? `${windSpeedKmS} km/s` : "Telemetry in transit";
-  const densityDisplay = protonDensity ? `${protonDensity} p/cm³` : "--";
-  const pressureDisplay = dynamicPressureNpa ? `${dynamicPressureNpa} nPa` : "--";
   const kpDisplay = kpVal !== null ? `Kp ${Math.round(kpVal)}` : "Kp --";
 
   $("spaceSummary").innerHTML = `
-    <strong>DSCOVR Satellite Telemetry:</strong> Solar Wind Bulk Velocity: <span style="color:var(--accent); font-weight:700;">${windDisplay}</span> · 
-    Ion Density: <span style="color:#fff;">${densityDisplay}</span> · 
-    Dynamic Pressure: <span style="color:var(--gold);">${pressureDisplay}</span> (${kpDisplay}).
+    <strong>Planetary Geomagnetic Baseline:</strong> Global Dipole Deflection: <span style="color:var(--accent); font-weight:700;">${kpDisplay}</span> · 
+    Telemetry Link: <span style="color:var(--ok);">NOAA Space Weather Prediction Center</span>.
   `;
 
   $("lunarTideSummary").innerHTML = `
@@ -1282,97 +1590,6 @@ function handlePerimeterClick() {
   alert(`300km Multi-Hazard Perimeter active around ${userCity}.\nActive events inside perimeter: ${nearby.length}`);
 }
 
-async function checkAuthSession() {
-  const token = localStorage.getItem("brink_auth_token");
-  if (!token) return;
-  try {
-    const res = await fetch(`${BACKEND_API}/api/auth/verify`, {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const user = await res.json();
-      currentUserSession = user;
-      updateAuthNav(user);
-    } else {
-      localStorage.removeItem("brink_auth_token");
-      updateAuthNav(null);
-    }
-  } catch(e) {
-    updateAuthNav(null);
-  }
-}
-
-function updateAuthNav(user) {
-  const nav = $("authNavButtons");
-  if (!nav) return;
-  if (user && user.email) {
-    nav.innerHTML = `
-      <span style="font-family:var(--font-mono); font-size:12px; color:var(--ok);">👤 ${user.email.split('@')[0]}</span>
-      <button type="button" class="btn" style="padding:4px 9px; font-size:12px;" onclick="handleLogout()">Logout</button>
-    `;
-  } else {
-    nav.innerHTML = `
-      <button type="button" class="btn" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalLogin')">Login</button>
-      <button type="button" class="btn btn-primary" style="padding:4px 9px; font-size:12px;" onclick="openModal('modalSignup')">Signup</button>
-    `;
-  }
-}
-
-async function handleBackendLogin(e) {
-  e.preventDefault();
-  const email = $("loginEmail").value.trim();
-  const password = $("loginPass").value.trim();
-  const fb = $("loginFeedback");
-
-  fb.style.display = "block"; fb.style.color = "var(--soft)"; fb.textContent = "Authorizing session...";
-
-  try {
-    const res = await fetch(`${BACKEND_API}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Login failed");
-
-    if (data.token) localStorage.setItem("brink_auth_token", data.token);
-    fb.style.color = "var(--ok)"; fb.textContent = "Authorized. Redirecting...";
-    setTimeout(() => { closeModal('modalLogin'); window.location.reload(); }, 1000);
-  } catch(err) {
-    fb.style.color = "var(--hot)"; fb.textContent = err.message;
-  }
-}
-
-async function handleBackendSignup(e) {
-  e.preventDefault();
-  const name = $("signupName").value.trim();
-  const email = $("signupEmail").value.trim();
-  const password = $("signupPass").value.trim();
-  const fb = $("signupFeedback");
-
-  fb.style.display = "block"; fb.style.color = "var(--soft)"; fb.textContent = "Registering secure profile...";
-
-  try {
-    const res = await fetch(`${BACKEND_API}/api/auth/signup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ full_name: name, email, password })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Registration failed");
-
-    fb.style.color = "var(--ok)"; fb.textContent = "Account initialized. Verification dispatched to email.";
-  } catch(err) {
-    fb.style.color = "var(--hot)"; fb.textContent = err.message;
-  }
-}
-
-function handleLogout() {
-  localStorage.removeItem("brink_auth_token");
-  currentUserSession = null;
-  window.location.reload();
-}
-
 function inspectMetricInfo(type) {
   let title = "", body = "";
   if (type === 'ghl') {
@@ -1415,9 +1632,14 @@ function inspectEventDetail(type, idx) {
 window.addEventListener('DOMContentLoaded', () => {
   initMap();
   initUserLocation();
-  checkAuthSession();
   fetchLiveUSGS();
   fetchSpaceWeather();
+
+  const saved = localStorage.getItem("brink_user_email");
+  if (saved) {
+    const inp = document.getElementById("footerSubEmail");
+    if (inp) inp.value = saved;
+  }
 
   setInterval(fetchLiveUSGS, 2 * 60 * 1000);
   setInterval(fetchSpaceWeather, 3 * 60 * 1000);

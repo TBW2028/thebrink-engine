@@ -94,11 +94,92 @@ export default {
       }
     }
 
-    // 5. Lead Intake & Service Requests (Resend Email Dispatch + Supabase Logging)
+    // 5. Unified Identity & Topic Vector Preferences
+    if (url.pathname === "/api/subscribe" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const email = (body.email || "").trim().toLowerCase();
+
+        if (!email || !email.includes("@")) {
+          return new Response(JSON.stringify({ error: "Invalid email address" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
+        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+
+        const payload = {
+          email: email,
+          pref_news: body.pref_news !== undefined ? body.pref_news : true,
+          pref_earth: body.pref_earth !== undefined ? body.pref_earth : true,
+          pref_health: body.pref_health !== undefined ? body.pref_health : true,
+          status: body.unsubscribe_all ? "unsubscribed" : "active",
+          source: body.source || "universal_gate",
+          location: body.location || "Global Reader",
+          updated_at: new Date().toISOString()
+        };
+
+        if (sbKey) {
+          const sbRes = await fetch(`${sbUrl}/rest/v1/subscribers?on_conflict=email`, {
+            method: "POST",
+            headers: {
+              "apikey": sbKey,
+              "Authorization": `Bearer ${sbKey}`,
+              "Content-Type": "application/json",
+              "Prefer": "resolution=merge-duplicates,return=minimal"
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (!sbRes.ok) {
+            const errText = await sbRes.text();
+            throw new Error(`Database error: ${errText}`);
+          }
+        }
+
+        if (env.RESEND_API_KEY && !body.unsubscribe_all) {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              from: "The Brink World <intel@thebrinkworld.com>",
+              to: [email],
+              subject: "Confirmed: The Brink World Dispatches",
+              html: `
+                <h3>Intel Subscription Confirmed</h3>
+                <p>Your dispatch channels are active:</p>
+                <ul>
+                  <li>News &amp; Macro Shifts: <strong>${payload.pref_news ? 'Active' : 'Muted'}</strong></li>
+                  <li>Earth &amp; Planetary Hazards: <strong>${payload.pref_earth ? 'Active' : 'Muted'}</strong></li>
+                  <li>Health &amp; Outbreak Radar: <strong>${payload.pref_health ? 'Active' : 'Muted'}</strong></li>
+                </ul>
+                <p>Manage your sensors live on <a href="https://thebrinkworld.com/watch.html">thebrinkworld.com/watch.html</a>.</p>
+              `
+            })
+          }).catch(e => console.warn("Resend email dispatch error:", e));
+        }
+
+        return new Response(JSON.stringify({ ok: true, preferences: payload }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // 6. Lead Intake & Service Requests (Resend Email Dispatch + Supabase Logging)
     if (url.pathname === "/api/inquire" && request.method === "POST") {
       try {
         const data = await request.json();
-        
         const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
         const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
 
@@ -160,7 +241,7 @@ export default {
       }
     }
 
-    // 6. Server-Side Supabase Auth Proxy
+    // 7. Server-Side Supabase Auth Proxy
     const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
     const sbKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -248,7 +329,7 @@ export default {
       }
     }
 
-    // 7. Root Gateway Status
+    // 8. Root Gateway Status
     return new Response("The Brink World Gateway Active", { 
       status: 200, 
       headers: { ...corsHeaders, "Content-Type": "text/plain" } 

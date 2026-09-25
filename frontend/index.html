@@ -1,469 +1,792 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>THE BRINK // Where the World is Going Next</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #07090e;
-      --panel: #0f131c;
-      --border: rgba(255, 255, 255, 0.08);
-      --accent: #2563eb;
-      --accent-glow: rgba(37, 99, 235, 0.3);
-      --cyan: #06b6d4;
-      --emerald: #10b981;
-      --amber: #f59e0b;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      line-height: 1.6;
-      background-image: radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.12) 0%, transparent 60%);
-    }
-    .display { font-family: 'Space Grotesk', sans-serif; }
-    
-    header {
-      padding: 1.25rem 2.5rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border);
-      background: rgba(7, 9, 14, 0.8);
-      backdrop-filter: blur(12px);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .brand {
-      font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-decoration: none;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-    }
-    .live-dot {
-      width: 8px;
-      height: 8px;
-      background: var(--emerald);
-      border-radius: 50%;
-      box-shadow: 0 0 10px var(--emerald);
-    }
-    nav a {
-      color: var(--muted);
-      text-decoration: none;
-      margin-left: 1.75rem;
-      font-size: 0.85rem;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-    nav a:hover { color: #fff; }
-    .btn-login {
-      padding: 0.45rem 1rem;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--border);
-      color: #fff;
-      cursor: pointer;
-      font-size: 0.85rem;
-      margin-left: 1.5rem;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>THE BRINK WORLD — Know what's changing. Know what it could mean.</title>
+<meta name="description" content="The Brink World turns earthquakes, storms, floods, outbreaks and market shifts into plain-language readings for a specific place. Live Earth Watch and site-level Threat Dossiers.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #06090e;
+    --panel: #0c121b;
+    --panel-light: #111a26;
+    --border: #1e2a38;
+    --accent: #00f3ff;
+    --accent-red: #ff2a2a;
+    --emerald: #10b981;
+    --amber: #f59e0b;
+    --text: #edf2f7;
+    --muted: #94a3b8;
+    --dim: #cbd5e1;
+    --font-display: 'Archivo Black', sans-serif;
+    --font-body: 'Space Grotesk', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(circle at 50% 0%, rgba(0, 243, 255, 0.06) 0%, transparent 60%);
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 36px); }
+  .num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
 
-    .hero {
-      max-width: 1100px;
-      margin: 4.5rem auto 3rem;
-      padding: 0 1.5rem;
-      text-align: center;
-    }
-    .badge {
-      display: inline-block;
-      padding: 0.35rem 1rem;
-      border-radius: 50px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border);
-      font-size: 0.8rem;
-      color: var(--cyan);
-      margin-bottom: 1.75rem;
-      font-weight: 500;
-      letter-spacing: 0.05em;
-    }
-    h1 {
-      font-size: clamp(2.3rem, 5vw, 4rem);
-      font-weight: 700;
-      line-height: 1.15;
-      letter-spacing: -0.02em;
-      margin-bottom: 1.5rem;
-    }
-    h1 span {
-      background: linear-gradient(135deg, #fff 30%, #94a3b8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    p.sub {
-      color: var(--muted);
-      font-size: 1.2rem;
-      max-width: 760px;
-      margin: 0 auto 2.5rem;
-      font-weight: 300;
-    }
+  #scroll-progress {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: var(--accent); width: 0%; z-index: 100000;
+    transition: width 0.1s ease-out;
+  }
 
-    /* 3 Windows */
-    .windows-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1.5rem;
-      max-width: 1300px;
-      margin: 3rem auto 5rem;
-      padding: 0 1.5rem;
-    }
-    @media (max-width: 1024px) {
-      .windows-grid { grid-template-columns: 1fr; }
-    }
-    .window-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
-      transition: transform 0.2s, border-color 0.2s;
-    }
-    .window-card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-    .window-header {
-      background: rgba(0, 0, 0, 0.4);
-      padding: 0.85rem 1.25rem;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.75rem;
-      color: var(--muted);
-      letter-spacing: 0.05em;
-      font-weight: 600;
-    }
-    .dots { display: flex; gap: 6px; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; }
-    .dot-red { background: #ef4444; }
-    .dot-yellow { background: #f59e0b; }
-    .dot-green { background: #10b981; }
+  /* 2-LINE AUTHENTIC BRAND & NAVIGATION HEADER */
+  .brand-masthead {
+    width: 100%;
+    background: rgba(6, 9, 14, 0.98);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 6% 16px 6%;
+  }
+  .brand-row {
+    margin-bottom: 12px;
+  }
+  .brand-link {
+    font-family: var(--font-display);
+    font-size: clamp(20px, 3vw, 26px);
+    letter-spacing: -0.02em;
+    color: #fff;
+    text-decoration: none;
+    text-transform: uppercase;
+    display: inline-block;
+  }
+  .brand-link:hover { text-decoration: none; }
+  .brand-accent-red { color: var(--accent-red); }
 
-    .window-body {
-      padding: 2rem;
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-    }
-    .tag {
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 0.5rem;
-      display: block;
-    }
-    .window-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 0.75rem;
-    }
-    .window-desc {
-      color: var(--muted);
-      font-size: 0.95rem;
-      margin-bottom: 1.75rem;
-      flex: 1;
-    }
+  .menu-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .menu-item {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .menu-item:hover, .menu-item.active {
+    color: #fff;
+    text-decoration: none;
+  }
+  .menu-item.active {
+    color: var(--accent);
+  }
 
-    .info-box {
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.04);
-      border-radius: 6px;
-      padding: 1rem;
-      margin-bottom: 1.5rem;
-      font-size: 0.82rem;
-      line-height: 1.6;
-    }
+  .btn {
+    display: inline-flex; align-items: center; font-family: var(--font-mono); font-weight: 700; font-size: 12px;
+    text-transform: uppercase; padding: 7px 14px; border-radius: 4px; text-decoration: none; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--text);
+    transition: all .15s;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-solid { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .btn-solid:hover { filter: brightness(1.1); color: var(--bg); }
 
-    .btn-action {
-      display: block;
-      text-align: center;
-      padding: 0.85rem 1.5rem;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 0.9rem;
-      text-decoration: none;
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-    .btn-blue {
-      background: var(--accent);
-      color: #fff;
-    }
-    .btn-blue:hover { background: #1d4ed8; }
-    .btn-cyan {
-      border: 1px solid var(--cyan);
-      color: var(--cyan);
-      background: rgba(6, 182, 212, 0.05);
-    }
-    .btn-cyan:hover { background: var(--cyan); color: #000; }
-    .btn-emerald {
-      border: 1px solid var(--emerald);
-      color: var(--emerald);
-      background: rgba(16, 185, 129, 0.05);
-    }
-    .btn-emerald:hover { background: var(--emerald); color: #000; }
+  /* Hero */
+  .hero { padding: clamp(40px, 7vw, 80px) 0 clamp(40px, 6vw, 64px); }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(32px, 5vw, 64px); align-items: start; }
+  h1 {
+    font-family: var(--font-display); font-weight: 700; text-transform: uppercase;
+    font-size: clamp(2.4rem, 5.5vw, 4.4rem); line-height: 1.1; letter-spacing: -0.03em; color: #fff;
+  }
+  h1 span { color: var(--accent-red); display: block; }
+  .hero-lead { margin-top: 24px; font-size: 1.1rem; color: var(--dim); max-width: 34em; line-height: 1.6; }
+  .hero-lead strong { color: #fff; }
+  .hero-cta { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
 
-    /* Modal / Paywall */
-    .modal-backdrop {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(8px);
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
-      padding: 1.5rem;
-    }
-    .modal {
-      background: #0e121a;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      width: 100%;
-      max-width: 420px;
-      padding: 2.25rem;
-      position: relative;
-    }
-    .modal-close {
-      position: absolute;
-      top: 1rem;
-      right: 1.2rem;
-      background: none;
-      border: none;
-      color: var(--muted);
-      font-size: 1.25rem;
-      cursor: pointer;
-    }
-    .modal h3 { font-size: 1.4rem; margin-bottom: 0.5rem; }
-    .modal p { font-size: 0.9rem; color: var(--muted); margin-bottom: 1.5rem; }
-    .modal input {
-      width: 100%;
-      padding: 0.8rem 1rem;
-      background: #06080d;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: #fff;
-      font-size: 0.95rem;
-      margin-bottom: 1rem;
-    }
-    .modal input:focus { outline: none; border-color: var(--accent); }
-    .modal button.submit-btn {
-      width: 100%;
-      padding: 0.85rem;
-      border-radius: 6px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      font-weight: 600;
-      cursor: pointer;
-    }
+  .signal-list {
+    margin-top: 24px; max-width: 440px; font-family: var(--font-mono); font-size: 13.5px;
+    color: var(--muted); border-left: 2px solid var(--border); padding-left: 16px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .signal-list p { color: var(--text); font-weight: 500; }
 
-    .banner {
-      border-top: 1px solid var(--border);
-      background: rgba(15, 19, 28, 0.5);
-      padding: 4.5rem 1.5rem;
-      text-align: center;
-    }
-    .banner-content { max-width: 800px; margin: 0 auto; }
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 2rem;
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.8rem;
-    }
-  </style>
+  /* Live ledger */
+  .ledger { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 22px 24px 18px; box-shadow: 0 12px 30px rgba(0,0,0,0.4); }
+  .ledger-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .ledger-title { font-family: var(--font-mono); font-size: 13px; text-transform: uppercase; font-weight: 700; color: var(--muted); }
+  .ledger-status { font-family: var(--font-mono); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .ledger[data-state="live"] .dot { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+  .ledger[data-state="error"] .dot { background: var(--accent-red); }
+  .ledger-stats { display: flex; gap: 32px; margin: 18px 0 8px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .stat b { display: block; font-family: var(--font-display); font-weight: 700; font-size: 2.2rem; line-height: 1; color: #fff; }
+  .stat span { font-size: 12px; font-family: var(--font-mono); color: var(--muted); text-transform: uppercase; }
+  .quake-list { list-style: none; }
+  .quake { display: grid; grid-template-columns: 3.1em minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+  .quake:last-child { border-bottom: 0; }
+  .q-mag { font-family: var(--font-mono); font-weight: 800; font-size: 1.4rem; line-height: 1; color: var(--amber); }
+  .q-place { font-size: 14.5px; line-height: 1.3; color: #fff; font-weight: 500; }
+  .q-meta { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+  .q-bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 7px; overflow: hidden; }
+  .q-bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width .9s cubic-bezier(.2,.7,.2,1); }
+  .q-time { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .ledger-empty { padding: 18px 0; color: var(--muted); font-size: 14px; }
+  .ledger-foot { margin-top: 12px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .ledger-foot a { color: var(--accent); }
+
+  /* Sections */
+  section { padding: clamp(40px, 6vw, 72px) 0; }
+  .rule-top { border-top: 1px solid var(--border); }
+  h2 { font-family: var(--font-display); font-weight: 700; text-transform: uppercase; font-size: clamp(1.8rem, 3.5vw, 2.8rem); line-height: 1.1; letter-spacing: -0.02em; color: #fff; }
+  .section-lead { margin-top: 16px; color: var(--dim); max-width: 38em; font-size: 1.05rem; }
+  .split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(28px, 5vw, 64px); align-items: start; }
+
+  /* Steps */
+  .steps { list-style: none; counter-reset: s; margin-top: 8px; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 2.2em 1fr; gap: 4px 14px; padding: 18px 0; border-bottom: 1px solid var(--border); }
+  .steps li:first-child { border-top: 1px solid var(--border); }
+  .steps li::before { content: counter(s); font-family: var(--font-display); font-size: 1.6rem; line-height: 1; color: var(--accent); grid-row: span 2; }
+  .steps h3 { font-size: 1.05rem; font-weight: 700; text-transform: uppercase; color: #fff; }
+  .steps p { color: var(--muted); font-size: 0.95rem; }
+
+  /* Readings */
+  .readings { margin-top: 36px; border-top: 2px solid var(--border); }
+  .reading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: clamp(20px, 4vw, 48px); padding: 24px 0; border-bottom: 1px solid var(--border); }
+  .reading h3 { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; line-height: 1.2; text-transform: uppercase; color: #fff; }
+  .reading .when { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-top: 6px; text-transform: uppercase; }
+  .reading .col-label { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .reading p { color: var(--dim); font-size: 0.98rem; }
+
+  /* Windows as rows */
+  .windows { margin-top: 36px; }
+  .win { display: grid; grid-template-columns: 8rem minmax(0, 1fr) auto; gap: clamp(16px, 4vw, 40px); align-items: baseline; padding: 26px 0; border-top: 1px solid var(--border); }
+  .win:last-child { border-bottom: 1px solid var(--border); }
+  .win h3 { font-family: var(--font-display); font-size: 2rem; line-height: 1; text-transform: uppercase; color: #fff; }
+  .win .q { font-weight: 700; font-size: 1.05rem; color: #fff; }
+  .win .covers { color: var(--muted); font-size: 0.95rem; margin-top: 4px; }
+  .win a.go { font-family: var(--font-mono); font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--accent); text-decoration: none; white-space: nowrap; }
+  .win a.go:hover { text-decoration: underline; }
+
+  /* Dossier */
+  .dossier { background: var(--panel); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .dossier .section-lead { color: var(--muted); }
+  .contents { list-style: none; margin-top: 8px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 13.5px; }
+  .contents li { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border); }
+  .contents li span:first-child { color: #fff; font-weight: 700; }
+  .contents li span:last-child { color: var(--muted); text-align: right; }
+  .fine { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-top: 18px; max-width: 34em; }
+
+  /* Philosophy */
+  .philosophy { text-align: center; max-width: 800px; margin: 0 auto; padding: clamp(48px, 8vw, 96px) 16px; }
+  .philosophy h2 { font-size: clamp(2rem, 4vw, 3rem); margin-bottom: 16px; }
+  .philosophy p { color: var(--dim); font-size: 1.1rem; margin-bottom: 16px; }
+  .philosophy .sig-phrase { font-family: var(--font-mono); font-size: 13px; color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em; margin-top: 24px; }
+
+  /* SMART EXPERT FOOTER */
+  .smart-footer {
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding: 64px 6% 48px;
+    margin-top: 60px;
+  }
+  .smart-footer-wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .smart-footer-badge {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .smart-footer-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+    text-transform: uppercase;
+    color: #fff;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  .smart-footer-desc {
+    font-size: 15px;
+    color: var(--dim);
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+  .dispatch-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: left;
+  }
+  .dispatch-input-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .dispatch-email-input {
+    flex: 1;
+    min-width: 240px;
+    background: var(--panel-light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: #fff;
+    padding: 12px 14px;
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+  }
+  .dispatch-email-input:focus {
+    border-color: var(--accent);
+  }
+  .dispatch-submit-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    padding: 12px 24px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+  }
+  .dispatch-submit-btn:hover {
+    filter: brightness(1.1);
+  }
+  .dispatch-toggles-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-top: 1px solid rgba(30,42,56,0.6);
+    padding-top: 14px;
+    font-size: 13.5px;
+    color: var(--dim);
+  }
+  .dispatch-toggle-lbl {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #fff;
+  }
+  .dispatch-toggle-lbl input {
+    accent-color: var(--accent);
+  }
+  .dispatch-notice {
+    display: none;
+    margin-top: 12px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    padding: 10px 14px;
+    border-radius: 4px;
+  }
+  .footer-nav {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    margin-top: 36px;
+  }
+  .footer-nav a {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  .footer-nav a:hover {
+    color: var(--accent);
+  }
+
+  @media (max-width: 900px) {
+    .hero-grid, .split, .reading { grid-template-columns: 1fr; }
+    .win { grid-template-columns: 1fr; gap: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .q-bar i { transition: none; }
+  }
+</style>
 </head>
 <body>
 
-  <header>
-    <a href="/" class="brand display">
-      <span class="live-dot"></span>
-      THE BRINK
-    </a>
-    <nav>
-      <a href="#windows">Live Feeds</a>
-      <a href="/watch">Run Property Check</a>
-      <a href="/health">System Status</a>
-      <button class="btn-login" onclick="openLogin('portal')">Sign In</button>
+  <div id="scroll-progress"></div>
+
+  <!-- HEADER (LINE 1: LOGO -> HOME, LINE 2: PLAIN MENU) -->
+  <header class="brand-masthead">
+    <div class="brand-row">
+      <a href="/" class="brand-link">THE BRINK <span class="brand-accent-red">WORLD</span></a>
+    </div>
+    <nav class="menu-row" aria-label="Main Navigation">
+      <a href="/news.html" class="menu-item">NEWS</a>
+      <a href="/watch.html" class="menu-item">EARTH &amp; CLIMATE</a>
+      <a href="/epidemic.html" class="menu-item">HEALTH &amp; OUTBREAKS</a>
+      <a href="/about.html" class="menu-item">ABOUT</a>
+      <a href="/contact.html" class="menu-item">CONTACT</a>
     </nav>
   </header>
 
   <main>
+    <!-- HERO -->
     <section class="hero">
-      <div class="badge">GLOBAL EARLY WARNING NETWORK</div>
-      <h1 class="display">See where the world is breaking.<br><span>Before the headlines tell you.</span></h1>
-      <p class="sub">From real-time earthquakes and flood risks to shifting money and sudden disease outbreaks. Clear, unfiltered alerts for curious minds, active investors, and property owners.</p>
+      <div class="wrap hero-grid">
+        <div>
+          <h1>Know what's changing.<span>Know what it could mean.</span></h1>
+          
+          <div class="signal-list">
+            <p>The world does not change all at once.</p>
+            <span>• A supply route stops.</span>
+            <span>• A region feels extreme temperatures.</span>
+            <span>• Disease activity begins to rise.</span>
+            <span>• Capital starts moving secretly.</span>
+          </div>
+
+          <p class="hero-lead">
+            <strong>The Brink watches them.</strong> We track important shifts across the world and turn scattered data into something you can understand and use.
+          </p>
+
+          <div class="hero-cta">
+            <a href="/watch.html" class="btn btn-solid">Open Earth Watch</a>
+            <a href="/contact.html?subject=dossier" class="btn">Request a site service</a>
+          </div>
+        </div>
+
+        <div class="ledger" id="ledger" data-state="loading" aria-live="polite">
+          <div class="ledger-head">
+            <div class="ledger-title">Earthquakes M4.5 and above, last 24 hours</div>
+            <div class="ledger-status"><span class="dot"></span><span id="ledger-status">Connecting to USGS</span></div>
+          </div>
+          <div class="ledger-stats">
+            <div class="stat"><b class="num" id="stat-count">–</b><span>events worldwide</span></div>
+            <div class="stat"><b class="num" id="stat-max">–</b><span>strongest</span></div>
+          </div>
+          <ul class="quake-list" id="quake-list">
+            <li class="ledger-empty">Loading the live feed. If it does not appear, open Earth Watch for the full picture.</li>
+          </ul>
+          <div class="ledger-foot"> <a href="/watch.html">See floods, storms, heat and more on Earth Watch</a></div>
+        </div>
+      </div>
     </section>
 
-    <!-- 3 Windows Side-by-Side -->
-    <section class="windows-grid" id="windows">
-
-      <!-- Window 1: Intel & Market Shifts -->
-      <div class="window-card">
-        <div class="window-header">
-          <div class="dots">
-            <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
-          </div>
-          <span>INTEL // MACRO SHIFTS</span>
+    <!-- HOW IT WORKS -->
+    <section class="rule-top">
+      <div class="wrap split">
+        <div>
+          <h2>A reading is not the same as understand its risk.</h2>
+          <p class="section-lead">
+            A magnitude 5.5 far offshore and a magnitude 5.5 beneath a port are different problems.
+            The Brink pairs every signal with the place it touches.
+          </p>
         </div>
-        <div class="window-body">
-          <span class="tag" style="color: var(--cyan);">For Investors & Observers</span>
-          <h2 class="window-title display">Strategic Intel Desk</h2>
-          <p class="window-desc">Where is capital fleeing? Which supply lines are choking? Get brief, hard-hitting analysis on global power shifts and emerging markets before consensus reacts.</p>
-          <div class="info-box">
-            <div style="color: #fff; font-weight: 600; margin-bottom: 0.25rem;">Latest Dispatch Available:</div>
-            <div style="color: var(--muted);">"The New Choke Points: How Water & Power Scarcity Are Rewiring Tech Hubs."</div>
-          </div>
-          <button class="btn-action btn-cyan" onclick="openLogin('intel')">Unlock Subscriber Intel →</button>
-        </div>
+        <ol class="steps">
+          <li>
+            <h3>Detect</h3>
+            <p>We watch public feeds from seismic networks, weather reanalysis and health bulletins.</p>
+          </li>
+          <li>
+            <h3>Place</h3>
+            <p>Each signal is measured against a location: its distance, depth, the population and routes around it.</p>
+          </li>
+          <li>
+            <h3>Explain</h3>
+            <p>You can ask for a service and get readings that can save you and your assets.</p>
+          </li>
+        </ol>
       </div>
-
-      <!-- Window 2: Earth Watch & Property Risk (Paywall / Checkout) -->
-      <div class="window-card" style="border-color: rgba(37, 99, 235, 0.4);">
-        <div class="window-header">
-          <div class="dots">
-            <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
-          </div>
-          <span>EARTH // RISK AUDIT</span>
-        </div>
-        <div class="window-body">
-          <span class="tag" style="color: #60a5fa;">For Property Owners & Enterprise</span>
-          <h2 class="window-title display">Earth & Safety Watch</h2>
-          <p class="window-desc">Is your factory, home, or warehouse safe? Enter any GPS coordinates or city to test earthquake, flood, and extreme heat dangers. Delivered as a verified 10-page report in 20 seconds.</p>
-          <div class="info-box">
-            <div style="color: #fff; font-weight: 600; margin-bottom: 0.25rem;">Automated Property Audit:</div>
-            <div style="color: var(--muted);">Instant download & email delivery upon order completion.</div>
-          </div>
-          <a href="/watch" class="btn-action btn-blue">Check Your Property Now →</a>
-        </div>
-      </div>
-
-      <!-- Window 3: Health & Outbreak Radar -->
-      <div class="window-card">
-        <div class="window-header">
-          <div class="dots">
-            <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
-          </div>
-          <span>HEALTH // OUTBREAK RADAR</span>
-        </div>
-        <div class="window-body">
-          <span class="tag" style="color: var(--emerald);">For Citizens & Planners</span>
-          <h2 class="window-title display">Outbreak & Health Radar</h2>
-          <p class="window-desc">Track early-stage biological alerts, hospital pressure clusters, and health risks globally. Clear maps and straightforward summaries of what is spreading where.</p>
-          <div class="info-box">
-            <div style="color: #fff; font-weight: 600; margin-bottom: 0.25rem;">Active Network Feeds:</div>
-            <div style="color: var(--muted);">Global outbreak monitoring active 24/7 across verified public health sources.</div>
-          </div>
-          <a href="/health" class="btn-action btn-emerald">Open Health Dashboard →</a>
-        </div>
-      </div>
-
     </section>
 
-    <!-- Enterprise Section -->
-    <section class="banner">
-      <div class="banner-content">
-        <h2 class="display" style="font-size: 2rem; margin-bottom: 1rem;">Protect Real Assets Before Disasters Strike</h2>
-        <p style="color: var(--muted); font-size: 1.05rem; margin-bottom: 2rem;">
-          Whether you are evaluating a $50M distribution hub or checking safety around your family’s land, The Brink gives you raw facts, not speculation.
+    <!-- RECENT READINGS -->
+    <section class="rule-top">
+      <div class="wrap">
+        <h2>Two recent readings.</h2>
+        <p class="section-lead">The same signal can matter a lot or very little. Here is how we read two events from the past.</p>
+        <div class="readings">
+          <article class="reading">
+            <div>
+              <h3>Flash flooding across Tunis, Tunisia</h3>
+              <div class="when">17 September 2026</div>
+              <p style="margin-top:14px">Severe thunderstorms and heavy downpours flooded main roads and residential areas and left vehicles stranded across the city.</p>
+            </div>
+            <div>
+              <div class="col-label">What it could mean</div>
+              <p>Road access is the immediate problem. For a site or supplier nearby, the questions are drainage, staff access and whether deliveries slip over the next few days.</p>
+            </div>
+          </article>
+          <article class="reading">
+            <div>
+              <h3>M5.5 earthquake, Kermadec Islands region</h3>
+              <div class="when num">18 September 2026, 23:18 UTC, depth 94 km</div>
+              <p style="margin-top:14px">A moderate earthquake, recorded deep below the seabed in the southwest Pacific.</p>
+            </div>
+            <div>
+              <div class="col-label">What it could mean</div>
+              <p>Events this deep and this size are usually felt widely but do little surface damage. It becomes worth watching for Pacific shipping and island infrastructure if further quakes cluster nearby.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- THREE WAYS TO SEE WHAT'S CHANGING -->
+    <section class="rule-top">
+      <div class="wrap">
+        <div class="windows">
+          <div class="win">
+            <h3>News</h3>
+            <div>
+              <div class="q">Understand the fact checked shifts shaping the world.</div>
+              <div class="covers">Markets, resources, technology, trade and geopolitics. The Brink News follows the forces moving beneath the daily cycle and examines where they may lead next.</div>
+            </div>
+            <a class="go" href="/news.html">Explore News →</a>
+          </div>
+          <div class="win">
+            <h3>Earth</h3>
+            <div>
+              <div class="q">Understand the physical risk.</div>
+              <div class="covers">Earthquakes, floods, extreme heat, storms and climate anomalies. Examine the environmental conditions and hazards that matter at your location.</div>
+            </div>
+            <a class="go" href="/watch.html">Open Earth Watch →</a>
+          </div>
+          <div class="win">
+            <h3>Health</h3>
+            <div>
+              <div class="q">Catch emerging health signals earlier.</div>
+              <div class="covers">Outbreaks, disease activity, regional alerts and health-system pressure. Health Radar brings together public-health signals so you can see what is changing, where, and why it matters.</div>
+            </div>
+            <a class="go" href="/epidemic.html">Open Health Radar →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DOSSIER -->
+    <section class="dossier" id="dossier">
+      <div class="wrap split">
+        <div>
+          <h2>Need it for one specific site?</h2>
+          <p class="section-lead">
+            A Threat Report is an 8-page report on a house, village, facility, port, warehouse or route.
+            It is built for people and enterprises who run assets exposed to physical risk and need risk assesments early.
+          </p>
+          <div class="hero-cta">
+            <a href="/contact.html?subject=dossier" class="btn btn-solid">Request a sample service</a>
+          </div>
+        </div>
+        <ul class="contents">
+          <li><span>Brink Score</span><span>A 0 to 100 score for your location/site</span></li>
+          <li><span>Seismic activity</span><span>Within 350 km, against the normal rate</span></li>
+          <li><span>Storms and rainfall</span><span>Nearest systems and the anomaly against climate norms</span></li>
+          <li><span>Logistics exposure</span><span>Routes and infrastructure around your location/site</span></li>
+          <li><span>Compound risk</span><span>Where two or more hazards can hit together</span></li>
+          <li><span>10 to 30-day trend</span><span>Which way the risk is moving</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- PHILOSOPHY BANNER -->
+    <section class="philosophy">
+      <div class="wrap">
+        <h2>The world leaves signals.</h2>
+        <p>The difficult part isn't finding more information. It's knowing what deserves attention.</p>
+        <p style="color: var(--muted); font-size: 16px; margin-top: 12px;">
+          The Brink is being built as an independent intelligence layer for people who want to look beyond the news cycle, connecting signals across places, human health and economies.
         </p>
-        <button class="btn-action btn-blue" style="display: inline-block; padding: 0.85rem 2rem;" onclick="openLogin('enterprise')">Request Custom Enterprise Screening</button>
+        <div class="sig-phrase">
+          See the signals. Understand the change.
+        </div>
       </div>
     </section>
   </main>
 
-  <!-- Login / Paywall Modal -->
-  <div class="modal-backdrop" id="modalBackdrop">
-    <div class="modal">
-      <button class="modal-close" onclick="closeLogin()">✕</button>
-      <h3 class="display" id="modalHeading">Sign In to The Brink</h3>
-      <p id="modalSub">Enter your email to access member-only intelligence briefs and alerts.</p>
+  <!-- SMART EXPERT FOOTER (NEVER MISS A SIGNAL) -->
+  <footer class="smart-footer">
+    <div class="smart-footer-wrap">
       
-      <form onsubmit="submitEmail(event)">
-        <input type="email" id="userEmail" required placeholder="name@company.com">
-        <button type="submit" class="submit-btn" id="modalBtn">Continue →</button>
-      </form>
-      <div style="text-align: center; margin-top: 1rem;">
-        <span style="font-size: 0.8rem; color: var(--muted);">Looking to audit a single property? <a href="/watch" style="color: #60a5fa;">Run Earth Watch</a></span>
-      </div>
-    </div>
-  </div>
+      <div class="smart-footer-badge">// SENSOR DESK &amp; STRATEGIC DISPATCHES</div>
+      <h3 class="smart-footer-title">Never Miss A Signal.</h3>
+      <p class="smart-footer-desc">
+        Direct intelligence delivered straight to your inbox.
+      </p>
 
-  <footer>
-    <div>THE BRINK // 2026. ALL RIGHTS RESERVED.</div>
+      <form class="dispatch-box" onsubmit="handleDispatchSubscribe(event)">
+        <div class="dispatch-input-row">
+          <input type="email" id="footerSubEmail" class="dispatch-email-input" placeholder="Enter your email..." required>
+          <button type="submit" id="footerSubBtn" class="dispatch-submit-btn">Subscribe →</button>
+        </div>
+
+        <div class="dispatch-toggles-row">
+          <span style="font-family:var(--font-mono); font-size:11.5px; font-weight:700; text-transform:uppercase; color:var(--muted);">Channels:</span>
+          
+          <label class="dispatch-toggle-lbl">
+            <input type="checkbox" id="prefNews" checked> News &amp; Macro
+          </label>
+
+          <label class="dispatch-toggle-lbl">
+            <input type="checkbox" id="prefEarth" checked> Earth &amp; Climate
+          </label>
+
+          <label class="dispatch-toggle-lbl">
+            <input type="checkbox" id="prefHealth" checked> Health Outbreaks
+          </label>
+        </div>
+
+        <div id="footerSubNotice" class="dispatch-notice"></div>
+
+        <div style="text-align:right; margin-top:10px;">
+          <a href="#" onclick="handleDirectUnsubscribe(event)" style="font-family:var(--font-mono); font-size:11px; color:var(--muted); text-decoration:underline;">Unsubscribe anytime</a>
+        </div>
+      </form>
+
+      <nav class="footer-nav">
+        <a href="/news.html">News</a>
+        <a href="/watch.html">Earth</a>
+        <a href="/epidemic.html">Health</a>
+        <a href="/about.html">About</a>
+        <a href="/contact.html">Contact</a>
+      </nav>
+
+      <div style="font-size:12px; color:var(--muted); margin-top:20px; font-family:var(--font-mono);">
+        The Brink World, 2026. Global monitoring layer operational.
+      </div>
+
+    </div>
   </footer>
 
   <script>
-    function openLogin(mode) {
-      const modal = document.getElementById('modalBackdrop');
-      const heading = document.getElementById('modalHeading');
-      const sub = document.getElementById('modalSub');
-      const btn = document.getElementById('modalBtn');
+  const SUPABASE_URL = "https://jxapuzsgyoetrpnmohct.supabase.co";
+  const SUPABASE_ANON = "sb_publishable_VLQoHAEpKndcjxO3BLRQuw_7UFA3orI";
 
-      if (mode === 'intel') {
-        heading.innerText = 'Subscriber Intel Desk';
-        sub.innerText = 'Unlock full access to macro shift memos and critical risk briefings.';
-        btn.innerText = 'Subscribe & Unlock';
-      } else if (mode === 'enterprise') {
-        heading.innerText = 'Enterprise Screening';
-        sub.innerText = 'Enter your corporate email. Our team will configure bulk facility checks for your portfolio.';
-        btn.innerText = 'Request Portfolio Access';
-      } else {
-        heading.innerText = 'Member Sign In';
-        sub.innerText = 'Enter your email to receive your one-click sign-in link.';
-        btn.innerText = 'Send Sign-In Link';
+  // Scroll progress bar
+  let scrollTicking = false;
+  window.addEventListener('scroll', () => {
+    if (!scrollTicking) {
+      window.requestAnimationFrame(() => {
+        const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+        const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        const scrolled = height > 0 ? (winScroll / height) * 100 : 0;
+        const bar = document.getElementById('scroll-progress');
+        if (bar) bar.style.width = scrolled + '%';
+        scrollTicking = false;
+      });
+      scrollTicking = true;
+    }
+  }, { passive: true });
+
+  // Direct, Bulletproof Supabase Enrollment Engine
+  async function handleDispatchSubscribe(e) {
+    e.preventDefault();
+    const emailInput = document.getElementById("footerSubEmail");
+    const email = emailInput ? emailInput.value.trim().toLowerCase() : "";
+    const prefNews = document.getElementById("prefNews") ? document.getElementById("prefNews").checked : true;
+    const prefEarth = document.getElementById("prefEarth") ? document.getElementById("prefEarth").checked : true;
+    const prefHealth = document.getElementById("prefHealth") ? document.getElementById("prefHealth").checked : true;
+    const btn = document.getElementById("footerSubBtn");
+    const notice = document.getElementById("footerSubNotice");
+
+    if (!email || !email.includes("@")) return;
+
+    btn.innerText = "SAVING...";
+    btn.disabled = true;
+
+    const payload = {
+      email: email,
+      pref_news: prefNews,
+      pref_earth: prefEarth,
+      pref_health: prefHealth,
+      source: window.location.pathname || "index",
+      location: "Global Reader",
+      updated_at: new Date().toISOString()
+    };
+
+    try {
+      // Direct call straight to Supabase REST API with mandatory conflict resolution
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/subscribers?on_conflict=email`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON,
+          "Authorization": `Bearer ${SUPABASE_ANON}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates,return=representation"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Supabase rejection (${res.status}): ${errorText}`);
       }
-      modal.style.display = 'flex';
+
+      // Success confirmed directly from database response
+      localStorage.setItem("brink_user_email", email);
+      btn.innerText = "SUBSCRIBED ✓";
+      btn.style.background = "var(--emerald)";
+      btn.style.color = "#fff";
+      notice.style.display = "block";
+      notice.style.background = "rgba(16, 185, 129, 0.12)";
+      notice.style.border = "1px solid var(--emerald)";
+      notice.style.color = "var(--emerald)";
+      notice.innerText = "✓ Channels confirmed. Strategic dispatches are active.";
+    } catch (err) {
+      console.error("Direct Supabase enrollment error:", err);
+      btn.disabled = false;
+      btn.innerText = "TRY AGAIN";
+      notice.style.display = "block";
+      notice.style.background = "rgba(239, 68, 68, 0.12)";
+      notice.style.border = "1px solid var(--accent-red)";
+      notice.style.color = "var(--accent-red)";
+      notice.innerText = "Database policy rejected request. Ensure RLS allows public inserts.";
+    }
+  }
+
+  async function handleDirectUnsubscribe(e) {
+    e.preventDefault();
+    const email = document.getElementById("footerSubEmail").value.trim();
+    if (!email) {
+      alert("Please enter your email in the box to unsubscribe.");
+      return;
     }
 
-    function closeLogin() {
-      document.getElementById('modalBackdrop').style.display = 'none';
+    if (confirm(`Unsubscribe ${email} from automated dispatches?`)) {
+      const payload = { email: email, status: "unsubscribed", pref_news: false, pref_earth: false, pref_health: false };
+      fetch(`${SUPABASE_URL}/rest/v1/subscribers?on_conflict=email`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON,
+          "Authorization": `Bearer ${SUPABASE_ANON}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates,return=minimal"
+        },
+        body: JSON.stringify(payload)
+      });
+      alert("You have been unsubscribed from automated dispatches.");
+    }
+  }
+
+  (function () {
+    var FEED = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson';
+    var ledger = document.getElementById('ledger');
+    var list = document.getElementById('quake-list');
+    var statusEl = document.getElementById('ledger-status');
+    var countEl = document.getElementById('stat-count');
+    var maxEl = document.getElementById('stat-max');
+
+    function ago(ms) {
+      var m = Math.max(1, Math.round((Date.now() - ms) / 60000));
+      if (m < 60) return m + ' min ago';
+      var h = Math.round(m / 60);
+      return h + ' h ago';
     }
 
-    async function submitEmail(e) {
-      e.preventDefault();
-      const email = document.getElementById('userEmail').value;
-      const btn = document.getElementById('modalBtn');
-      btn.innerText = 'Sending...';
+    function fail() {
+      ledger.setAttribute('data-state', 'error');
+      statusEl.textContent = 'Feed unavailable';
+      list.textContent = '';
+      var li = document.createElement('li');
+      li.className = 'ledger-empty';
+      li.textContent = 'The live feed did not load. Open Earth Watch to see current events.';
+      list.appendChild(li);
+    }
 
-      try {
-        await fetch('https://thebrink-engine.thebrink2028.workers.dev/api/inquire', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email, intent: 'portal-access' })
+    function render(data) {
+      var feats = (data && data.features) || [];
+      feats = feats.filter(function (f) { return f.properties && f.properties.mag != null; });
+      feats.sort(function (a, b) { return b.properties.time - a.properties.time; });
+      var strongest = feats.reduce(function (m, f) { return Math.max(m, f.properties.mag); }, 0);
+
+      countEl.textContent = feats.length;
+      maxEl.textContent = feats.length ? 'M' + strongest.toFixed(1) : '–';
+      ledger.setAttribute('data-state', 'live');
+      statusEl.textContent = 'Live, updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      list.textContent = '';
+      if (!feats.length) {
+        var e = document.createElement('li');
+        e.className = 'ledger-empty';
+        e.textContent = 'No earthquakes of M4.5 or above in the last 24 hours.';
+        list.appendChild(e);
+        return;
+      }
+      var bars = [];
+      feats.slice(0, 6).forEach(function (f) {
+        var p = f.properties;
+        var depth = f.geometry && f.geometry.coordinates ? f.geometry.coordinates[2] : null;
+        var li = document.createElement('li');
+        li.className = 'quake';
+
+        var mag = document.createElement('div');
+        mag.className = 'q-mag num';
+        mag.textContent = p.mag.toFixed(1);
+
+        var mid = document.createElement('div');
+        var place = document.createElement('div');
+        place.className = 'q-place';
+        place.textContent = p.place || 'Unnamed location';
+        var meta = document.createElement('div');
+        meta.className = 'q-meta num';
+        meta.textContent = depth != null ? 'Depth ' + Math.round(depth) + ' km' : '';
+        var bar = document.createElement('div');
+        bar.className = 'q-bar';
+        var fill = document.createElement('i');
+        bar.appendChild(fill);
+        mid.appendChild(place); mid.appendChild(meta); mid.appendChild(bar);
+        bars.push([fill, Math.min(100, Math.max(6, ((p.mag - 4.5) / 3.5) * 100))]);
+
+        var t = document.createElement('div');
+        t.className = 'q-time num';
+        t.textContent = ago(p.time);
+
+        li.appendChild(mag); li.appendChild(mid); li.appendChild(t);
+        list.appendChild(li);
+      });
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          bars.forEach(function (b) { b[0].style.width = b[1] + '%'; });
         });
-        alert('Thank you. A verification link has been sent to ' + email);
-        closeLogin();
-      } catch (err) {
-        alert('Check your connection or try again shortly.');
-      } finally {
-        btn.innerText = 'Continue →';
-      }
+      });
     }
+
+    function load() {
+      fetch(FEED)
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(render)
+        .catch(fail);
+    }
+    load();
+    setInterval(load, 5 * 60 * 1000);
+  })();
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem("brink_user_email");
+    if (saved) {
+      const inp = document.getElementById("footerSubEmail");
+      if (inp) inp.value = saved;
+    }
+  });
   </script>
 </body>
 </html>

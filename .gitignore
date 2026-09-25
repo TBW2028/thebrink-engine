@@ -1,9 +1,0 @@
-.env
-.brink_cache/
-__pycache__/
-*.pyc
-*/__pycache__/
-*/*/__pycache__/
-reports/
-node_modules/
-.wrangler/
