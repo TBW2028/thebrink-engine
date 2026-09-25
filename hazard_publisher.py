@@ -37,13 +37,18 @@ def fetch_and_publish_cyclones():
 
                 alert_level = p.get("alertlevel", "Green").capitalize()
                 
+                # Safely extract wind speed; if 0 or missing, pass None so UI handles it gracefully
+                raw_wind = p.get("windspeed")
+                wind_kts = float(raw_wind) if raw_wind else None
+                if wind_kts == 0: wind_kts = None
+                
                 events.append({
                     "id": f"GDACS_TC_{p.get('eventid', name.replace(' ', ''))}",
                     "category": "cyclone",
                     "name": name,
                     "basin": basin,
                     "intensity": f"GDACS {alert_level} Alert",
-                    "wind_kts": float(p.get("windspeed", 0)),
+                    "wind_kts": wind_kts,
                     "pressure_mb": float(p.get("pressure", 0)) if p.get("pressure") else None,
                     "latitude": lat,
                     "longitude": lon,
@@ -68,6 +73,18 @@ def fetch_and_publish_volcanoes():
                 p = f.get("properties", {})
                 coords = f.get("geometry", {}).get("coordinates", [])
                 if len(coords) < 2: continue
+                
+                # STRICT 7-DAY RECENCY FILTER FOR GDACS VOLCANOES
+                obs_date_str = p.get("fromdate")
+                if obs_date_str:
+                    try:
+                        clean_date = obs_date_str.replace("Z", "+00:00")
+                        obs_dt = datetime.fromisoformat(clean_date)
+                        if datetime.now(timezone.utc) - obs_dt > timedelta(days=7):
+                            continue # Discard ancient/background volcanoes
+                    except Exception:
+                        pass
+                
                 alert_level = p.get("alertlevel", "Green").capitalize()
 
                 events.append({
@@ -137,6 +154,24 @@ def fetch_eonet_hazards():
                         lon, lat = float(coords[0]), float(coords[1])
                 except (IndexError, TypeError):
                     continue
+
+                # EXACT KNOT WIND SPEED EXTRACTION
+                wind_kts = None
+                if is_storm:
+                    mag_val = latest.get("magnitudeValue")
+                    mag_unit = latest.get("magnitudeUnit")
+                    if mag_val is not None:
+                        try:
+                            val = float(mag_val)
+                            # Convert NASA magnitudes to standard knots
+                            if mag_unit == "kts": wind_kts = val
+                            elif mag_unit == "mph": wind_kts = val * 0.868976
+                            elif mag_unit == "km/h": wind_kts = val * 0.539957
+                            else: wind_kts = val
+                            
+                            wind_kts = round(wind_kts)
+                        except ValueError:
+                            pass
                     
                 category_str = "cyclone" if is_storm else "volcano"
                 name = event.get("title", "Unknown Event")
@@ -147,7 +182,7 @@ def fetch_eonet_hazards():
                     "name": name,
                     "basin": "GLOBAL",
                     "intensity": "Active Weather System" if is_storm else "Active Volcanic Unrest",
-                    "wind_kts": 0,
+                    "wind_kts": wind_kts,
                     "pressure_mb": None,
                     "latitude": lat,
                     "longitude": lon,
