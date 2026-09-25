@@ -74,8 +74,8 @@ def fetch_and_publish_volcanoes():
                 coords = f.get("geometry", {}).get("coordinates", [])
                 if len(coords) < 2: continue
                 
-                # STRICT 7-DAY RECENCY FILTER FOR GDACS VOLCANOES
-                obs_date_str = p.get("fromdate")
+                # FIX: Check 'todate' (latest observation) instead of 'fromdate' (eruption start)
+                obs_date_str = p.get("todate") or p.get("fromdate")
                 if obs_date_str:
                     try:
                         clean_date = obs_date_str.replace("Z", "+00:00")
@@ -99,7 +99,7 @@ def fetch_and_publish_volcanoes():
                     "longitude": float(coords[0]),
                     "alert_level": alert_level,
                     "source": "GDACS / GVP",
-                    "observed_at": p.get("fromdate", datetime.now(timezone.utc).isoformat()),
+                    "observed_at": p.get("todate") or p.get("fromdate") or datetime.now(timezone.utc).isoformat(),
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 })
     except Exception as e:
