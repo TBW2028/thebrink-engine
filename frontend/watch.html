@@ -1284,10 +1284,14 @@ async function fetchLiveHazards() {
       const lat = h.latitude;
       const lon = h.longitude;
       const timeMs = new Date(h.observed_at).getTime();
+      
+      // Make the category lowercase to avoid case-sensitive errors
+      const cat = (h.category || '').toLowerCase();
 
       ALL_ACTIVE_EVENTS.push({ lat, lon, time: timeMs });
 
-      if (h.category === 'earthquake') {
+      // Catch any variation of earthquake
+      if (cat.includes('quake') || cat === 'eq') {
         const mag = parseFloat(h.intensity.replace('Magnitude ', '')) || 0;
         const energyJ = 10 ** (1.5 * mag + 4.8);
         totalSeismicEnergyJoules += energyJ;
@@ -1304,21 +1308,23 @@ async function fetchLiveHazards() {
         let pinClass = mag >= 6.0 ? "custom-hazard-pin pin-quake-major pulse-priority" : "custom-hazard-pin pin-quake";
         if (isPriority && mag < 6.0) pinClass += " pulse-priority";
         const size = mag >= 6.0 ? 26 : (isPriority ? 22 : 16);
-
+        
         const icon = L.divIcon({ className: pinClass, html: `⚡`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
         L.marker([lat, lon], { icon, zIndexOffset: isPriority ? 1000 : 0 })
           .bindPopup(`<strong>Magnitude ${mag.toFixed(1)}</strong> — ${h.name}<br/>Time: ${new Date(h.observed_at).toLocaleString()}`)
           .addTo(baseMarkerLayer);
-      }
-      else if (h.category === 'volcano') {
+      } 
+      // Catch 'volcano', 'volcanoes', 'vo', etc.
+      else if (cat.includes('volcano') || cat === 'vo') {
         EVENT_STORE.volcanoes.push({ title: h.name, intensity: h.alert_level, observatory: h.source, summary: h.intensity, time: h.observed_at, lat, lon });
         const icon = L.divIcon({ className: "custom-hazard-pin pin-volcano pulse-priority", html: `🌋`, iconSize: [24, 24], iconAnchor: [12, 12] });
         L.marker([lat, lon], { icon, zIndexOffset: 1500 }).bindPopup(`<strong>🌋 ${h.name}</strong><br/>Alert Level: ${h.alert_level}`).addTo(baseMarkerLayer);
-      }
-      else if (h.category === 'cyclone') {
-        EVENT_STORE.storms.push({ title: h.name, severity: h.alert_level, windSpeed: `${h.wind_kts} kts`, barometricPressure: `${h.pressure_mb || '--'} mb`, summary: h.intensity, time: h.observed_at, lat, lon });
+      } 
+      // Catch 'cyclone', 'tropical_cyclone', 'storm', 'tc', 'hurricane'
+      else if (cat.includes('cyclon') || cat.includes('storm') || cat === 'tc' || cat.includes('hurricane')) {
+        EVENT_STORE.storms.push({ title: h.name, severity: h.alert_level, windSpeed: `${h.wind_kts || '--'} kts`, barometricPressure: `${h.pressure_mb || '--'} mb`, summary: h.intensity, time: h.observed_at, lat, lon });
         const icon = L.divIcon({ className: "custom-hazard-pin pin-storm pulse-priority", html: `🌀`, iconSize: [26, 26], iconAnchor: [13, 13] });
-        L.marker([lat, lon], { icon, zIndexOffset: 2000 }).bindPopup(`<strong>🌀 ${h.name}</strong><br/>Alert Level: ${h.alert_level}<br/>Winds: ${h.wind_kts} kts`).addTo(baseMarkerLayer);
+        L.marker([lat, lon], { icon, zIndexOffset: 2000 }).bindPopup(`<strong>🌀 ${h.name}</strong><br/>Alert Level: ${h.alert_level}<br/>Winds: ${h.wind_kts || '--'} kts`).addTo(baseMarkerLayer);
       }
     });
 
