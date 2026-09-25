@@ -14,13 +14,12 @@ if not SUPABASE_KEY:
     raise ValueError("Missing SUPABASE_SERVICE_ROLE_KEY. Check your .env file.")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-headers = {"User-Agent": "TheBrinkEngine/1.0 (Data Ingestion Pipeline)"}
+headers = {"User-Agent": "TheBrinkEngine/2.0 (Planetary Ingestion Pipeline)"}
 
 def fetch_and_publish_cyclones():
-    """Fetches global tropical cyclones from GDACS. Fixes coordinate hemisphere bugs."""
+    """Fetches global tropical cyclones from GDACS (Humanitarian threats)."""
     events = []
     print("Fetching active tropical cyclones from GDACS...")
-    
     try:
         r = requests.get("https://www.gdacs.org/datareport/resources/TC/events.geojson", headers=headers, timeout=15)
         if r.status_code == 200:
@@ -28,24 +27,18 @@ def fetch_and_publish_cyclones():
             for f in data.get("features", []):
                 p = f.get("properties", {})
                 coords = f.get("geometry", {}).get("coordinates", [])
-                if len(coords) < 2:
-                    continue
-                
-                lon = float(coords[0])
-                lat = float(coords[1])
+                if len(coords) < 2: continue
+                lon, lat = float(coords[0]), float(coords[1])
                 name = p.get("eventname") or p.get("name") or "Tropical System"
                 basin = (p.get("basin") or "GLOBAL").upper()
 
-                # EXACT FIX FOR THE THAILAND/MEXICO BUG:
-                # GDACS sometimes drops the negative sign on Eastern Pacific/Atlantic storms.
                 if basin in ["EP", "NA", "AL", "CP"] and lon > 0:
                     lon = -lon
 
-                # Extract verified government data, no fake numbers
                 alert_level = p.get("alertlevel", "Green").capitalize()
                 
                 events.append({
-                    "id": f"TC_{p.get('eventid', name.replace(' ', ''))}",
+                    "id": f"GDACS_TC_{p.get('eventid', name.replace(' ', ''))}",
                     "category": "cyclone",
                     "name": name,
                     "basin": basin,
@@ -60,15 +53,13 @@ def fetch_and_publish_cyclones():
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 })
     except Exception as e:
-        print(f"[ERROR] Failed to fetch GDACS Cyclones: {e}")
-
+        print(f"[ERROR] GDACS Cyclones: {e}")
     return events
 
 def fetch_and_publish_volcanoes():
-    """Fetches verified volcanic alerts from GDACS (replaces EONET false alarms)."""
+    """Fetches volcanic alerts from GDACS."""
     events = []
     print("Fetching active volcanic alerts from GDACS...")
-
     try:
         r = requests.get("https://www.gdacs.org/datareport/resources/VO/events.geojson", headers=headers, timeout=15)
         if r.status_code == 200:
@@ -76,14 +67,11 @@ def fetch_and_publish_volcanoes():
             for f in data.get("features", []):
                 p = f.get("properties", {})
                 coords = f.get("geometry", {}).get("coordinates", [])
-                if len(coords) < 2:
-                    continue
-
+                if len(coords) < 2: continue
                 alert_level = p.get("alertlevel", "Green").capitalize()
-                
 
                 events.append({
-                    "id": f"VOLC_{p.get('eventid', p.get('name', 'Unknown'))}",
+                    "id": f"GDACS_VOLC_{p.get('eventid', p.get('name', 'Unknown'))}",
                     "category": "volcano",
                     "name": p.get("eventname") or p.get("name") or "Volcano",
                     "basin": "TERRESTRIAL",
@@ -93,20 +81,76 @@ def fetch_and_publish_volcanoes():
                     "latitude": float(coords[1]),
                     "longitude": float(coords[0]),
                     "alert_level": alert_level,
-                    "source": "GDACS / Global Volcanism Program",
+                    "source": "GDACS / GVP",
                     "observed_at": p.get("fromdate", datetime.now(timezone.utc).isoformat()),
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 })
     except Exception as e:
-        print(f"[ERROR] Failed to fetch GDACS Volcanoes: {e}")
+        print(f"[ERROR] GDACS Volcanoes: {e}")
+    return events
 
+def fetch_eonet_hazards():
+    """Fetches physical planetary systems from NASA EONET (Open ocean storms & unrest)."""
+    events = []
+    print("Fetching global physical events from NASA EONET...")
+    try:
+        r = requests.get("https://eonet.gsfc.nasa.gov/api/v3/events?status=open", headers=headers, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            for event in data.get("events", []):
+                categories = [c.get("id") for c in event.get("categories", [])]
+                
+                is_storm = "severeStorms" in categories
+                is_volcano = "volcanoes" in categories
+                
+                if not (is_storm or is_volcano):
+                    continue
+                    
+                geom = event.get("geometry", [])
+                if not geom:
+                    continue
+                
+                # Get the most recent position
+                latest = geom[-1]
+                coords = latest.get("coordinates")
+                geom_type = latest.get("type", "Point")
+                
+                # Extract lat/lon whether NASA sent a single Point or a Polygon track
+                try:
+                    if geom_type == "Polygon":
+                        lon, lat = float(coords[0][0][0]), float(coords[0][0][1])
+                    else:
+                        lon, lat = float(coords[0]), float(coords[1])
+                except (IndexError, TypeError):
+                    continue
+                    
+                category_str = "cyclone" if is_storm else "volcano"
+                name = event.get("title", "Unknown Event")
+                
+                # We prefix with EONET_ so it merges cleanly into the database alongside GDACS
+                events.append({
+                    "id": f"EONET_{event.get('id')}",
+                    "category": category_str,
+                    "name": name,
+                    "basin": "GLOBAL",
+                    "intensity": "Active Weather System" if is_storm else "Active Volcanic Unrest",
+                    "wind_kts": 0,
+                    "pressure_mb": None,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "alert_level": "NASA Monitor",
+                    "source": "NASA EONET",
+                    "observed_at": latest.get("date", datetime.now(timezone.utc).isoformat()),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                })
+    except Exception as e:
+        print(f"[ERROR] NASA EONET: {e}")
     return events
 
 def fetch_and_publish_earthquakes():
     """Fetches global significant earthquakes (M4.5+) from USGS."""
     events = []
     print("Fetching recent M4.5+ earthquakes from USGS...")
-
     try:
         r = requests.get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson", headers=headers, timeout=15)
         if r.status_code == 200:
@@ -114,8 +158,7 @@ def fetch_and_publish_earthquakes():
             for f in data.get("features", []):
                 p = f.get("properties", {})
                 coords = f.get("geometry", {}).get("coordinates", [])
-                if len(coords) < 3:
-                    continue
+                if len(coords) < 3: continue
 
                 mag = float(p.get("mag", 0))
                 alert = p.get("alert") or ("Red" if mag >= 7.0 else "Orange" if mag >= 6.0 else "Yellow")
@@ -136,16 +179,17 @@ def fetch_and_publish_earthquakes():
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 })
     except Exception as e:
-        print(f"[ERROR] Failed to fetch USGS Earthquakes: {e}")
-
+        print(f"[ERROR] USGS Earthquakes: {e}")
     return events
 
 def run_ingestion_cycle():
     print(f"--- Starting Brink Ingestion Cycle at {datetime.now(timezone.utc).isoformat()} ---")
     
     all_events = []
+    # Combine GDACS, NASA EONET, and USGS into one master payload
     all_events.extend(fetch_and_publish_cyclones())
     all_events.extend(fetch_and_publish_volcanoes())
+    all_events.extend(fetch_eonet_hazards())
     all_events.extend(fetch_and_publish_earthquakes())
 
     if not all_events:
