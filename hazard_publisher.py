@@ -90,7 +90,7 @@ def fetch_and_publish_volcanoes():
     return events
 
 def fetch_eonet_hazards():
-    """Fetches physical planetary systems from NASA EONET (Open ocean storms & unrest)."""
+    """Fetches physical planetary systems from NASA EONET (Open ocean storms & recent unrest)."""
     events = []
     print("Fetching global physical events from NASA EONET...")
     try:
@@ -110,9 +110,23 @@ def fetch_eonet_hazards():
                 if not geom:
                     continue
                 
-                # Get the most recent position
+                # Get the most recent observation position
                 latest = geom[-1]
                 coords = latest.get("coordinates")
+
+                # Discard stale volcanic entries with no activity in the past 7 days
+                if is_volcano:
+                    event_date_str = latest.get("date")
+                    if not event_date_str:
+                        continue
+                    try:
+                        clean_date = event_date_str.replace("Z", "+00:00")
+                        event_dt = datetime.fromisoformat(clean_date)
+                        if datetime.now(timezone.utc) - event_dt > timedelta(days=7):
+                            continue
+                    except Exception:
+                        continue
+
                 geom_type = latest.get("type", "Point")
                 
                 # Extract lat/lon whether NASA sent a single Point or a Polygon track
@@ -127,7 +141,6 @@ def fetch_eonet_hazards():
                 category_str = "cyclone" if is_storm else "volcano"
                 name = event.get("title", "Unknown Event")
                 
-                # We prefix with EONET_ so it merges cleanly into the database alongside GDACS
                 events.append({
                     "id": f"EONET_{event.get('id')}",
                     "category": category_str,
@@ -183,10 +196,10 @@ def fetch_and_publish_earthquakes():
     return events
 
 def run_ingestion_cycle():
-    print(f"--- Starting Brink Ingestion Cycle at {datetime.now(timezone.utc).isoformat()} ---")
+    cycle_start = datetime.now(timezone.utc)
+    print(f"--- Starting Brink Ingestion Cycle at {cycle_start.isoformat()} ---")
     
     all_events = []
-    # Combine GDACS, NASA EONET, and USGS into one master payload
     all_events.extend(fetch_and_publish_cyclones())
     all_events.extend(fetch_and_publish_volcanoes())
     all_events.extend(fetch_eonet_hazards())
@@ -203,11 +216,10 @@ def run_ingestion_cycle():
     except Exception as e:
         print(f"❌ Supabase Upsert Failed: {e}")
 
-    # Self-Cleaning: Delete events not updated in the last 24 hours (hazards that have dissipated)
+    # Immediate Pruning: Delete hazards that were not refreshed in this ingestion cycle
     try:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        supabase.table("live_hazards").delete().lt("updated_at", cutoff.isoformat()).execute()
-        print("✓ Pruned expired/dissipated hazards from database.")
+        supabase.table("live_hazards").delete().lt("updated_at", cycle_start.isoformat()).execute()
+        print("✓ Pruned stale/dissipated hazards not present in current cycle.")
     except Exception as e:
         print(f"❌ Failed to prune old hazards: {e}")
 
