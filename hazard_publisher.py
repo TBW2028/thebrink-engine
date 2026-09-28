@@ -14,7 +14,7 @@ if not SUPABASE_KEY:
     raise ValueError("Missing SUPABASE_SERVICE_ROLE_KEY. Check your .env file.")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-headers = {"User-Agent": "TheBrinkEngine/3.0 (Planetary Macro-Intelligence Pipeline)"}
+headers = {"User-Agent": "TheBrinkEngine/3.2 (Planetary Macro-Intelligence Pipeline)"}
 
 def fetch_gdacs_category(endpoint_code, category_name):
     """Generic fetcher for GDACS specific endpoints like Floods (FL), Droughts (DR), Heat (HW)."""
@@ -27,7 +27,8 @@ def fetch_gdacs_category(endpoint_code, category_name):
             for f in data.get("features", []):
                 p = f.get("properties", {})
                 coords = f.get("geometry", {}).get("coordinates", [])
-                if len(coords) < 2: continue
+                if len(coords) < 2: 
+                    continue
                 lon, lat = float(coords[0]), float(coords[1])
                 name = p.get("eventname") or p.get("name") or f"Active {category_name}"
                 
@@ -63,17 +64,20 @@ def fetch_and_publish_cyclones():
             for f in data.get("features", []):
                 p = f.get("properties", {})
                 coords = f.get("geometry", {}).get("coordinates", [])
-                if len(coords) < 2: continue
+                if len(coords) < 2: 
+                    continue
                 lon, lat = float(coords[0]), float(coords[1])
                 name = p.get("eventname") or p.get("name") or "Tropical System"
                 basin = (p.get("basin") or "GLOBAL").upper()
 
-                if basin in ["EP", "NA", "AL", "CP"] and lon > 0: lon = -lon
+                if basin in ["EP", "NA", "AL", "CP"] and lon > 0: 
+                    lon = -lon
 
                 alert_level = p.get("alertlevel", "Green").capitalize()
                 raw_wind = p.get("windspeed")
                 wind_kts = float(raw_wind) if raw_wind else None
-                if wind_kts == 0: wind_kts = None
+                if wind_kts == 0: 
+                    wind_kts = None
                 
                 events.append({
                     "id": f"GDACS_TC_{p.get('eventid', name.replace(' ', ''))}",
@@ -95,7 +99,7 @@ def fetch_and_publish_cyclones():
     return events
 
 def fetch_and_publish_volcanoes():
-    """Fetches ALL active volcanic alerts from GDACS."""
+    """Fetches active volcanic alerts from GDACS."""
     events = []
     print("Fetching active volcanic alerts from GDACS...")
     try:
@@ -105,7 +109,8 @@ def fetch_and_publish_volcanoes():
             for f in data.get("features", []):
                 p = f.get("properties", {})
                 coords = f.get("geometry", {}).get("coordinates", [])
-                if len(coords) < 2: continue
+                if len(coords) < 2: 
+                    continue
                 
                 alert_level = p.get("alertlevel", "Green").capitalize()
                 obs_date = p.get("todate") or p.get("fromdate") or datetime.now(timezone.utc).isoformat()
@@ -131,10 +136,10 @@ def fetch_and_publish_volcanoes():
 
 def fetch_eonet_hazards():
     """Fetches storms, volcanoes, wildfires, floods, and temp extremes from NASA EONET."""
-    events = []
+    raw_events = []
     print("Fetching global physical events from NASA EONET...")
     try:
-        r = requests.get("https://eonet.gsfc.nasa.gov/api/v3/events?status=open", headers=headers, timeout=15)
+        r = requests.get("https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=7", headers=headers, timeout=15)
         if r.status_code == 200:
             data = r.json()
             for event in data.get("events", []):
@@ -180,7 +185,6 @@ def fetch_eonet_hazards():
                         except ValueError:
                             pass
                     
-                # Determine category string
                 if is_storm: category_str = "cyclone"
                 elif is_volcano: category_str = "volcano"
                 elif is_wildfire: category_str = "wildfire"
@@ -189,7 +193,7 @@ def fetch_eonet_hazards():
                 
                 name = event.get("title", "Unknown Event")
                 
-                events.append({
+                raw_events.append({
                     "id": f"EONET_{event.get('id')}",
                     "category": category_str,
                     "name": name,
@@ -206,7 +210,15 @@ def fetch_eonet_hazards():
                 })
     except Exception as e:
         print(f"[ERROR] NASA EONET: {e}")
-    return events
+        
+    wildfires = [e for e in raw_events if e["category"] == "wildfire"]
+    others = [e for e in raw_events if e["category"] != "wildfire"]
+    
+    # Cap wildfires to the most recent 40 events to prevent table exhaustion
+    wildfires.sort(key=lambda x: x["observed_at"], reverse=True)
+    capped_wildfires = wildfires[:40]
+    
+    return others + capped_wildfires
 
 def fetch_and_publish_earthquakes():
     """Fetches global significant earthquakes (M4.5+) from USGS."""
@@ -219,7 +231,8 @@ def fetch_and_publish_earthquakes():
             for f in data.get("features", []):
                 p = f.get("properties", {})
                 coords = f.get("geometry", {}).get("coordinates", [])
-                if len(coords) < 3: continue
+                if len(coords) < 3: 
+                    continue
 
                 mag = float(p.get("mag", 0))
                 alert = p.get("alert") or ("Red" if mag >= 7.0 else "Orange" if mag >= 6.0 else "Yellow")
@@ -243,13 +256,76 @@ def fetch_and_publish_earthquakes():
         print(f"[ERROR] USGS Earthquakes: {e}")
     return events
 
+def fetch_nws_alerts():
+    """Fetches severe and extreme land-based weather alerts from the US National Weather Service."""
+    events = []
+    print("Fetching severe alerts from US NWS...")
+    try:
+        nws_headers = {"User-Agent": "(TheBrinkEngine, contact@thebrink.world)"}
+        url = "https://api.weather.gov/alerts/active?severity=Severe,Extreme"
+        r = requests.get(url, headers=nws_headers, timeout=15)
+        
+        if r.status_code == 200:
+            data = r.json()
+            for f in data.get("features", []):
+                p = f.get("properties", {})
+                event_type = p.get("event", "Severe Weather")
+                
+                if "Flood" in event_type: 
+                    cat = "flood"
+                elif "Fire" in event_type: 
+                    cat = "wildfire"
+                elif any(s in event_type for s in ["Winter", "Blizzard", "Wind", "Storm", "Tornado"]): 
+                    cat = "storm"
+                else: 
+                    cat = "extreme"
+
+                geom = f.get("geometry")
+                if not geom: 
+                    continue
+                coords = geom.get("coordinates", [])
+                
+                try:
+                    if geom["type"] == "Polygon":
+                        lon, lat = float(coords[0][0][0]), float(coords[0][0][1])
+                    elif geom["type"] == "MultiPolygon":
+                        lon, lat = float(coords[0][0][0][0]), float(coords[0][0][0][1])
+                    elif geom["type"] == "Point":
+                        lon, lat = float(coords[0]), float(coords[1])
+                    else:
+                        continue
+                except (IndexError, TypeError):
+                    continue
+                
+                headline = p.get("headline") or event_type
+                headline = headline.split("\n")[0][:100]
+                
+                events.append({
+                    "id": f"NWS_{p.get('id', '')[-32:]}",
+                    "category": cat,
+                    "name": headline,
+                    "basin": "NORTH_AMERICA",
+                    "intensity": event_type,
+                    "wind_kts": None,
+                    "pressure_mb": None,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "alert_level": "Red" if p.get("severity") == "Extreme" else "Orange",
+                    "source": "US NWS",
+                    "observed_at": p.get("effective", datetime.now(timezone.utc).isoformat()),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                })
+    except Exception as e:
+        print(f"[ERROR] NWS Alerts: {e}")
+    return events
+
 def run_ingestion_cycle():
     cycle_start = datetime.now(timezone.utc)
     print(f"--- Starting Brink Ingestion Cycle at {cycle_start.isoformat()} ---")
     
     all_events = []
     
-    # Core Vectors
+    # Core Global Planetary Vectors
     all_events.extend(fetch_and_publish_cyclones())
     all_events.extend(fetch_and_publish_volcanoes())
     all_events.extend(fetch_eonet_hazards())
@@ -259,6 +335,9 @@ def run_ingestion_cycle():
     all_events.extend(fetch_gdacs_category("FL", "Flood"))
     all_events.extend(fetch_gdacs_category("DR", "Drought"))
     all_events.extend(fetch_gdacs_category("HW", "Heatwave"))
+    
+    # Regional Sub-Continental Vector (US NWS)
+    all_events.extend(fetch_nws_alerts())
 
     if not all_events:
         print("No events captured. Exiting.")
@@ -266,12 +345,12 @@ def run_ingestion_cycle():
 
     # Upsert new verified data
     try:
-        res = supabase.table("live_hazards").upsert(all_events).execute()
+        supabase.table("live_hazards").upsert(all_events).execute()
         print(f"✓ Successfully upserted {len(all_events)} active hazards to Supabase.")
     except Exception as e:
         print(f"❌ Supabase Upsert Failed: {e}")
 
-    # Immediate Pruning: Delete hazards that were not refreshed in this ingestion cycle
+    # Immediate Pruning: Drop hazards that were not refreshed in this cycle
     try:
         supabase.table("live_hazards").delete().lt("updated_at", cycle_start.isoformat()).execute()
         print("✓ Pruned stale/dissipated hazards not present in current cycle.")
