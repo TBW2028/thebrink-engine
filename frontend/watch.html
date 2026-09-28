@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Earth &amp; Climate Watch · The Brink World</title>
-<meta name="description" content="Real-time planetary hazards, smart local triggers, and macro climate intelligence."/>
+<meta name="description" content="Real-time planetary hazards and local environmental conditions."/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -18,13 +18,10 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html, body{
-  width:100%; overflow-x:hidden; scroll-behavior:smooth;
-  background:radial-gradient(ellipse at 50% -20%,rgba(0,243,255,.08),transparent 45%),var(--bg);
-  color:var(--text); font-family:var(--font-body); font-size:16px; line-height:1.55;
-}
+html, body{ width:100%; overflow-x:hidden; scroll-behavior:smooth; background:radial-gradient(ellipse at 50% -20%,rgba(0,243,255,.08),transparent 45%),var(--bg); color:var(--text); font-family:var(--font-body); font-size:16px; line-height:1.55; }
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
+.mono { font-family: var(--font-mono); }
 
 .brand-masthead { width: 100%; background: rgba(6, 9, 14, 0.98); border-bottom: 1px solid var(--line); padding: 18px 6% 16px 6%; }
 .brand-row { margin-bottom: 12px; }
@@ -40,12 +37,13 @@ header.page-header{ padding: 12px 0 16px; border-bottom: 1px solid var(--line); 
 h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); letter-spacing:-.03em; margin:4px 0 6px; color:#fff; line-height:1.2; }
 .sub{ color:var(--muted); font-size:0.98rem; max-width:52rem; line-height:1.5; }
 
-.btn{ display:inline-flex; align-items:center; border:1px solid var(--line); background:transparent; color:var(--text); border-radius:6px; padding:7px 12px; font-size:0.9rem; font-weight:600; cursor:pointer; font-family:var(--font-mono); text-decoration:none; }
+.btn{ display:inline-flex; align-items:center; border:1px solid var(--line); background:transparent; color:var(--text); border-radius:6px; padding:7px 12px; font-size:0.9rem; font-weight:600; cursor:pointer; font-family:var(--font-mono); text-decoration:none; transition: border 0.2s, color 0.2s; }
 .btn:hover{ border-color:var(--accent); color:var(--accent); }
 .btn-primary{ background:var(--accent); color:#071018; border-color:var(--accent); font-weight:700; }
 .btn-primary:hover { filter: brightness(1.1); color: #071018; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* CLIMATE STATION & SMART TRIGGERS */
+/* CLIMATE STATION */
 .climate-station-card { background: linear-gradient(135deg, #0c131d, #111b27); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; display: grid; grid-template-columns: 1.1fr 1.9fr; gap: 20px; }
 @media(max-width: 900px){ .climate-station-card { grid-template-columns: 1fr; } }
 .station-main { display: flex; flex-direction: column; justify-content: center; }
@@ -74,10 +72,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .trigger-text-title { font-weight: 700; color: #fff; font-size: 0.95rem; margin-bottom: 2px; }
 .trigger-text-body { font-size: 0.85rem; color: var(--soft); line-height: 1.4; }
 
-/* MACRO CLIMATE & HYDROLOGY */
-.macro-climate-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
-@media(max-width: 768px){ .macro-climate-row { grid-template-columns: 1fr; } }
-.macro-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; }
+.macro-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 24px; display: flex; flex-direction: column; justify-content: center; }
 .mc-title { font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 700; margin-bottom: 6px; display: flex; justify-content: space-between; }
 .mc-val { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
 .mc-sub { font-size: 0.85rem; color: var(--soft); line-height: 1.4; }
@@ -85,24 +80,24 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 
 /* MAP & TILES */
 .map-panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; box-shadow:var(--shadow); width:100%; margin-bottom: 24px; }
-#map{ height:400px; border-radius:8px; border:1px solid var(--line); background:#0a1018; width:100%; cursor:crosshair; }
-.leaflet-control-attribution { display: none !important; }
+#map{ height:400px; border-radius:8px; border:1px solid var(--line); background:#0a1018; width:100%; z-index: 1; }
+.leaflet-control-attribution { color: var(--text) !important; background: rgba(0,0,0,0.6) !important; font-size: 10px !important; }
 
 .plain-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
 @media(max-width: 768px){ .plain-tiles { grid-template-columns: repeat(2, 1fr); } }
 @media(max-width: 480px){ .plain-tiles { grid-template-columns: 1fr; } }
-.ptile { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 18px; cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column; }
+.ptile { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 18px; cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column; text-align: left; font-family: inherit; }
 .ptile:hover { border-color: var(--accent); transform: translateY(-2px); }
 .ptile.active { border-color: var(--accent); background: rgba(0,243,255,0.04); box-shadow: 0 0 15px rgba(0,243,255,0.1); }
-.ptile-num { font-family: var(--font-display); font-size: 2.2rem; line-height: 1; margin-bottom: 6px; color: #fff; }
+.ptile-num { display: block; font-family: var(--font-display); font-size: 2.2rem; line-height: 1; margin-bottom: 6px; color: #fff; }
 .ptile.escalate .ptile-num { color: var(--hot); }
 .ptile.alert .ptile-num { color: var(--warn); }
 .ptile.storms .ptile-num { color: var(--accent); }
 .ptile.volcanoes .ptile-num { color: var(--hot); }
 .ptile.quakes .ptile-num { color: var(--accent-blue); }
 .ptile.watch .ptile-num { color: var(--text); }
-.ptile-title { font-size: 1.05rem; font-weight: 700; color: #fff; line-height: 1.2; margin-bottom: 4px; }
-.ptile-sub { font-size: 0.85rem; color: var(--soft); line-height: 1.4; }
+.ptile-title { display: block; font-size: 1.05rem; font-weight: 700; color: #fff; line-height: 1.2; margin-bottom: 4px; }
+.ptile-sub { display: block; font-size: 0.85rem; color: var(--soft); line-height: 1.4; }
 
 /* FEED ROWS */
 .feed-container { display: flex; flex-direction: column; gap: 16px; margin-bottom: 40px; }
@@ -111,9 +106,6 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .feed-card-main { padding: 16px 20px; }
 .fc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
 .fc-title { font-size: 1.25rem; font-weight: 700; color: #fff; line-height: 1.2; }
-.fc-trend { font-family: var(--font-mono); font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.05); text-transform: uppercase; letter-spacing: 0.05em; }
-.fc-trend.worse { color: var(--hot); background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); }
-.fc-trend.steady { color: var(--ok); background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
 .fc-grid { display: grid; grid-template-columns: 1fr; gap: 8px; font-size: 0.95rem; color: var(--soft); }
 @media(min-width: 600px){ .fc-grid { grid-template-columns: 1fr 1fr; gap: 12px; } }
 .fc-row strong { color: var(--muted); display: inline-block; width: 140px; font-weight: 600; }
@@ -123,25 +115,32 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .fc-footer { background: var(--panel2); padding: 12px 20px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); flex-wrap: wrap; gap: 10px; }
 
 /* PINS */
-.custom-hazard-pin { display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px; font-weight: 800; box-shadow: 0 0 10px rgba(0,0,0,0.85); border: 1.5px solid #fff; cursor: pointer; transition: transform 0.15s ease; }
-.custom-hazard-pin:hover { transform: scale(1.35); z-index: 9999 !important; }
+.custom-hazard-pin { display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 14px; font-weight: 800; box-shadow: 0 0 10px rgba(0,0,0,0.85); border: 1.5px solid #fff; cursor: pointer; transition: transform 0.15s ease; }
+.custom-hazard-pin:hover { transform: scale(1.35); z-index: 999 !important; }
 .pin-quake { background: radial-gradient(circle, #f59e0b, #b45309); color: #000; }
-.pin-quake-major { background: radial-gradient(circle, #ef4444, #991b1b); color: #fff; border-color: #fca5a5; }
 .pin-storm { background: radial-gradient(circle, #00f3ff, #0284c7); color: #000; border-color: #7dd3fc; }
 .pin-volcano { background: radial-gradient(circle, #ef4444, #7f1d1d); color: #fff; border-color: #fca5a5; }
 .pin-wildfire { background: radial-gradient(circle, #f97316, #9a3412); color: #fff; border-color: #fdba74; }
 .pin-flood { background: radial-gradient(circle, #3b82f6, #1e3a8a); color: #fff; border-color: #93c5fd; }
+.pin-extreme { background: radial-gradient(circle, #a855f7, #581c87); color: #fff; border-color: #d8b4fe; }
 .pulse-priority { animation: pulsePriorityAura 1.8s infinite; border: 2px solid var(--gold) !important; box-shadow: 0 0 14px var(--gold) !important; }
 @keyframes pulsePriorityAura { 0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.8); } 70% { box-shadow: 0 0 0 16px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 
 /* MODALS */
 .modal{ position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.88); backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; z-index:999999; }
 .modal-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; max-width:500px; width:92%; max-height:90vh; overflow-y:auto; box-shadow:var(--shadow); }
+
+.smart-footer { background: var(--panel); border-top: 1px solid var(--line); padding: 64px 6% 48px; margin-top: 60px; }
+.smart-footer-wrap { max-width: 680px; margin: 0 auto; text-align: center; }
+.smart-footer-badge { font-family: var(--font-mono); font-size: 12px; font-weight: 800; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+.smart-footer-title { font-family: var(--font-display); font-size: clamp(1.6rem, 3.5vw, 2.2rem); text-transform: uppercase; color: #fff; line-height: 1.15; margin-bottom: 12px; }
+.dispatch-box { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 20px; text-align: left; }
+.dispatch-input-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.dispatch-email-input { flex: 1; min-width: 240px; background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; color: #fff; padding: 12px 14px; font-size: 15px; outline: none; font-family: inherit; }
+.dispatch-submit-btn { background: var(--accent); color: #06090e; border: none; border-radius: 4px; padding: 12px 24px; font-family: var(--font-mono); font-size: 13px; font-weight: 800; cursor: pointer; transition: filter 0.15s ease; }
 </style>
 </head>
 <body>
-
-<div id="scroll-progress"></div>
 
 <header class="brand-masthead">
   <div class="brand-row"><a href="/" class="brand-link">THE BRINK <span class="brand-accent-red">WORLD</span></a></div>
@@ -155,7 +154,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 <div class="wrap">
   <header class="page-header">
     <h1>Earth &amp; Climate Watch</h1>
-    <p class="sub">Curated planetary risk intelligence: real-time exposure modeling, compound hazard convergence, and critical engineering asset audits.</p>
+    <p class="sub">Real-time planetary hazards and local environmental monitoring.</p>
   </header>
 
   <div class="climate-station-card">
@@ -176,52 +175,43 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
     </div>
     
     <div class="station-triggers-box">
-      <div class="trigger-hdr"><span>Situation Triggers (Next 12 Hours)</span> <span style="color:var(--accent);">LIVE</span></div>
+      <div class="trigger-hdr"><span>Situation Triggers (Next 12 Hours)</span></div>
       <div id="triggerList" style="display:flex; flex-direction:column; gap:8px;">
         <div style="color:var(--muted); font-size:0.9rem;">Evaluating atmospheric telemetry...</div>
       </div>
     </div>
   </div>
 
-  <div class="macro-climate-row">
-    <div class="macro-card">
-      <div class="mc-title"><span>Local Hydrology (30-Day Accumulation)</span> <span class="mc-badge">OPEN-METEO</span></div>
-      <div class="mc-val" id="hydroVal">-- mm <span style="font-size:0.8rem; font-weight:500; color:var(--muted)" id="hydroBaseline">vs -- mm normal</span></div>
-      <div class="mc-sub" id="hydroSub">Calculating precipitation anomaly...</div>
-    </div>
-    <div class="macro-card">
-      <div class="mc-title"><span>Macro-Climate State (ENSO)</span> <span class="mc-badge">NOAA CPC</span></div>
-      <div class="mc-val">La Niña Advisory <span style="font-size:0.85rem; color:var(--ok);">Active</span></div>
-      <div class="mc-sub">Conditions typical for elevated cyclonic activity and shifting regional monsoonal baselines.</div>
-    </div>
+  <div class="macro-card">
+    <div class="mc-title"><span>Local Hydrology Context (30-Day Accumulation)</span> <span class="mc-badge">OPEN-METEO API</span></div>
+    <div class="mc-val" id="hydroVal">-- mm</div>
+    <div class="mc-sub" id="hydroSub">Calculating recent precipitation data...</div>
   </div>
 
   <div class="map-panel">
-    <div style="font-family:var(--font-mono); font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:12px; display:flex; justify-content:space-between;">
-      <span>Global Sensor Matrix</span><span style="color:var(--ok)">LIVE</span>
-    </div>
+    <div style="font-family:var(--font-mono); font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:12px;">Global Sensor Matrix</div>
     <div id="map"></div>
   </div>
 
   <div class="plain-tiles">
-    <div class="ptile escalate" id="btnFilterEscalate" onclick="setFeedFilter('escalate')">
-      <div class="ptile-num" id="c-escalate">0</div><div class="ptile-title">Getting Worse</div><div class="ptile-sub" id="sub-escalate">Events intensifying in the last 6 hours</div>
-    </div>
-    <div class="ptile alert" id="btnFilterAlert" onclick="setFeedFilter('alert')">
-      <div class="ptile-num" id="c-alert">0</div><div class="ptile-title">Needs Attention</div><div class="ptile-sub" id="sub-alert">Events above the danger threshold now</div>
-    </div>
-    <div class="ptile storms" id="btnFilterStorms" onclick="setFeedFilter('storms')">
-      <div class="ptile-num" id="c-storms">0</div><div class="ptile-title">Active Storms & Floods</div><div class="ptile-sub" id="sub-storms">Cyclones and severe hydrology events tracked</div>
-    </div>
-    <div class="ptile quakes" id="btnFilterQuakes" onclick="setFeedFilter('quakes')">
-      <div class="ptile-num" id="c-quakes">0</div><div class="ptile-title">Recent Quakes</div><div class="ptile-sub" id="sub-quakes">Felt or damaging shaking in the last 24 hours</div>
-    </div>
-    <div class="ptile volcanoes" id="btnFilterVolcanoes" onclick="setFeedFilter('volcanoes')">
-      <div class="ptile-num" id="c-volcanoes">0</div><div class="ptile-title">Volcanoes & Wildfires</div><div class="ptile-sub" id="sub-volcanoes">Thermal anomalies and raised alerts</div>
-    </div>
-    <div class="ptile watch" id="btnFilterWatch" onclick="setFeedFilter('watch')">
-      <div class="ptile-num" id="c-watch">0</div><div class="ptile-title">Active Monitoring</div><div class="ptile-sub" id="sub-watch">Everything verified and active right now</div>
-    </div>
+    <button class="ptile escalate" id="btnFilterEscalate" onclick="setFeedFilter('escalate')">
+      <span class="ptile-num" id="c-escalate">0</span><span class="ptile-title">Severe Events</span><span class="ptile-sub" id="sub-escalate">Events meeting maximum danger thresholds</span>
+    </button>
+    <button class="ptile alert" id="btnFilterAlert" onclick="setFeedFilter('alert')">
+      <span class="ptile-num" id="c-alert">0</span><span class="ptile-title">Needs Attention</span><span class="ptile-sub" id="sub-alert">Events above the elevated danger threshold</span>
+    </button>
+    <button class="ptile storms" id="btnFilterStorms" onclick="setFeedFilter('storms')">
+      <span class="ptile-num" id="c-storms">0</span><span class="ptile-title">Active Storms &amp; Floods</span><span class="ptile-sub" id="sub-storms">Cyclones and severe hydrology events tracked</span>
+    </button>
+    <button class="ptile quakes" id="btnFilterQuakes" onclick="setFeedFilter('quakes')">
+      <span class="ptile-num" id="c-quakes">0</span><span class="ptile-title">Recent Quakes</span><span class="ptile-sub" id="sub-quakes">Felt or damaging shaking in the last 24 hours</span>
+    </button>
+    <button class="ptile volcanoes" id="btnFilterVolcanoes" onclick="setFeedFilter('volcanoes')">
+      <span class="ptile-num" id="c-volcanoes">0</span><span class="ptile-title">Volcanoes &amp; Wildfires</span><span class="ptile-sub" id="sub-volcanoes">Thermal anomalies and raised alerts</span>
+    </button>
+    <button class="ptile watch" id="btnFilterWatch" onclick="setFeedFilter('watch')">
+      <span class="ptile-num" id="c-watch">0</span><span class="ptile-title">Active Monitoring</span><span class="ptile-sub" id="sub-watch">All tracked events</span>
+    </button>
   </div>
 
   <div class="feed-container">
@@ -232,30 +222,50 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
   </div>
 </div>
 
-<!-- "I FELT IT" MODAL -->
-<div class="modal" id="modalFeltIt">
+<!-- "I EXPERIENCED IT" MODAL -->
+<div class="modal" id="modalFeltIt" role="dialog" aria-modal="true">
   <div class="modal-card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:8px;">
       <h3 style="font-size:1.2rem; color:#fff;">Report Your Experience</h3>
       <button class="btn" onclick="closeModal('modalFeltIt')" style="padding:4px 9px">✕</button>
     </div>
-    <div style="font-size:0.9rem; color:var(--muted); margin-bottom: 16px;">Did you feel this event or have local advice? Share your report to help the community.</div>
+    <div style="font-size:0.9rem; color:var(--muted); margin-bottom: 16px;">Did you experience this event or have local advice? Share your report to help the community.</div>
     <form onsubmit="submitFeltIt(event)" style="display:flex; flex-direction:column; gap:12px;">
        <input type="hidden" id="feltItEventId" value="">
-       <input type="text" id="feltItName" placeholder="Your Name or City (Optional)" style="background:var(--panel2); border:1px solid var(--line); color:#fff; padding:10px; border-radius:4px;">
+       <input type="text" id="feltItName" placeholder="Your Name or City (Optional)" style="background:var(--panel2); border:1px solid var(--line); color:#fff; padding:10px; border-radius:4px;" maxlength="100">
        <select id="feltItIntensity" style="background:var(--panel2); border:1px solid var(--line); color:#fff; padding:10px; border-radius:4px;">
-          <option value="Not Felt">Not Felt</option>
-          <option value="Weak">Weak Shaking / Minor Unrest</option>
+          <option value="Not Felt">Did not experience</option>
+          <option value="Weak">Minor disruption / Weak intensity</option>
           <option value="Moderate">Moderate / Concerning</option>
           <option value="Strong">Strong / Frightening</option>
           <option value="Severe">Severe Damage / Evacuation</option>
        </select>
-       <textarea id="feltItComment" rows="3" placeholder="Describe what you felt, local damage, or advice..." style="background:var(--panel2); border:1px solid var(--line); color:#fff; padding:10px; border-radius:4px;"></textarea>
-       <button type="submit" class="btn btn-primary" style="justify-content:center; padding:10px;">Submit Public Report</button>
+       <textarea id="feltItComment" rows="3" placeholder="Describe what you experienced, local damage, or advice..." style="background:var(--panel2); border:1px solid var(--line); color:#fff; padding:10px; border-radius:4px;" required maxlength="500"></textarea>
+       <button type="submit" id="btnSubmitFeltIt" class="btn btn-primary" style="justify-content:center; padding:10px;">Submit Public Report</button>
     </form>
-    <div id="feltItSuccess" style="display:none; color:var(--ok); margin-top:12px; font-weight:700; background:rgba(16, 185, 129, 0.1); padding:10px; border-radius:6px; border:1px solid var(--ok);">✓ Report verified and submitted.</div>
+    <div id="feltItSuccess" style="display:none; color:var(--ok); margin-top:12px; font-weight:700; background:rgba(16, 185, 129, 0.1); padding:10px; border-radius:6px; border:1px solid var(--ok);"></div>
   </div>
 </div>
+
+<footer class="smart-footer">
+  <div class="smart-footer-wrap">
+    <div class="smart-footer-badge">// SENSOR DESK &amp; STRATEGIC DISPATCHES</div>
+    <h3 class="smart-footer-title">Never Miss A Signal.</h3>
+    <form class="dispatch-box" onsubmit="handleDispatchSubscribe(event)">
+      <div class="dispatch-input-row">
+        <input type="email" id="footerSubEmail" class="dispatch-email-input" placeholder="Enter your email..." required>
+        <button type="submit" id="footerSubBtn" class="dispatch-submit-btn">Subscribe →</button>
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-top:8px;">
+        <label><input type="checkbox" required style="margin-right:4px;"> I consent to receive intelligence dispatches. See our <a href="/privacy.html" style="color:var(--muted); text-decoration:underline;">Privacy Policy</a>.</label>
+      </div>
+      <div id="footerSubNotice" style="display:none; margin-top: 12px; font-family: var(--font-mono); font-size: 12.5px; padding: 10px 14px; border-radius: 4px;"></div>
+    </form>
+    <div style="font-size:12px; color:var(--muted); margin-top:30px; font-family:var(--font-mono);">
+      The Brink World, 2026. Weather data provided under Open-Meteo free API terms. <br/>Map geocoding utilizes cached OpenStreetMap Nominatim.
+    </div>
+  </div>
+</footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -263,14 +273,132 @@ const SUPABASE_URL = "https://jxapuzsgyoetrpnmohct.supabase.co";
 const SUPABASE_ANON = "sb_publishable_VLQoHAEpKndcjxO3BLRQuw_7UFA3orI";
 const $ = id => document.getElementById(id);
 
+// Robust HTML Escaper
+function escapeHTML(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[tag] || tag));
+}
+
 function openModal(id){ const el = $(id); if(el) el.style.display = "flex"; }
 function closeModal(id){ const el = $(id); if(el) el.style.display = "none"; }
-function openFeltItForm(eventId) { $("feltItEventId").value = eventId; $("feltItSuccess").style.display = 'none'; openModal("modalFeltIt"); }
-function submitFeltIt(e) { e.preventDefault(); $("feltItSuccess").style.display = 'block'; setTimeout(() => closeModal("modalFeltIt"), 2000); }
+window.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal('modalFeltIt'); });
+
+function openFeltItForm(eventId) { 
+    $("feltItEventId").value = eventId; 
+    $("feltItSuccess").style.display = 'none'; 
+    $("feltItSuccess").style.color = 'var(--ok)';
+    $("feltItSuccess").style.borderColor = 'var(--ok)';
+    $("btnSubmitFeltIt").disabled = false;
+    $("btnSubmitFeltIt").textContent = "Submit Public Report";
+    $("feltItName").value = ''; $("feltItComment").value = ''; 
+    openModal("modalFeltIt"); 
+}
+
+async function submitFeltIt(e) { 
+    e.preventDefault(); 
+    const btn = $("btnSubmitFeltIt");
+    btn.disabled = true;
+    btn.textContent = "Submitting...";
+    
+    const payload = {
+        hazard_id: $("feltItEventId").value,
+        name: $("feltItName").value.trim() || "Anonymous",
+        intensity: $("feltItIntensity").value,
+        comment: $("feltItComment").value.trim()
+    };
+
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/community_reports`, {
+            method: "POST",
+            headers: {
+                "apikey": SUPABASE_ANON,
+                "Authorization": `Bearer ${SUPABASE_ANON}`,
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal"
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) throw new Error("Submission failed");
+        
+        $("feltItSuccess").textContent = "✓ Report saved successfully. Thank you.";
+        $("feltItSuccess").style.color = 'var(--ok)';
+        $("feltItSuccess").style.borderColor = 'var(--ok)';
+        $("feltItSuccess").style.display = 'block';
+        setTimeout(() => closeModal("modalFeltIt"), 2000);
+    } catch(err) {
+        $("feltItSuccess").textContent = "❌ Failed to submit report. Please try again.";
+        $("feltItSuccess").style.color = 'var(--hot)';
+        $("feltItSuccess").style.borderColor = 'var(--hot)';
+        $("feltItSuccess").style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = "Submit Public Report";
+    }
+}
+
+async function handleDispatchSubscribe(e) {
+  e.preventDefault();
+  const btn = $("footerSubBtn");
+  const email = $("footerSubEmail").value.trim();
+  if (!email) return;
+
+  btn.innerText = "SAVING...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON,
+        "Authorization": `Bearer ${SUPABASE_ANON}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({ email: email, source: "watch.html", consent: true })
+    });
+    
+    if (!res.ok) {
+        if (res.status === 409) { throw new Error("Already subscribed"); }
+        throw new Error("Connection failed");
+    }
+    
+    btn.innerText = "SUBSCRIBED ✓";
+    btn.style.background = "var(--ok)";
+    $("footerSubNotice").innerText = "✓ Intelligence dispatches are active.";
+    $("footerSubNotice").style.display = "block";
+    $("footerSubNotice").style.background = "rgba(16, 185, 129, 0.12)";
+    $("footerSubNotice").style.border = "1px solid var(--ok)";
+    $("footerSubNotice").style.color = "var(--ok)";
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerText = "TRY AGAIN";
+    $("footerSubNotice").innerText = err.message === "Already subscribed" ? "You are already subscribed to this dispatch." : "❌ Connection failed. Please try again.";
+    $("footerSubNotice").style.display = "block";
+    $("footerSubNotice").style.background = "rgba(239, 68, 68, 0.12)";
+    $("footerSubNotice").style.border = "1px solid var(--hot)";
+    $("footerSubNotice").style.color = "var(--hot)";
+  }
+}
+
+// Event Delegation for dynamically rendered Feed Lists (Prevents inline onclick XSS)
+$("feedList").addEventListener("click", function(e) {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    
+    if (btn.dataset.action === "scan") {
+        scanInfrastructure(btn.dataset.id, parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lon));
+    } else if (btn.dataset.action === "report") {
+        openFeltItForm(btn.dataset.id);
+    } else if (btn.dataset.action === "map") {
+        focusMap(parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lon));
+    }
+});
 
 let userLat = null, userLon = null, userCity = "Detecting...";
 let climateUnit = "C";
-let climateState = { curTempC: null, weatherCode: null, forecastDaily: [] };
+let climateState = { curTempC: null, weatherCode: null, forecastDaily: [], utcOffset: 0 };
 
 function toUnit(celsius) {
   if (celsius === null || isNaN(celsius)) return "--";
@@ -287,10 +415,23 @@ function weatherCodeToGlyph(code) {
   if (code <= 67) return { icon: "🌧️", text: "Rain" };
   if (code <= 77) return { icon: "❄️", text: "Snow" };
   if (code <= 82) return { icon: "🌧️", text: "Heavy Showers" };
-  return { icon: "⛈️", text: "Thunderstorm" };
+  if (code <= 86) return { icon: "❄️", text: "Snow Showers" };
+  if (code >= 95) return { icon: "⛈️", text: "Thunderstorm" };
+  return { icon: "☁️", text: "Overcast" };
 }
 
 async function initUserLocation() {
+  try {
+      const cached = localStorage.getItem('brink_loc');
+      if (cached) {
+          const c = JSON.parse(cached);
+          if (Date.now() - c.time < 86400000) {
+              loadClimateEngine(c.lat, c.lon, c.city);
+              return;
+          }
+      }
+  } catch(e) { console.warn("Local storage unavailable."); }
+
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       async pos => {
@@ -299,7 +440,11 @@ async function initUserLocation() {
           const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
           const d = await rev.json();
           const city = d.address?.city || d.address?.town || d.address?.suburb || d.address?.district || "Local Site";
-          loadClimateEngine(lat, lon, `${city}, ${d.address?.country || ''}`);
+          const fullLabel = `${city}, ${d.address?.country || ''}`;
+          
+          try { localStorage.setItem('brink_loc', JSON.stringify({lat, lon, city: fullLabel, time: Date.now()})); } catch(e){}
+          
+          loadClimateEngine(lat, lon, fullLabel);
         } catch(e) { loadClimateEngine(lat, lon, `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`); }
       },
       () => loadClimateEngine(18.5204, 73.8567, "Pune, Maharashtra"), { timeout: 4000 }
@@ -311,39 +456,69 @@ async function loadClimateEngine(lat, lon, label) {
   userLat = lat; userLon = lon; userCity = label;
   $("userLocationBadge").textContent = `📍 ${label}`;
 
-  try {
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&hourly=apparent_temperature,precipitation_probability,precipitation,wind_gusts_10m,uv_index&forecast_days=5&timezone=auto`);
-    const aqiRes = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=us_aqi&timezone=auto`);
-    
-    if (res.ok) {
-      const fd = await res.json();
+  const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&hourly=apparent_temperature,precipitation,wind_gusts_10m,uv_index&forecast_days=5&timeformat=unixtime&timezone=auto`;
+  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=us_aqi&timeformat=unixtime&timezone=auto`;
+  const hydroUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum&past_days=30&forecast_days=1&timeformat=unixtime&timezone=auto`;
+
+  const results = await Promise.allSettled([fetch(forecastUrl), fetch(aqiUrl), fetch(hydroUrl)]);
+  
+  const weatherRes = results[0];
+  const aqiRes = results[1];
+  const hydroRes = results[2];
+
+  if (weatherRes.status === 'fulfilled' && weatherRes.value.ok) {
+      const fd = await weatherRes.value.json();
       climateState.curTempC = fd.current?.temperature_2m;
       climateState.weatherCode = fd.current?.weather_code;
-      climateState.forecastDaily = (fd.daily?.time || []).map((t, idx) => ({ date: t, maxC: fd.daily.temperature_2m_max[idx], minC: fd.daily.temperature_2m_min[idx], code: fd.daily.weather_code[idx] }));
+      climateState.utcOffset = fd.utc_offset_seconds || 0;
       
-      let aqiData = aqiRes.ok ? await aqiRes.json() : null;
+      climateState.forecastDaily = (fd.daily?.time || []).map((t, idx) => ({
+          date: t, maxC: fd.daily.temperature_2m_max[idx], minC: fd.daily.temperature_2m_min[idx], code: fd.daily.weather_code[idx]
+      })).slice(0, 5);
+      
+      let aqiData = null;
+      if (aqiRes.status === 'fulfilled' && aqiRes.value.ok) {
+          aqiData = await aqiRes.value.json();
+      }
+
       evaluateSmartTriggers(fd.hourly, aqiData?.hourly);
-      evaluateHydrology(lat, lon);
-    }
-    renderClimateWidget();
-  } catch(e) {}
+      renderClimateWidget();
+  } else {
+      $("triggerList").innerHTML = `<div class="smart-trigger warn"><div class="trigger-icon">⚠️</div><div><div class="trigger-text-title">Telemetry Unavailable</div><div class="trigger-text-body">Failed to load local atmospheric data.</div></div></div>`;
+  }
+
+  if (hydroRes.status === 'fulfilled' && hydroRes.value.ok) {
+      const hd = await hydroRes.value.json();
+      if (hd.daily && hd.daily.precipitation_sum) {
+          const sum = hd.daily.precipitation_sum.reduce((a, b) => a + (b || 0), 0);
+          $("hydroVal").innerHTML = `${Math.round(sum)} mm`;
+          $("hydroSub").innerHTML = `Total accumulated precipitation over the past 30 days.`;
+      }
+  } else {
+      $("hydroSub").innerHTML = `Hydrology data unavailable.`;
+  }
 }
 
 function evaluateSmartTriggers(hourly, aqiHourly) {
     if (!hourly || !hourly.time) return;
-    const nowIdx = hourly.time.findIndex(t => new Date(t).getTime() >= Date.now() - 3600000);
+    
+    const nowSecs = Math.floor(Date.now() / 1000);
+    const nowIdx = hourly.time.findIndex(t => t >= nowSecs - 3600);
     if (nowIdx === -1) return;
+    
+    // Explicitly align AQI array by timestamp since its length/start may slightly differ
+    const aqiIdx = (aqiHourly && aqiHourly.time) ? aqiHourly.time.findIndex(t => t >= nowSecs - 3600) : -1;
     
     const next12 = {
         app_temp: hourly.apparent_temperature.slice(nowIdx, nowIdx + 12),
         precip: hourly.precipitation.slice(nowIdx, nowIdx + 12),
-        pop: hourly.precipitation_probability.slice(nowIdx, nowIdx + 12),
         gusts: hourly.wind_gusts_10m.slice(nowIdx, nowIdx + 12),
         uv: hourly.uv_index.slice(nowIdx, nowIdx + 12),
-        aqi: aqiHourly ? aqiHourly.us_aqi.slice(nowIdx, nowIdx + 12) : Array(12).fill(0)
+        aqi: aqiIdx !== -1 ? aqiHourly.us_aqi.slice(aqiIdx, aqiIdx + 12) : []
     };
 
-    let maxAQI = Math.max(...next12.aqi);
+    const validAqi = next12.aqi.filter(v => v !== null);
+    let maxAQI = validAqi.length ? Math.max(...validAqi) : null;
     let maxTemp = Math.max(...next12.app_temp);
     let minTemp = Math.min(...next12.app_temp);
     let maxPrecip = Math.max(...next12.precip);
@@ -352,43 +527,28 @@ function evaluateSmartTriggers(hourly, aqiHourly) {
 
     let html = "";
     
-    // AIR QUALITY TIER
-    if (maxAQI > 200) html += `<div class="smart-trigger danger"><div class="trigger-icon">☣️</div><div><div class="trigger-text-title">Severe Atmospheric Toxicity</div><div class="trigger-text-body">Stay indoors, seal windows. N95 masks mandatory if transit is unavoidable. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
-    else if (maxAQI > 100) html += `<div class="smart-trigger warn"><div class="trigger-icon">🌫️</div><div><div class="trigger-text-title">Elevated Particulates</div><div class="trigger-text-body">Sensitive groups should mask up; limit heavy outdoor exertion. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
-    else html += `<div class="smart-trigger good"><div class="trigger-icon">🍃</div><div><div class="trigger-text-title">Optimal Air Quality</div><div class="trigger-text-body">Crisp air. Ideal conditions for outdoor cardio, yoga, or pranayam.</div></div></div>`;
+    if (maxAQI === null) {
+        html += `<div class="smart-trigger warn"><div class="trigger-icon">🌫️</div><div><div class="trigger-text-title">AQI Unavailable</div><div class="trigger-text-body">Air quality sensor data is currently offline.</div></div></div>`;
+    } else if (maxAQI > 200) {
+        html += `<div class="smart-trigger danger"><div class="trigger-icon">☣️</div><div><div class="trigger-text-title">Hazardous Air Quality</div><div class="trigger-text-body">Avoid outdoor exertion. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
+    } else if (maxAQI > 100) {
+        html += `<div class="smart-trigger warn"><div class="trigger-icon">🌫️</div><div><div class="trigger-text-title">Unhealthy for Sensitive Groups</div><div class="trigger-text-body">Reduce prolonged outdoor exertion. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
+    } else if (maxAQI > 50) {
+        html += `<div class="smart-trigger good"><div class="trigger-icon">☁️</div><div><div class="trigger-text-title">Moderate Air Quality</div><div class="trigger-text-body">Acceptable baseline conditions. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
+    } else {
+        html += `<div class="smart-trigger good"><div class="trigger-icon">🍃</div><div><div class="trigger-text-title">Good Air Quality</div><div class="trigger-text-body">Optimal conditions for outdoor activity. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
+    }
 
-    // THERMAL / KINETIC TIER
-    if (maxGust > 50 && maxPrecip > 0) html += `<div class="smart-trigger danger"><div class="trigger-icon">⚠️</div><div><div class="trigger-text-title">Approaching Squall</div><div class="trigger-text-body">Heavy gusts (${Math.round(maxGust)}km/h) and precipitation expected. Waterproof gear required. Do not use an umbrella.</div></div></div>`;
+    if (maxGust > 50 && maxPrecip > 0) html += `<div class="smart-trigger danger"><div class="trigger-icon">⚠️</div><div><div class="trigger-text-title">Approaching Squall</div><div class="trigger-text-body">Heavy gusts (${Math.round(maxGust)}km/h) and precipitation expected.</div></div></div>`;
     else if (maxPrecip > 4) html += `<div class="smart-trigger warn"><div class="trigger-icon">🌧️</div><div><div class="trigger-text-title">Heavy Precipitation</div><div class="trigger-text-body">Raincoat and waterproof shoes recommended.</div></div></div>`;
-    else if (maxTemp >= 38) html += `<div class="smart-trigger danger"><div class="trigger-icon">🔥</div><div><div class="trigger-text-title">Extreme Thermal Stress</div><div class="trigger-text-body">Feels-like temps hitting ${Math.round(maxTemp)}°C. Lethal exposure risk; halt midday outdoor labor.</div></div></div>`;
-    else if (maxTemp >= 32) html += `<div class="smart-trigger warn"><div class="trigger-icon">🥵</div><div><div class="trigger-text-title">Elevated Heat</div><div class="trigger-text-body">Stay hydrated, wear light clothes, avoid midday sun.</div></div></div>`;
-    else if (minTemp <= 8) html += `<div class="smart-trigger warn"><div class="trigger-icon">🥶</div><div><div class="trigger-text-title">Severe Cold</div><div class="trigger-text-body">Extreme thermal deficit (${Math.round(minTemp)}°C). Heavy winter gear required.</div></div></div>`;
+    
+    if (maxTemp >= 38) html += `<div class="smart-trigger danger"><div class="trigger-icon">🔥</div><div><div class="trigger-text-title">Extreme Heat</div><div class="trigger-text-body">Feels-like temps hitting ${toUnit(maxTemp)}°. High thermal stress risk.</div></div></div>`;
+    else if (maxTemp >= 32) html += `<div class="smart-trigger warn"><div class="trigger-icon">🥵</div><div><div class="trigger-text-title">Elevated Heat</div><div class="trigger-text-body">Stay hydrated, avoid prolonged midday sun.</div></div></div>`;
+    else if (minTemp <= 8) html += `<div class="smart-trigger warn"><div class="trigger-icon">🥶</div><div><div class="trigger-text-title">Chilly Conditions</div><div class="trigger-text-body">Cold expected (${toUnit(minTemp)}°). Jacket recommended.</div></div></div>`;
 
-    if (maxUV >= 8) html += `<div class="smart-trigger danger"><div class="trigger-icon">☀️</div><div><div class="trigger-text-title">Extreme Solar Radiation</div><div class="trigger-text-body">UV Index critical. Cap, sunscreen, and shade mandatory.</div></div></div>`;
+    if (maxUV >= 8) html += `<div class="smart-trigger danger"><div class="trigger-icon">☀️</div><div><div class="trigger-text-title">High Solar Radiation</div><div class="trigger-text-body">UV Index high. Sun protection recommended.</div></div></div>`;
 
     $("triggerList").innerHTML = html || `<div class="smart-trigger good"><div class="trigger-icon">✓</div><div><div class="trigger-text-title">Nominal Conditions</div><div class="trigger-text-body">No severe thermal or kinetic anomalies detected in the next 12 hours.</div></div></div>`;
-}
-
-async function evaluateHydrology(lat, lon) {
-    // Look back 30 days
-    const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 30);
-    const sd = start.toISOString().split('T')[0]; const ed = end.toISOString().split('T')[0];
-    try {
-        const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${sd}&end_date=${ed}&daily=precipitation_sum&timezone=auto`);
-        if (res.ok) {
-            const data = await res.json();
-            const total = data.daily.precipitation_sum.reduce((a, b) => a + (b||0), 0);
-            $("hydroVal").innerHTML = `${Math.round(total)} mm <span style="font-size:0.8rem; font-weight:500; color:var(--muted)">Past 30 Days</span>`;
-            
-            if (total < 15) {
-                $("hydroSub").innerHTML = `<strong style="color:var(--warn)">Drought / Deficit:</strong> Precipitation significantly below baseline. High wildfire vulnerability.`;
-            } else if (total > 300) {
-                $("hydroSub").innerHTML = `<strong style="color:var(--hot)">Soil Saturation / Flood Risk:</strong> Extreme accumulation. High vulnerability for cloudbursts and landslides.`;
-            } else {
-                $("hydroSub").innerHTML = `<strong style="color:var(--ok)">Stable Baseline:</strong> Soil moisture within expected seasonal variance.`;
-            }
-        }
-    } catch(e) {}
 }
 
 function renderClimateWidget() {
@@ -397,7 +557,8 @@ function renderClimateWidget() {
   $("userWeatherDesc").textContent = weatherCodeToGlyph(climateState.weatherCode).text;
   if (climateState.forecastDaily.length > 0) {
     $("forecastStrip").innerHTML = climateState.forecastDaily.map((f, i) => {
-      const dayName = i === 0 ? "Today" : new Date(f.date).toLocaleDateString("en-US", { weekday: "short" });
+      // Map correctly to UTC to avoid Indian midnight shift bug
+      const dayName = i === 0 ? "Today" : new Date((f.date + climateState.utcOffset) * 1000).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
       const g = weatherCodeToGlyph(f.code);
       return `<div class="f-card"><div class="f-day">${dayName}</div><div class="f-glyph">${g.icon}</div><div class="f-temp">${toUnit(f.maxC)}°<span style="font-size:9.5px;color:var(--muted)">/${toUnit(f.minC)}°</span></div></div>`;
     }).join("");
@@ -409,85 +570,108 @@ $("btnChangeCity").addEventListener("click", () => {
   if (!manual || !manual.trim()) return;
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(manual.trim())}&limit=1`)
     .then(r => r.json())
-    .then(p => { if (p && p[0]) loadClimateEngine(parseFloat(p[0].lat), parseFloat(p[0].lon), p[0].display_name.split(",").slice(0, 2).join(",")); });
+    .then(p => { 
+        if (p && p[0]) {
+            const fullLabel = p[0].display_name.split(",").slice(0, 2).join(",");
+            try { localStorage.setItem('brink_loc', JSON.stringify({lat: parseFloat(p[0].lat), lon: parseFloat(p[0].lon), city: fullLabel, time: Date.now()})); } catch(e){}
+            loadClimateEngine(parseFloat(p[0].lat), parseFloat(p[0].lon), fullLabel); 
+        }
+    });
 });
 
 let map, baseMarkerLayer;
 function initMap(){
   if(map) return;
-  const esriStreets = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19 });
-  const hillshade = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}", { maxNativeZoom: 8, maxZoom: 19, opacity: 0.18 });
-  map = L.map("map", { center: [20, 0], zoom: 2, scrollWheelZoom: false, attributionControl: false, layers: [esriStreets, hillshade] });
+  const esriStreets = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" });
+  const hillshade = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}", { maxNativeZoom: 8, maxZoom: 19, opacity: 0.18, attribution: "Tiles &copy; Esri" });
+  map = L.map("map", { center: [20, 0], zoom: 2, scrollWheelZoom: false, layers: [esriStreets, hillshade], attributionControl: false });
+  
+  L.control.attribution({ prefix: false }).addAttribution("&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors").addTo(map);
   baseMarkerLayer = L.layerGroup().addTo(map);
 }
 
 let ALL_EVENTS = [];
 let currentFilter = 'watch';
+let lastFetchHash = '';
 
-function formatTimeElapsed(isoStr) {
-  if (!isoStr) return { elapsed: "Recent", dateStr: "Undated" };
+function formatTimeElapsed(isoStr, updatedStr) {
+  if (!isoStr) return { elapsed: "Recent", dateStr: "Undated", updatedElapsed: "" };
   const d = new Date(isoStr);
   const diffSec = Math.floor((new Date() - d) / 1000);
   let elapsed = diffSec < 3600 ? `${Math.floor(diffSec / 60)}m ago` : (diffSec < 86400 ? `${Math.floor(diffSec / 3600)}h ago` : `${Math.floor(diffSec / 86400)}d ago`);
-  return { elapsed, dateStr: d.toLocaleDateString("en-US", {month:"short", day:"numeric", year:"numeric"}) };
+  
+  let updatedElapsed = "Recently";
+  if (updatedStr) {
+      const uDiff = Math.floor((new Date() - new Date(updatedStr)) / 1000);
+      updatedElapsed = uDiff < 3600 ? `${Math.floor(uDiff / 60)}m ago` : `${Math.floor(uDiff / 3600)}h ago`;
+  }
+  
+  return { elapsed, dateStr: d.toLocaleDateString("en-US", {month:"short", day:"numeric", year:"numeric"}), updatedElapsed };
 }
 
 async function fetchLiveHazards() {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/live_hazards?select=*`, { headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}` } });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/live_hazards?select=*&order=observed_at.desc&limit=300`, { headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}` } });
     if (!res.ok) return;
     const hazards = await res.json();
     
-    ALL_EVENTS = hazards.map(h => {
+    // Hash incorporates precise severity and update timestamps to prevent destructive re-rendering while staying live
+    const newHash = hazards.map(h => `${h.id}_${h.updated_at}_${h.wind_kts}_${h.intensity}`).sort().join();
+    if (newHash === lastFetchHash && ALL_EVENTS.length > 0) return; 
+    lastFetchHash = newHash;
+
+    ALL_EVENTS = [];
+    hazards.forEach(h => {
+      // Guard against bad coordinates
+      if (h.latitude === null || h.longitude === null || isNaN(h.latitude) || isNaN(h.longitude)) return;
+      
       const cat = (h.category || '').toLowerCase();
       let type = "other"; let severity = h.alert_level || "Monitoring"; let headline = h.name; let metric = "";
       
+      let mag = 0; let wind = parseFloat(h.wind_kts) || 0;
+      
       if (cat.includes('quake') || cat === 'eq') {
           type = "quake";
-          let mag = parseFloat(h.intensity.replace('Magnitude ', '')) || 0;
-          headline = `⚡ Magnitude ${mag.toFixed(1)}: ${h.name}`; metric = `Magnitude ${mag.toFixed(1)}`;
+          if (h.intensity && typeof h.intensity === 'string') { mag = parseFloat(h.intensity.replace('Magnitude ', '')) || 0; }
+          headline = `⚡ Magnitude ${mag.toFixed(1)}: ${headline}`; metric = `Magnitude ${mag.toFixed(1)}`;
       } else if (cat.includes('volcano') || cat === 'vo') {
-          type = "volcano"; headline = `🌋 ${h.name}`; metric = `Status: ${severity}`;
+          type = "volcano"; headline = `🌋 ${headline}`; metric = `Status: ${severity}`;
       } else if (cat.includes('storm') || cat.includes('cyclon') || cat === 'tc') {
-          type = "storm"; headline = `🌀 ${h.name}`; metric = h.wind_kts ? `Winds: ${h.wind_kts} kts` : "Active cyclone";
+          type = "storm"; headline = `🌀 ${headline}`; metric = wind ? `Winds: ${wind} kts` : "Active cyclone";
       } else if (cat.includes('fire')) {
-          type = "wildfire"; headline = `🔥 Wildfire: ${h.name}`; metric = `Status: Active`;
+          type = "wildfire"; headline = `🔥 Wildfire: ${headline}`; metric = `Status: Active`;
       } else if (cat.includes('flood')) {
-          type = "flood"; headline = `🌊 Flood Warning: ${h.name}`; metric = `Status: Active`;
+          type = "flood"; headline = `🌊 Flood Warning: ${headline}`; metric = `Status: Active`;
       } else if (cat.includes('drought') || cat.includes('heat')) {
-          type = "extreme"; headline = `🌡️ Extreme Condition: ${h.name}`; metric = `Status: ${severity}`;
+          type = "extreme"; headline = `🌡️ Extreme Condition: ${headline}`; metric = `Status: ${severity}`;
       }
 
-      // Placeholder for Phase 2 Trend Engine
-      let trendHTML = `<span class="fc-trend steady">→ Steady</span>`;
-      if (type === 'storm' && h.wind_kts > 60) trendHTML = `<span class="fc-trend worse">↑ Intensifying</span>`;
-
-      return { id: h.id, type: type, headline: headline, severity: severity, lat: h.latitude, lon: h.longitude, source: h.source, time: h.observed_at, metric: metric, trendHTML: trendHTML };
+      ALL_EVENTS.push({ id: h.id, type: type, headline: headline, severity: severity, lat: parseFloat(h.latitude), lon: parseFloat(h.longitude), source: h.source, time: h.observed_at, updated_at: h.updated_at, metric: metric, wind: wind, mag: mag });
     });
 
     ALL_EVENTS.sort((a, b) => new Date(b.time) - new Date(a.time));
     updateTiles(); setFeedFilter(currentFilter); renderMap();
-  } catch(e) {}
+  } catch(e) { console.error(e); }
 }
 
 function updateTiles() {
     let escalate = 0, alert = 0, storms = 0, quakes = 0, volcanoes = 0;
+    const nowMs = Date.now();
+
     ALL_EVENTS.forEach(e => {
         if (e.type === 'storm' || e.type === 'flood') storms++;
-        if (e.type === 'volcano' || e.type === 'wildfire') volcanoes++;
+        if (e.type === 'volcano' || e.type === 'wildfire' || e.type === 'extreme') volcanoes++;
         if (e.type === 'quake') {
-            quakes++;
-            let mag = parseFloat(e.metric.replace('Magnitude ', ''));
-            if (mag >= 6.0) escalate++; else if (mag >= 5.0) alert++;
+            if (nowMs - new Date(e.time).getTime() <= 86400000) quakes++;
+            if (e.mag >= 6.0) escalate++; else if (e.mag >= 5.0) alert++;
         }
-        if (e.type === 'storm' && e.metric.includes('kts')) {
-            let wind = parseInt(e.metric.split(':')[1]);
-            if (wind >= 96) escalate++; else if (wind >= 64) alert++;
+        if (e.type === 'storm') {
+            if (e.wind >= 96) escalate++; else if (e.wind >= 64) alert++;
         }
     });
 
-    $("c-escalate").textContent = escalate; $("sub-escalate").textContent = escalate > 0 ? "Events intensifying in the last 6 hours" : "No deteriorating systems right now.";
-    $("c-alert").textContent = alert; $("sub-alert").textContent = alert > 0 ? "Events above the danger threshold now" : "No critical danger alerts right now.";
+    $("c-escalate").textContent = escalate; $("sub-escalate").textContent = escalate > 0 ? "Events meeting maximum danger thresholds" : "No severe events right now.";
+    $("c-alert").textContent = alert; $("sub-alert").textContent = alert > 0 ? "Events above the elevated danger threshold" : "No elevated danger alerts right now.";
     $("c-storms").textContent = storms; $("sub-storms").textContent = storms > 0 ? "Cyclones and severe hydrology events tracked" : "No active storms right now.";
     $("c-quakes").textContent = quakes; $("sub-quakes").textContent = quakes > 0 ? "Felt or damaging shaking in the last 24 hours" : "No significant tremors right now.";
     $("c-volcanoes").textContent = volcanoes; $("sub-volcanoes").textContent = volcanoes > 0 ? "Thermal anomalies and raised alerts" : "All volcanoes at background levels.";
@@ -500,22 +684,23 @@ function setFeedFilter(filterType) {
     let filtered = [], titleStr = "";
 
     if (filterType === 'escalate') {
-        $("btnFilterEscalate").classList.add('active'); titleStr = "Getting Worse";
-        filtered = ALL_EVENTS.filter(e => (e.type === 'quake' && parseFloat(e.metric.replace('Magnitude ', '')) >= 6.0) || (e.type === 'storm' && e.metric.includes('kts') && parseInt(e.metric.split(':')[1]) >= 96));
+        $("btnFilterEscalate").classList.add('active'); titleStr = "Severe Events";
+        filtered = ALL_EVENTS.filter(e => (e.type === 'quake' && e.mag >= 6.0) || (e.type === 'storm' && e.wind >= 96));
     } else if (filterType === 'alert') {
         $("btnFilterAlert").classList.add('active'); titleStr = "Needs Attention";
-        filtered = ALL_EVENTS.filter(e => (e.type === 'quake' && parseFloat(e.metric.replace('Magnitude ', '')) >= 5.0 && parseFloat(e.metric.replace('Magnitude ', '')) < 6.0) || (e.type === 'storm' && e.metric.includes('kts') && parseInt(e.metric.split(':')[1]) >= 64 && parseInt(e.metric.split(':')[1]) < 96));
+        filtered = ALL_EVENTS.filter(e => (e.type === 'quake' && e.mag >= 5.0 && e.mag < 6.0) || (e.type === 'storm' && e.wind >= 64 && e.wind < 96));
     } else if (filterType === 'storms') {
         $("btnFilterStorms").classList.add('active'); titleStr = "Active Storms & Floods";
         filtered = ALL_EVENTS.filter(e => e.type === 'storm' || e.type === 'flood');
     } else if (filterType === 'quakes') {
         $("btnFilterQuakes").classList.add('active'); titleStr = "Recent Quakes";
-        filtered = ALL_EVENTS.filter(e => e.type === 'quake');
+        const nowMs = Date.now();
+        filtered = ALL_EVENTS.filter(e => e.type === 'quake' && (nowMs - new Date(e.time).getTime() <= 86400000));
     } else if (filterType === 'volcanoes') {
         $("btnFilterVolcanoes").classList.add('active'); titleStr = "Volcanoes & Wildfires";
         filtered = ALL_EVENTS.filter(e => e.type === 'volcano' || e.type === 'wildfire' || e.type === 'extreme');
     } else {
-        $("btnFilterWatch").classList.add('active'); titleStr = "Active Monitoring (All Hazards)";
+        $("btnFilterWatch").classList.add('active'); titleStr = "All Tracked Events";
         filtered = ALL_EVENTS;
     }
     $("feedTitle").textContent = titleStr; renderFeed(filtered);
@@ -526,7 +711,7 @@ function renderFeed(events) {
     if (events.length === 0) { list.innerHTML = `<div style="color:var(--ok); padding:10px; font-weight:700;">✓ No active events match this filter. Baseline is nominal.</div>`; return; }
 
     list.innerHTML = events.map(e => {
-        const t = formatTimeElapsed(e.time);
+        const t = formatTimeElapsed(e.time, e.updated_at);
         let borderCol = "var(--line)";
         if (e.type === 'storm' || e.type === 'flood') borderCol = "var(--accent)";
         if (e.type === 'volcano' || e.type === 'wildfire' || e.type === 'extreme') borderCol = "var(--hot)";
@@ -536,31 +721,62 @@ function renderFeed(events) {
         <div class="feed-card" style="border-left: 3px solid ${borderCol};">
             <div class="feed-card-main">
                 <div class="fc-head">
-                    <div class="fc-title">${e.headline} ${e.trendHTML}</div>
+                    <div class="fc-title">${escapeHTML(e.headline)}</div>
                     <div style="display:flex; gap:8px;">
-                        <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="focusMap(${e.lat}, ${e.lon})">Map ↗</button>
-                        <button class="btn btn-primary" style="padding:4px 8px; font-size:11px;" onclick="openFeltItForm('${e.id}')">Report</button>
+                        <button class="btn" style="padding:4px 8px; font-size:11px;" data-action="map" data-lat="${e.lat}" data-lon="${e.lon}">Map ↗</button>
+                        <button class="btn btn-primary" style="padding:4px 8px; font-size:11px;" data-action="report" data-id="${escapeHTML(e.id)}">Report</button>
                     </div>
                 </div>
                 <div class="fc-grid">
-                    <div class="fc-row"><strong>Started:</strong> ${t.dateStr} (${t.elapsed})</div>
-                    <div class="fc-row"><strong>Right now:</strong> ${e.lat.toFixed(2)}°, ${e.lon.toFixed(2)}° · ${e.metric}</div>
-                    <div class="fc-row"><strong>People in path:</strong> <span style="color:var(--warn)">Evaluating forecast...</span></div>
+                    <div class="fc-row"><strong>Started:</strong> ${escapeHTML(t.dateStr)} (${escapeHTML(t.elapsed)})</div>
+                    <div class="fc-row"><strong>Right now:</strong> ${e.lat.toFixed(2)}°, ${e.lon.toFixed(2)}° · ${escapeHTML(e.metric)}</div>
                 </div>
-                <div class="fc-chips">
-                    <div class="f-chip">Airports <strong>(Evaluating)</strong></div>
-                    <div class="f-chip">Ports <strong>(Evaluating)</strong></div>
-                    <div class="f-chip">Highways <strong>(Evaluating)</strong></div>
-                    <div class="f-chip">Hospitals <strong>(Evaluating)</strong></div>
+                <div class="fc-chips" id="infra-chips-${escapeHTML(e.id)}">
+                    <button class="btn" style="padding:4px 10px; font-size:11px; border-color:var(--accent); color:var(--accent);" data-action="scan" data-id="${escapeHTML(e.id)}" data-lat="${e.lat}" data-lon="${e.lon}">Scan 50km Infrastructure Impact ↗</button>
                 </div>
             </div>
             <div class="fc-footer">
-                <span><strong>Source:</strong> ${e.source}</span>
-                <span><strong>Updated:</strong> Just now</span>
-                <span style="color:var(--ok)"><strong>Confidence:</strong> High (Verified Telemetry)</span>
+                <span><strong>Source:</strong> ${escapeHTML(e.source)}</span>
+                <span><strong>Updated:</strong> ${escapeHTML(t.updatedElapsed)}</span>
             </div>
         </div>`;
     }).join("");
+}
+
+async function scanInfrastructure(id, lat, lon) {
+    const container = document.getElementById(`infra-chips-${id}`);
+    if(!container) return;
+    
+    container.innerHTML = `<span class="mono" style="color:var(--gold); font-size:11.5px; font-weight:700;">📡 Scanning 50km radius via Overpass API...</span>`;
+
+    const query = `[out:json][timeout:15];(nwr["aeroway"="aerodrome"](around:50000,${lat},${lon});nwr["amenity"="hospital"](around:50000,${lat},${lon});nwr["harbour"="yes"](around:50000,${lat},${lon}););out center;`;
+
+    try {
+        const res = await fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: query });
+        if (!res.ok) throw new Error("API Congestion");
+        
+        const data = await res.json();
+        let airports = 0, hospitals = 0, ports = 0;
+        
+        if (data.elements) {
+            data.elements.forEach(e => {
+                if (e.tags.aeroway === 'aerodrome') airports++;
+                if (e.tags.amenity === 'hospital') hospitals++;
+                if (e.tags.harbour === 'yes') ports++;
+            });
+        }
+
+        container.innerHTML = `
+            <div class="f-chip">Airports <strong>${airports}</strong></div>
+            <div class="f-chip">Ports <strong>${ports}</strong></div>
+            <div class="f-chip">Hospitals <strong>${hospitals}</strong></div>
+            <div class="f-chip" style="border-color:var(--ok); color:var(--ok);">✓ Scan Complete</div>
+            <div style="width:100%; font-size:10.5px; color:var(--muted); margin-top:4px;">(Note: Low counts may reflect sparse <a href="https://www.openstreetmap.org/copyright" style="color:var(--muted); text-decoration:underline;" target="_blank">OpenStreetMap</a> coverage in this region).</div>
+        `;
+    } catch (err) {
+        const safeId = escapeHTML(id);
+        container.innerHTML = `<button class="btn" style="padding:4px 10px; font-size:11px; border-color:var(--hot); color:var(--hot);" data-action="scan" data-id="${safeId}" data-lat="${lat}" data-lon="${lon}">Scan Failed. Retry ↻</button>`;
+    }
 }
 
 function renderMap() {
@@ -572,11 +788,12 @@ function renderMap() {
         if (e.type === 'volcano') { html = '🌋'; pinClass += " pin-volcano"; size = 22; }
         if (e.type === 'wildfire') { html = '🔥'; pinClass += " pin-wildfire"; size = 22; }
         if (e.type === 'flood') { html = '🌊'; pinClass += " pin-flood"; size = 22; }
+        if (e.type === 'extreme') { html = '🌡️'; pinClass += " pin-extreme"; size = 22; }
 
-        if (e.headline.includes("Category 4") || e.headline.includes("Category 5") || (e.type==='quake' && parseFloat(e.metric.replace('Magnitude ', '')) >= 6.0)) { pinClass += " pulse-priority"; size += 4; }
+        if (e.mag >= 6.0 || e.wind >= 96) { pinClass += " pulse-priority"; size += 4; }
         if (html) {
            const icon = L.divIcon({ className: pinClass, html: html, iconSize: [size, size], iconAnchor: [size/2, size/2] });
-           L.marker([e.lat, e.lon], { icon }).bindPopup(`<strong>${e.headline}</strong><br/>${e.metric}`).addTo(baseMarkerLayer);
+           L.marker([e.lat, e.lon], { icon }).bindPopup(`<strong>${escapeHTML(e.headline)}</strong><br/>${escapeHTML(e.metric)}`).addTo(baseMarkerLayer);
         }
     });
 }
