@@ -264,6 +264,13 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+// =======================================================================
+// CONFIGURATION
+// To get professional Air Quality from local ground stations (instead of global models),
+// get a free API key at https://openaq.org and paste it here:
+const OPENAQ_API_KEY = ""; 
+// =======================================================================
+
 const SUPABASE_URL = "https://jxapuzsgyoetrpnmohct.supabase.co";
 const SUPABASE_ANON = "sb_publishable_VLQoHAEpKndcjxO3BLRQuw_7UFA3orI";
 const $ = id => document.getElementById(id);
@@ -306,15 +313,9 @@ async function submitFeltIt(e) {
     try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/community_reports`, {
             method: "POST",
-            headers: {
-                "apikey": SUPABASE_ANON,
-                "Authorization": `Bearer ${SUPABASE_ANON}`,
-                "Content-Type": "application/json",
-                "Prefer": "return=minimal"
-            },
+            headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
             body: JSON.stringify(payload)
         });
-        
         if (!res.ok) throw new Error("Submission failed");
         
         $("feltItSuccess").textContent = "✓ Report saved successfully. Thank you.";
@@ -344,17 +345,12 @@ async function handleDispatchSubscribe(e) {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
       method: "POST",
-      headers: {
-        "apikey": SUPABASE_ANON,
-        "Authorization": `Bearer ${SUPABASE_ANON}`,
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-      },
+      headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
       body: JSON.stringify({ email: email, source: "watch.html", consent: true })
     });
     
     if (!res.ok) {
-        if (res.status === 409) { throw new Error("Already subscribed"); }
+        if (res.status === 409) throw new Error("Already subscribed");
         throw new Error("Connection failed");
     }
     
@@ -376,17 +372,13 @@ async function handleDispatchSubscribe(e) {
   }
 }
 
+// Event Delegation
 $("feedList").addEventListener("click", function(e) {
     const btn = e.target.closest("button");
     if (!btn) return;
-    
-    if (btn.dataset.action === "scan") {
-        scanInfrastructure(btn.dataset.id, parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lon));
-    } else if (btn.dataset.action === "report") {
-        openFeltItForm(btn.dataset.id);
-    } else if (btn.dataset.action === "map") {
-        focusMap(parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lon));
-    }
+    if (btn.dataset.action === "scan") scanInfrastructure(btn.dataset.id, parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lon));
+    else if (btn.dataset.action === "report") openFeltItForm(btn.dataset.id);
+    else if (btn.dataset.action === "map") focusMap(parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lon));
 });
 
 let climateUnit = "C";
@@ -417,10 +409,7 @@ async function initUserLocation() {
       const cached = localStorage.getItem('brink_loc');
       if (cached) {
           const c = JSON.parse(cached);
-          if (Date.now() - c.time < 86400000) {
-              loadClimateEngine(c.lat, c.lon, c.city);
-              return;
-          }
+          if (Date.now() - c.time < 86400000) { loadClimateEngine(c.lat, c.lon, c.city); return; }
       }
   } catch(e) {}
 
@@ -431,33 +420,43 @@ async function initUserLocation() {
         try {
           const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
           const d = await rev.json();
-          const city = d.address?.city || d.address?.town || d.address?.suburb || d.address?.district || "Local Site";
-          const fullLabel = `${city}, ${d.address?.country || ''}`;
-          
+          const fullLabel = `${d.address?.city || d.address?.town || d.address?.suburb || d.address?.district || "Local Site"}, ${d.address?.country || ''}`;
           try { localStorage.setItem('brink_loc', JSON.stringify({lat, lon, city: fullLabel, time: Date.now()})); } catch(e){}
-          
           loadClimateEngine(lat, lon, fullLabel);
         } catch(e) { loadClimateEngine(lat, lon, `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`); }
       },
-      () => loadClimateEngine(18.5308, 73.8475, "Pune, Maharashtra"), { timeout: 4000 } // Defaulted near Bhare/Pune
+      () => loadClimateEngine(18.5308, 73.8475, "Pune, Maharashtra"), { timeout: 4000 }
     );
   } else { loadClimateEngine(18.5308, 73.8475, "Pune, Maharashtra"); }
 }
 
-async function fetchOpenAQ(lat, lon) {
+async function fetchLocalAirQuality(lat, lon) {
+    // 1. Try OpenAQ Ground Sensors (if API key provided)
+    if (OPENAQ_API_KEY) {
+        try {
+            const res = await fetch(`https://api.openaq.org/v2/latest?coordinates=${lat},${lon}&radius=50000&parameter=pm25&limit=1&order_by=distance`, { headers: { 'X-API-Key': OPENAQ_API_KEY }});
+            if (res.ok) {
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    const loc = data.results[0];
+                    const pm25m = loc.measurements.find(m => m.parameter === 'pm25');
+                    if (pm25m) return { val: pm25m.value, source: `${loc.location} (${Math.round(loc.distance/1000)}km) · Ground Sensor` };
+                }
+            }
+        } catch(e) {}
+    }
+    
+    // 2. Fallback to WAQI Public API (Demo Token - Heavily Rate Limited)
     try {
-        const res = await fetch(`https://api.openaq.org/v2/latest?coordinates=${lat},${lon}&radius=50000&parameter=pm25&limit=1&order_by=distance`);
+        const res = await fetch(`https://api.waqi.info/feed/geo:${lat};${lon}/?token=demo`);
         if (res.ok) {
             const data = await res.json();
-            if (data.results && data.results.length > 0) {
-                const loc = data.results[0];
-                const pm25m = loc.measurements.find(m => m.parameter === 'pm25');
-                if (pm25m) {
-                    return { val: pm25m.value, source: `${loc.location} (${Math.round(loc.distance/1000)}km) · Ground Sensor` };
-                }
+            if (data.status === "ok" && data.data && data.data.iaqi && data.data.iaqi.pm25) {
+                return { val: data.data.iaqi.pm25.v, source: `${data.data.city.name} · WAQI Sensor` };
             }
         }
     } catch(e) {}
+    
     return null;
 }
 
@@ -465,10 +464,9 @@ async function loadClimateEngine(lat, lon, label) {
   $("userLocationBadge").textContent = `📍 ${label}`;
 
   const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&hourly=apparent_temperature,precipitation,wind_gusts_10m,uv_index&forecast_days=5&timeformat=unixtime&timezone=auto`;
-  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5&timeformat=unixtime&timezone=auto`;
   const hydroUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum&past_days=30&forecast_days=1&timeformat=unixtime&timezone=auto`;
 
-  const results = await Promise.allSettled([fetch(forecastUrl), fetch(aqiUrl), fetch(hydroUrl)]);
+  const results = await Promise.allSettled([fetch(forecastUrl), fetch(hydroUrl)]);
   
   if (results[0].status === 'fulfilled' && results[0].value.ok) {
       const fd = await results[0].value.json();
@@ -480,15 +478,20 @@ async function loadClimateEngine(lat, lon, label) {
           date: t, maxC: fd.daily.temperature_2m_max[idx], minC: fd.daily.temperature_2m_min[idx], code: fd.daily.weather_code[idx]
       })).slice(0, 5);
       
-      // Attempt Ground-Truth OpenAQ first
-      let pm25Data = await fetchOpenAQ(lat, lon);
+      // Attempt Ground-Truth Sensors
+      let pm25Data = await fetchLocalAirQuality(lat, lon);
       
-      // Fallback to CAMS model if ground sensor is missing
-      if (!pm25Data && results[1].status === 'fulfilled' && results[1].value.ok) {
-          const aqiFallback = await results[1].value.json();
-          if (aqiFallback.current && aqiFallback.current.pm2_5 !== null) {
-              pm25Data = { val: aqiFallback.current.pm2_5, source: "CAMS Global Regional Model" };
-          }
+      // Fallback to CAMS model if ground sensors fail or are missing
+      if (!pm25Data) {
+          try {
+              const aqiRes = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5&timeformat=unixtime&timezone=auto`);
+              if (aqiRes.ok) {
+                  const aqiFallback = await aqiRes.json();
+                  if (aqiFallback.current && aqiFallback.current.pm2_5 !== null) {
+                      pm25Data = { val: aqiFallback.current.pm2_5, source: "CAMS Global Regional Model" };
+                  }
+              }
+          } catch(e) {}
       }
 
       evaluateSmartTriggers(fd.hourly, pm25Data);
@@ -497,8 +500,8 @@ async function loadClimateEngine(lat, lon, label) {
       $("triggerList").innerHTML = `<div class="smart-trigger warn"><div class="trigger-icon">⚠️</div><div><div class="trigger-text-title">Telemetry Unavailable</div><div class="trigger-text-body">Failed to load local atmospheric data.</div></div></div>`;
   }
 
-  if (results[2].status === 'fulfilled' && results[2].value.ok) {
-      const hd = await results[2].value.json();
+  if (results[1].status === 'fulfilled' && results[1].value.ok) {
+      const hd = await results[1].value.json();
       if (hd.daily && hd.daily.precipitation_sum) {
           const sum = hd.daily.precipitation_sum.reduce((a, b) => a + (b || 0), 0);
           $("hydroVal").innerHTML = `${Math.round(sum)} mm`;
@@ -598,6 +601,7 @@ function initMap(){
 
 let ALL_EVENTS = [];
 let currentFilter = 'watch';
+let lastFetchHash = '';
 
 function formatTimeElapsed(isoStr, updatedStr) {
   if (!isoStr) return { elapsed: "Recent", dateStr: "Undated", updatedElapsed: "" };
@@ -616,36 +620,72 @@ function formatTimeElapsed(isoStr, updatedStr) {
 
 async function fetchLiveHazards() {
   try {
-    // 1. Fetch exactly computed Database View counts
-    const countRes = await fetch(`${SUPABASE_URL}/rest/v1/dashboard_counts?select=*`, { headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}` } });
-    if (countRes.ok) {
-        const counts = await countRes.json();
-        if (counts && counts.length > 0) {
-            $("c-escalate").textContent = counts[0].escalate_count || 0;
-            $("c-alert").textContent = counts[0].alert_count || 0;
-            $("c-storms").textContent = counts[0].storms_count || 0;
-            $("c-quakes").textContent = counts[0].quakes_count || 0;
-            $("c-volcanoes").textContent = counts[0].volcanoes_count || 0;
-            $("c-extreme").textContent = counts[0].extreme_count || 0;
-        }
-    }
-
-    // 2. Fetch lists for rendering
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/live_hazards?select=*&order=observed_at.desc&limit=800`, { headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}` } });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/live_hazards?select=*&order=observed_at.desc&limit=1000`, { headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}` } });
     if (!res.ok) return;
     const hazards = await res.json();
     
+    const newHash = hazards.map(h => `${h.id}_${h.updated_at}`).sort().join();
+    if (newHash === lastFetchHash && ALL_EVENTS.length > 0) return; 
+    lastFetchHash = newHash;
+
     ALL_EVENTS = hazards.map(h => {
+        const cat = (h.category || '').toLowerCase();
+        let type = "other"; let severity = h.alert_level || "Monitoring"; let headline = h.name; let metric = h.intensity || "";
+        
+        let mag = parseFloat(h.magnitude) || 0; 
+        let wind = parseFloat(h.wind_kts) || 0;
+        
+        // Failsafe in case table schema was not altered
+        if (!mag && (cat.includes('quake') || cat === 'eq') && typeof h.intensity === 'string') {
+            mag = parseFloat(h.intensity.replace('Magnitude ', '')) || 0; 
+        }
+        
+        let computedTier = h.severity_tier;
+        if (!computedTier) {
+            if (mag >= 6.0 || wind >= 96 || severity === 'Extreme' || (cat === 'flood' && severity === 'Red')) computedTier = 'Escalate';
+            else if (mag >= 5.0 || wind >= 64 || severity === 'Severe' || (cat === 'flood' && severity === 'Orange')) computedTier = 'Alert';
+            else computedTier = 'Monitor';
+        }
+
+        if (cat.includes('quake') || cat === 'eq') { type = "quake"; headline = `⚡ Magnitude ${mag.toFixed(1)}: ${h.name}`; metric = `Magnitude ${mag.toFixed(1)}`; } 
+        else if (cat.includes('volcano') || cat === 'vo') { type = "volcano"; headline = `🌋 ${h.name}`; metric = `Status: ${severity}`; } 
+        else if (cat.includes('storm') || cat.includes('cyclon') || cat === 'tc') { type = "storm"; headline = `🌀 ${h.name}`; metric = wind ? `Winds: ${wind} kts` : "Active cyclone"; } 
+        else if (cat.includes('fire') || cat.includes('wildfire')) { type = "wildfire"; headline = `🔥 Wildfire: ${h.name}`; metric = `Status: Active`; } 
+        else if (cat.includes('flood')) { type = "flood"; headline = `🌊 Flood Warning: ${h.name}`; metric = `Status: Active`; } 
+        else if (cat.includes('extreme') || cat.includes('drought') || cat.includes('heat')) { type = "extreme"; headline = `🌡️ Extreme Condition: ${h.name}`; metric = `Status: ${severity}`; }
+
         return { 
-            id: h.id, type: h.category, headline: h.name, severity_tier: h.severity_tier, 
+            id: h.id, type: type, headline: headline, severity_tier: computedTier, 
             lat: parseFloat(h.latitude), lon: parseFloat(h.longitude), source: h.source, 
-            time: h.observed_at, updated_at: h.updated_at, metric: h.intensity 
+            time: h.observed_at, updated_at: h.updated_at, metric: metric, wind: wind, mag: mag, severity: severity 
         };
     });
 
-    setFeedFilter(currentFilter); 
-    renderMap();
-  } catch(e) { console.error("Database connection failed", e); }
+    ALL_EVENTS.sort((a, b) => new Date(b.time) - new Date(a.time));
+    updateTiles(); setFeedFilter(currentFilter); renderMap();
+  } catch(e) { console.error(e); }
+}
+
+function updateTiles() {
+    let escalate = 0, alert = 0, storms = 0, quakes = 0, volcanoes = 0, extreme = 0;
+    const nowMs = Date.now();
+
+    ALL_EVENTS.forEach(e => {
+        if (e.severity_tier === 'Escalate') escalate++;
+        if (e.severity_tier === 'Alert') alert++;
+        if (e.type === 'storm' || e.type === 'flood') storms++;
+        if (e.type === 'volcano' || e.type === 'wildfire') volcanoes++;
+        if (e.type === 'extreme') extreme++;
+        if (e.type === 'quake' && (nowMs - new Date(e.time).getTime() <= 86400000)) quakes++;
+    });
+
+    $("c-escalate").textContent = escalate; 
+    $("c-alert").textContent = alert; 
+    $("c-storms").textContent = storms; 
+    $("c-quakes").textContent = quakes; 
+    $("c-volcanoes").textContent = volcanoes; 
+    $("c-extreme").textContent = extreme;
+    $("c-watch").textContent = ALL_EVENTS.length;
 }
 
 function setFeedFilter(filterType) {
@@ -673,7 +713,7 @@ function setFeedFilter(filterType) {
         $("btnFilterExtreme").classList.add('active'); titleStr = "Heat & Drought";
         filtered = ALL_EVENTS.filter(e => e.type === 'extreme');
     } else {
-        titleStr = "All Tracked Events";
+        $("btnFilterWatch").classList.add('active'); titleStr = "All Tracked Events";
         filtered = ALL_EVENTS;
     }
     $("feedTitle").textContent = titleStr; renderFeed(filtered);
@@ -722,10 +762,16 @@ async function scanInfrastructure(id, lat, lon) {
     
     container.innerHTML = `<span class="mono" style="color:var(--gold); font-size:11.5px; font-weight:700;">📡 Scanning 50km radius via Overpass API...</span>`;
 
+    // Strictly URL Form Encoded to respect recent Overpass CORS policies
     const query = `[out:json][timeout:15];(nwr["aeroway"="aerodrome"](around:50000,${lat},${lon});nwr["amenity"="hospital"](around:50000,${lat},${lon});nwr["harbour"="yes"](around:50000,${lat},${lon}););out center;`;
 
     try {
-        const res = await fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: query });
+        const res = await fetch("https://overpass-api.de/api/interpreter", { 
+            method: "POST", 
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "data=" + encodeURIComponent(query) 
+        });
+        
         if (!res.ok) throw new Error("API Congestion");
         
         const data = await res.json();
