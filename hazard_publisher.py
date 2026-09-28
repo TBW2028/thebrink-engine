@@ -338,14 +338,20 @@ def fetch_nws_alerts():
                 p = f.get("properties", {})
                 event_type = p.get("event", "")
                 
-                # Strict filtering to prevent alert bloat
-                if not any(x in event_type for x in ["Flood", "Storm", "Tornado", "Hurricane", "Blizzard", "Nor'easter", "Wildfire", "Fire"]):
+                # Strict filtering to prevent alert bloat while retaining explicit Heat and Drought coverage
+                if not any(x in event_type for x in ["Coastal Flood", "Flash Flood", "Flood", "Storm", "Tornado", "Hurricane", "Typhoon", "Blizzard", "Winter Storm", "Nor'easter", "Wildfire", "Fire", "Heat", "Drought"]):
                     continue
                 
-                if "Flood" in event_type: cat = "flood"
-                elif "Fire" in event_type or "Wildfire" in event_type: cat = "wildfire"
-                elif any(x in event_type for x in ["Storm", "Tornado", "Hurricane", "Blizzard", "Nor'easter"]): cat = "storm"
-                else: continue
+                if "Flood" in event_type: 
+                    cat = "flood"
+                elif "Fire" in event_type or "Wildfire" in event_type: 
+                    cat = "wildfire"
+                elif any(x in event_type for x in ["Storm", "Tornado", "Hurricane", "Typhoon", "Blizzard", "Nor'easter", "Winter Storm"]): 
+                    cat = "storm"
+                elif "Heat" in event_type or "Drought" in event_type: 
+                    cat = "extreme"
+                else: 
+                    continue
                 
                 geom = f.get("geometry")
                 if not geom:
