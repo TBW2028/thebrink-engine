@@ -14,10 +14,46 @@ if not SUPABASE_KEY:
     raise ValueError("Missing SUPABASE_SERVICE_ROLE_KEY. Check your .env file.")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-headers = {"User-Agent": "TheBrinkEngine/2.0 (Planetary Ingestion Pipeline)"}
+headers = {"User-Agent": "TheBrinkEngine/3.0 (Planetary Macro-Intelligence Pipeline)"}
+
+def fetch_gdacs_category(endpoint_code, category_name):
+    """Generic fetcher for GDACS specific endpoints like Floods (FL), Droughts (DR), Heat (HW)."""
+    events = []
+    print(f"Fetching {category_name} events from GDACS ({endpoint_code})...")
+    try:
+        r = requests.get(f"https://www.gdacs.org/datareport/resources/{endpoint_code}/events.geojson", headers=headers, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            for f in data.get("features", []):
+                p = f.get("properties", {})
+                coords = f.get("geometry", {}).get("coordinates", [])
+                if len(coords) < 2: continue
+                lon, lat = float(coords[0]), float(coords[1])
+                name = p.get("eventname") or p.get("name") or f"Active {category_name}"
+                
+                alert_level = p.get("alertlevel", "Orange").capitalize()
+                
+                events.append({
+                    "id": f"GDACS_{endpoint_code}_{p.get('eventid', name.replace(' ', ''))}",
+                    "category": category_name.lower(),
+                    "name": name,
+                    "basin": "GLOBAL",
+                    "intensity": f"GDACS {alert_level} Alert",
+                    "wind_kts": None,
+                    "pressure_mb": None,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "alert_level": alert_level,
+                    "source": "GDACS",
+                    "observed_at": p.get("todate", p.get("fromdate", datetime.now(timezone.utc).isoformat())),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                })
+    except Exception as e:
+        print(f"[ERROR] GDACS {category_name}: {e}")
+    return events
 
 def fetch_and_publish_cyclones():
-    """Fetches global tropical cyclones from GDACS (Humanitarian threats)."""
+    """Fetches global tropical cyclones from GDACS."""
     events = []
     print("Fetching active tropical cyclones from GDACS...")
     try:
@@ -32,12 +68,9 @@ def fetch_and_publish_cyclones():
                 name = p.get("eventname") or p.get("name") or "Tropical System"
                 basin = (p.get("basin") or "GLOBAL").upper()
 
-                if basin in ["EP", "NA", "AL", "CP"] and lon > 0:
-                    lon = -lon
+                if basin in ["EP", "NA", "AL", "CP"] and lon > 0: lon = -lon
 
                 alert_level = p.get("alertlevel", "Green").capitalize()
-                
-                # Safely extract wind speed; if 0 or missing, pass None so UI handles it gracefully
                 raw_wind = p.get("windspeed")
                 wind_kts = float(raw_wind) if raw_wind else None
                 if wind_kts == 0: wind_kts = None
@@ -62,7 +95,7 @@ def fetch_and_publish_cyclones():
     return events
 
 def fetch_and_publish_volcanoes():
-    """Fetches volcanic alerts from GDACS."""
+    """Fetches ALL active volcanic alerts from GDACS."""
     events = []
     print("Fetching active volcanic alerts from GDACS...")
     try:
@@ -74,18 +107,8 @@ def fetch_and_publish_volcanoes():
                 coords = f.get("geometry", {}).get("coordinates", [])
                 if len(coords) < 2: continue
                 
-                # FIX: Check 'todate' (latest observation) instead of 'fromdate' (eruption start)
-                obs_date_str = p.get("todate") or p.get("fromdate")
-                if obs_date_str:
-                    try:
-                        clean_date = obs_date_str.replace("Z", "+00:00")
-                        obs_dt = datetime.fromisoformat(clean_date)
-                        if datetime.now(timezone.utc) - obs_dt > timedelta(days=7):
-                            continue # Discard ancient/background volcanoes
-                    except Exception:
-                        pass
-                
                 alert_level = p.get("alertlevel", "Green").capitalize()
+                obs_date = p.get("todate") or p.get("fromdate") or datetime.now(timezone.utc).isoformat()
 
                 events.append({
                     "id": f"GDACS_VOLC_{p.get('eventid', p.get('name', 'Unknown'))}",
@@ -99,7 +122,7 @@ def fetch_and_publish_volcanoes():
                     "longitude": float(coords[0]),
                     "alert_level": alert_level,
                     "source": "GDACS / GVP",
-                    "observed_at": p.get("todate") or p.get("fromdate") or datetime.now(timezone.utc).isoformat(),
+                    "observed_at": obs_date,
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 })
     except Exception as e:
@@ -107,7 +130,7 @@ def fetch_and_publish_volcanoes():
     return events
 
 def fetch_eonet_hazards():
-    """Fetches physical planetary systems from NASA EONET (Open ocean storms & recent unrest)."""
+    """Fetches storms, volcanoes, wildfires, floods, and temp extremes from NASA EONET."""
     events = []
     print("Fetching global physical events from NASA EONET...")
     try:
@@ -119,34 +142,21 @@ def fetch_eonet_hazards():
                 
                 is_storm = "severeStorms" in categories
                 is_volcano = "volcanoes" in categories
+                is_wildfire = "wildfires" in categories
+                is_flood = "floods" in categories
+                is_extreme = "temperatureExtremes" in categories or "drought" in categories
                 
-                if not (is_storm or is_volcano):
+                if not (is_storm or is_volcano or is_wildfire or is_flood or is_extreme):
                     continue
                     
                 geom = event.get("geometry", [])
                 if not geom:
                     continue
                 
-                # Get the most recent observation position
                 latest = geom[-1]
                 coords = latest.get("coordinates")
-
-                # Discard stale volcanic entries with no activity in the past 7 days
-                if is_volcano:
-                    event_date_str = latest.get("date")
-                    if not event_date_str:
-                        continue
-                    try:
-                        clean_date = event_date_str.replace("Z", "+00:00")
-                        event_dt = datetime.fromisoformat(clean_date)
-                        if datetime.now(timezone.utc) - event_dt > timedelta(days=7):
-                            continue
-                    except Exception:
-                        continue
-
                 geom_type = latest.get("type", "Point")
                 
-                # Extract lat/lon whether NASA sent a single Point or a Polygon track
                 try:
                     if geom_type == "Polygon":
                         lon, lat = float(coords[0][0][0]), float(coords[0][0][1])
@@ -155,7 +165,6 @@ def fetch_eonet_hazards():
                 except (IndexError, TypeError):
                     continue
 
-                # EXACT KNOT WIND SPEED EXTRACTION
                 wind_kts = None
                 if is_storm:
                     mag_val = latest.get("magnitudeValue")
@@ -163,17 +172,21 @@ def fetch_eonet_hazards():
                     if mag_val is not None:
                         try:
                             val = float(mag_val)
-                            # Convert NASA magnitudes to standard knots
                             if mag_unit == "kts": wind_kts = val
                             elif mag_unit == "mph": wind_kts = val * 0.868976
                             elif mag_unit == "km/h": wind_kts = val * 0.539957
                             else: wind_kts = val
-                            
                             wind_kts = round(wind_kts)
                         except ValueError:
                             pass
                     
-                category_str = "cyclone" if is_storm else "volcano"
+                # Determine category string
+                if is_storm: category_str = "cyclone"
+                elif is_volcano: category_str = "volcano"
+                elif is_wildfire: category_str = "wildfire"
+                elif is_flood: category_str = "flood"
+                else: category_str = "extreme"
+                
                 name = event.get("title", "Unknown Event")
                 
                 events.append({
@@ -181,7 +194,7 @@ def fetch_eonet_hazards():
                     "category": category_str,
                     "name": name,
                     "basin": "GLOBAL",
-                    "intensity": "Active Weather System" if is_storm else "Active Volcanic Unrest",
+                    "intensity": "Active Weather System" if is_storm else "NASA Active Telemetry",
                     "wind_kts": wind_kts,
                     "pressure_mb": None,
                     "latitude": lat,
@@ -235,10 +248,17 @@ def run_ingestion_cycle():
     print(f"--- Starting Brink Ingestion Cycle at {cycle_start.isoformat()} ---")
     
     all_events = []
+    
+    # Core Vectors
     all_events.extend(fetch_and_publish_cyclones())
     all_events.extend(fetch_and_publish_volcanoes())
     all_events.extend(fetch_eonet_hazards())
     all_events.extend(fetch_and_publish_earthquakes())
+    
+    # Extended Hydrology & Thermal Vectors from GDACS
+    all_events.extend(fetch_gdacs_category("FL", "Flood"))
+    all_events.extend(fetch_gdacs_category("DR", "Drought"))
+    all_events.extend(fetch_gdacs_category("HW", "Heatwave"))
 
     if not all_events:
         print("No events captured. Exiting.")
