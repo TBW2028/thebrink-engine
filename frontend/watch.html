@@ -41,7 +41,6 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .btn:hover{ border-color:var(--accent); color:var(--accent); }
 .btn-primary{ background:var(--accent); color:#071018; border-color:var(--accent); font-weight:700; }
 .btn-primary:hover { filter: brightness(1.1); color: #071018; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* CLIMATE STATION */
 .climate-station-card { background: linear-gradient(135deg, #0c131d, #111b27); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; display: grid; grid-template-columns: 1.1fr 1.9fr; gap: 20px; }
@@ -91,10 +90,10 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .ptile.active { border-color: var(--accent); background: rgba(0,243,255,0.04); box-shadow: 0 0 15px rgba(0,243,255,0.1); }
 .ptile-num { display: block; font-family: var(--font-display); font-size: 2.2rem; line-height: 1; margin-bottom: 6px; color: #fff; }
 .ptile.escalate .ptile-num { color: var(--hot); }
-.ptile.alert .ptile-num { color: var(--warn); }
 .ptile.storms .ptile-num { color: var(--accent); }
-.ptile.volcanoes .ptile-num { color: var(--hot); }
 .ptile.quakes .ptile-num { color: var(--accent-blue); }
+.ptile.volcanoes .ptile-num { color: var(--hot); }
+.ptile.extreme .ptile-num { color: #a855f7; }
 .ptile.watch .ptile-num { color: var(--text); }
 .ptile-title { display: block; font-size: 1.05rem; font-weight: 700; color: #fff; line-height: 1.2; margin-bottom: 4px; }
 .ptile-sub { display: block; font-size: 0.85rem; color: var(--soft); line-height: 1.4; }
@@ -195,22 +194,22 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 
   <div class="plain-tiles">
     <button class="ptile escalate" id="btnFilterEscalate" onclick="setFeedFilter('escalate')">
-      <span class="ptile-num" id="c-escalate">0</span><span class="ptile-title">Severe Events</span><span class="ptile-sub" id="sub-escalate">Events meeting maximum danger thresholds</span>
-    </button>
-    <button class="ptile alert" id="btnFilterAlert" onclick="setFeedFilter('alert')">
-      <span class="ptile-num" id="c-alert">0</span><span class="ptile-title">Needs Attention</span><span class="ptile-sub" id="sub-alert">Events above the elevated danger threshold</span>
+      <span class="ptile-num" id="c-escalate">0</span><span class="ptile-title">Severe Events</span><span class="ptile-sub" id="sub-escalate">Highest danger thresholds</span>
     </button>
     <button class="ptile storms" id="btnFilterStorms" onclick="setFeedFilter('storms')">
-      <span class="ptile-num" id="c-storms">0</span><span class="ptile-title">Active Storms &amp; Floods</span><span class="ptile-sub" id="sub-storms">Cyclones and severe hydrology events tracked</span>
+      <span class="ptile-num" id="c-storms">0</span><span class="ptile-title">Storms &amp; Floods</span><span class="ptile-sub" id="sub-storms">Cyclones and severe inundation</span>
     </button>
     <button class="ptile quakes" id="btnFilterQuakes" onclick="setFeedFilter('quakes')">
-      <span class="ptile-num" id="c-quakes">0</span><span class="ptile-title">Recent Quakes</span><span class="ptile-sub" id="sub-quakes">Felt or damaging shaking in the last 24 hours</span>
+      <span class="ptile-num" id="c-quakes">0</span><span class="ptile-title">Recent Quakes</span><span class="ptile-sub" id="sub-quakes">M4.5+ in the last 24 hours</span>
     </button>
     <button class="ptile volcanoes" id="btnFilterVolcanoes" onclick="setFeedFilter('volcanoes')">
-      <span class="ptile-num" id="c-volcanoes">0</span><span class="ptile-title">Volcanoes &amp; Wildfires</span><span class="ptile-sub" id="sub-volcanoes">Thermal anomalies and raised alerts</span>
+      <span class="ptile-num" id="c-volcanoes">0</span><span class="ptile-title">Volcanoes &amp; Fires</span><span class="ptile-sub" id="sub-volcanoes">Eruptions and major wildfires</span>
+    </button>
+    <button class="ptile extreme" id="btnFilterExtreme" onclick="setFeedFilter('extreme')" style="border-color: #a855f7;">
+      <span class="ptile-num" id="c-extreme" style="color:#a855f7;">0</span><span class="ptile-title" style="color:#d8b4fe;">Heat &amp; Drought</span><span class="ptile-sub" id="sub-extreme">Extreme thermal hazards</span>
     </button>
     <button class="ptile watch" id="btnFilterWatch" onclick="setFeedFilter('watch')">
-      <span class="ptile-num" id="c-watch">0</span><span class="ptile-title">Active Monitoring</span><span class="ptile-sub" id="sub-watch">All tracked events</span>
+      <span class="ptile-num" id="c-watch">0</span><span class="ptile-title">All Tracked Events</span><span class="ptile-sub" id="sub-watch">Everything active right now</span>
     </button>
   </div>
 
@@ -382,7 +381,6 @@ async function handleDispatchSubscribe(e) {
   }
 }
 
-// Event Delegation for dynamically rendered Feed Lists (Prevents inline onclick XSS)
 $("feedList").addEventListener("click", function(e) {
     const btn = e.target.closest("button");
     if (!btn) return;
@@ -430,7 +428,7 @@ async function initUserLocation() {
               return;
           }
       }
-  } catch(e) { console.warn("Local storage unavailable."); }
+  } catch(e) {}
 
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
@@ -457,17 +455,13 @@ async function loadClimateEngine(lat, lon, label) {
   $("userLocationBadge").textContent = `📍 ${label}`;
 
   const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&hourly=apparent_temperature,precipitation,wind_gusts_10m,uv_index&forecast_days=5&timeformat=unixtime&timezone=auto`;
-  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=us_aqi&timeformat=unixtime&timezone=auto`;
+  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5,pm10&timeformat=unixtime&timezone=auto`;
   const hydroUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum&past_days=30&forecast_days=1&timeformat=unixtime&timezone=auto`;
 
   const results = await Promise.allSettled([fetch(forecastUrl), fetch(aqiUrl), fetch(hydroUrl)]);
   
-  const weatherRes = results[0];
-  const aqiRes = results[1];
-  const hydroRes = results[2];
-
-  if (weatherRes.status === 'fulfilled' && weatherRes.value.ok) {
-      const fd = await weatherRes.value.json();
+  if (results[0].status === 'fulfilled' && results[0].value.ok) {
+      const fd = await results[0].value.json();
       climateState.curTempC = fd.current?.temperature_2m;
       climateState.weatherCode = fd.current?.weather_code;
       climateState.utcOffset = fd.utc_offset_seconds || 0;
@@ -476,19 +470,20 @@ async function loadClimateEngine(lat, lon, label) {
           date: t, maxC: fd.daily.temperature_2m_max[idx], minC: fd.daily.temperature_2m_min[idx], code: fd.daily.weather_code[idx]
       })).slice(0, 5);
       
-      let aqiData = null;
-      if (aqiRes.status === 'fulfilled' && aqiRes.value.ok) {
-          aqiData = await aqiRes.value.json();
+      let pm25 = null;
+      if (results[1].status === 'fulfilled' && results[1].value.ok) {
+          const aqiData = await results[1].value.json();
+          pm25 = aqiData.current?.pm2_5;
       }
 
-      evaluateSmartTriggers(fd.hourly, aqiData?.hourly);
+      evaluateSmartTriggers(fd.hourly, pm25);
       renderClimateWidget();
   } else {
       $("triggerList").innerHTML = `<div class="smart-trigger warn"><div class="trigger-icon">⚠️</div><div><div class="trigger-text-title">Telemetry Unavailable</div><div class="trigger-text-body">Failed to load local atmospheric data.</div></div></div>`;
   }
 
-  if (hydroRes.status === 'fulfilled' && hydroRes.value.ok) {
-      const hd = await hydroRes.value.json();
+  if (results[2].status === 'fulfilled' && results[2].value.ok) {
+      const hd = await results[2].value.json();
       if (hd.daily && hd.daily.precipitation_sum) {
           const sum = hd.daily.precipitation_sum.reduce((a, b) => a + (b || 0), 0);
           $("hydroVal").innerHTML = `${Math.round(sum)} mm`;
@@ -499,26 +494,20 @@ async function loadClimateEngine(lat, lon, label) {
   }
 }
 
-function evaluateSmartTriggers(hourly, aqiHourly) {
+function evaluateSmartTriggers(hourly, pm25) {
     if (!hourly || !hourly.time) return;
     
     const nowSecs = Math.floor(Date.now() / 1000);
     const nowIdx = hourly.time.findIndex(t => t >= nowSecs - 3600);
     if (nowIdx === -1) return;
     
-    // Explicitly align AQI array by timestamp since its length/start may slightly differ
-    const aqiIdx = (aqiHourly && aqiHourly.time) ? aqiHourly.time.findIndex(t => t >= nowSecs - 3600) : -1;
-    
     const next12 = {
         app_temp: hourly.apparent_temperature.slice(nowIdx, nowIdx + 12),
         precip: hourly.precipitation.slice(nowIdx, nowIdx + 12),
         gusts: hourly.wind_gusts_10m.slice(nowIdx, nowIdx + 12),
-        uv: hourly.uv_index.slice(nowIdx, nowIdx + 12),
-        aqi: aqiIdx !== -1 ? aqiHourly.us_aqi.slice(aqiIdx, aqiIdx + 12) : []
+        uv: hourly.uv_index.slice(nowIdx, nowIdx + 12)
     };
 
-    const validAqi = next12.aqi.filter(v => v !== null);
-    let maxAQI = validAqi.length ? Math.max(...validAqi) : null;
     let maxTemp = Math.max(...next12.app_temp);
     let minTemp = Math.min(...next12.app_temp);
     let maxPrecip = Math.max(...next12.precip);
@@ -527,23 +516,23 @@ function evaluateSmartTriggers(hourly, aqiHourly) {
 
     let html = "";
     
-    if (maxAQI === null) {
-        html += `<div class="smart-trigger warn"><div class="trigger-icon">🌫️</div><div><div class="trigger-text-title">AQI Unavailable</div><div class="trigger-text-body">Air quality sensor data is currently offline.</div></div></div>`;
-    } else if (maxAQI > 200) {
-        html += `<div class="smart-trigger danger"><div class="trigger-icon">☣️</div><div><div class="trigger-text-title">Hazardous Air Quality</div><div class="trigger-text-body">Avoid outdoor exertion. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
-    } else if (maxAQI > 100) {
-        html += `<div class="smart-trigger warn"><div class="trigger-icon">🌫️</div><div><div class="trigger-text-title">Unhealthy for Sensitive Groups</div><div class="trigger-text-body">Reduce prolonged outdoor exertion. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
-    } else if (maxAQI > 50) {
-        html += `<div class="smart-trigger good"><div class="trigger-icon">☁️</div><div><div class="trigger-text-title">Moderate Air Quality</div><div class="trigger-text-body">Acceptable baseline conditions. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
+    // Evaluate PM2.5 directly against accurate Asian/Indian particulate safety thresholds
+    if (pm25 === null || pm25 === undefined) {
+        html += `<div class="smart-trigger warn"><div class="trigger-icon">🌫️</div><div><div class="trigger-text-title">Air Quality Offline</div><div class="trigger-text-body">Particulate sensor data is currently unavailable.</div></div></div>`;
+    } else if (pm25 > 150) {
+        html += `<div class="smart-trigger danger"><div class="trigger-icon">☣️</div><div><div class="trigger-text-title">Severe Particulate Pollution</div><div class="trigger-text-body">Hazardous PM2.5 levels (${pm25} µg/m³). Avoid outdoor exertion.</div></div></div>`;
+    } else if (pm25 > 60) {
+        html += `<div class="smart-trigger warn"><div class="trigger-icon">🌫️</div><div><div class="trigger-text-title">Poor Air Quality (PM2.5)</div><div class="trigger-text-body">Elevated particulates (${pm25} µg/m³). Masks recommended outdoors.</div></div></div>`;
+    } else if (pm25 > 30) {
+        html += `<div class="smart-trigger good"><div class="trigger-icon">☁️</div><div><div class="trigger-text-title">Moderate Air Quality</div><div class="trigger-text-body">Acceptable PM2.5 levels (${pm25} µg/m³).</div></div></div>`;
     } else {
-        html += `<div class="smart-trigger good"><div class="trigger-icon">🍃</div><div><div class="trigger-text-title">Good Air Quality</div><div class="trigger-text-body">Optimal conditions for outdoor activity. (AQI: ${Math.round(maxAQI)})</div></div></div>`;
+        html += `<div class="smart-trigger good"><div class="trigger-icon">🍃</div><div><div class="trigger-text-title">Clean Air</div><div class="trigger-text-body">Optimal PM2.5 levels (${pm25} µg/m³).</div></div></div>`;
     }
 
     if (maxGust > 50 && maxPrecip > 0) html += `<div class="smart-trigger danger"><div class="trigger-icon">⚠️</div><div><div class="trigger-text-title">Approaching Squall</div><div class="trigger-text-body">Heavy gusts (${Math.round(maxGust)}km/h) and precipitation expected.</div></div></div>`;
     else if (maxPrecip > 4) html += `<div class="smart-trigger warn"><div class="trigger-icon">🌧️</div><div><div class="trigger-text-title">Heavy Precipitation</div><div class="trigger-text-body">Raincoat and waterproof shoes recommended.</div></div></div>`;
     
     if (maxTemp >= 38) html += `<div class="smart-trigger danger"><div class="trigger-icon">🔥</div><div><div class="trigger-text-title">Extreme Heat</div><div class="trigger-text-body">Feels-like temps hitting ${toUnit(maxTemp)}°. High thermal stress risk.</div></div></div>`;
-    else if (maxTemp >= 32) html += `<div class="smart-trigger warn"><div class="trigger-icon">🥵</div><div><div class="trigger-text-title">Elevated Heat</div><div class="trigger-text-body">Stay hydrated, avoid prolonged midday sun.</div></div></div>`;
     else if (minTemp <= 8) html += `<div class="smart-trigger warn"><div class="trigger-icon">🥶</div><div><div class="trigger-text-title">Chilly Conditions</div><div class="trigger-text-body">Cold expected (${toUnit(minTemp)}°). Jacket recommended.</div></div></div>`;
 
     if (maxUV >= 8) html += `<div class="smart-trigger danger"><div class="trigger-icon">☀️</div><div><div class="trigger-text-title">High Solar Radiation</div><div class="trigger-text-body">UV Index high. Sun protection recommended.</div></div></div>`;
@@ -557,7 +546,6 @@ function renderClimateWidget() {
   $("userWeatherDesc").textContent = weatherCodeToGlyph(climateState.weatherCode).text;
   if (climateState.forecastDaily.length > 0) {
     $("forecastStrip").innerHTML = climateState.forecastDaily.map((f, i) => {
-      // Map correctly to UTC to avoid Indian midnight shift bug
       const dayName = i === 0 ? "Today" : new Date((f.date + climateState.utcOffset) * 1000).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
       const g = weatherCodeToGlyph(f.code);
       return `<div class="f-card"><div class="f-day">${dayName}</div><div class="f-glyph">${g.icon}</div><div class="f-temp">${toUnit(f.maxC)}°<span style="font-size:9.5px;color:var(--muted)">/${toUnit(f.minC)}°</span></div></div>`;
@@ -611,18 +599,17 @@ function formatTimeElapsed(isoStr, updatedStr) {
 
 async function fetchLiveHazards() {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/live_hazards?select=*&order=observed_at.desc&limit=300`, { headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}` } });
+    // Increased to 1000 to prevent global starvation by regional events
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/live_hazards?select=*&order=observed_at.desc&limit=1000`, { headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${SUPABASE_ANON}` } });
     if (!res.ok) return;
     const hazards = await res.json();
     
-    // Hash incorporates precise severity and update timestamps to prevent destructive re-rendering while staying live
     const newHash = hazards.map(h => `${h.id}_${h.updated_at}_${h.wind_kts}_${h.intensity}`).sort().join();
     if (newHash === lastFetchHash && ALL_EVENTS.length > 0) return; 
     lastFetchHash = newHash;
 
     ALL_EVENTS = [];
     hazards.forEach(h => {
-      // Guard against bad coordinates
       if (h.latitude === null || h.longitude === null || isNaN(h.latitude) || isNaN(h.longitude)) return;
       
       const cat = (h.category || '').toLowerCase();
@@ -638,11 +625,11 @@ async function fetchLiveHazards() {
           type = "volcano"; headline = `🌋 ${headline}`; metric = `Status: ${severity}`;
       } else if (cat.includes('storm') || cat.includes('cyclon') || cat === 'tc') {
           type = "storm"; headline = `🌀 ${headline}`; metric = wind ? `Winds: ${wind} kts` : "Active cyclone";
-      } else if (cat.includes('fire')) {
+      } else if (cat.includes('fire') || cat.includes('wildfire')) {
           type = "wildfire"; headline = `🔥 Wildfire: ${headline}`; metric = `Status: Active`;
       } else if (cat.includes('flood')) {
           type = "flood"; headline = `🌊 Flood Warning: ${headline}`; metric = `Status: Active`;
-      } else if (cat.includes('drought') || cat.includes('heat')) {
+      } else if (cat.includes('extreme') || cat.includes('drought') || cat.includes('heat')) {
           type = "extreme"; headline = `🌡️ Extreme Condition: ${headline}`; metric = `Status: ${severity}`;
       }
 
@@ -651,30 +638,30 @@ async function fetchLiveHazards() {
 
     ALL_EVENTS.sort((a, b) => new Date(b.time) - new Date(a.time));
     updateTiles(); setFeedFilter(currentFilter); renderMap();
-  } catch(e) { console.error(e); }
+  } catch(e) {}
 }
 
 function updateTiles() {
-    let escalate = 0, alert = 0, storms = 0, quakes = 0, volcanoes = 0;
+    let escalate = 0, storms = 0, quakes = 0, volcanoes = 0, extreme = 0;
     const nowMs = Date.now();
 
     ALL_EVENTS.forEach(e => {
         if (e.type === 'storm' || e.type === 'flood') storms++;
-        if (e.type === 'volcano' || e.type === 'wildfire' || e.type === 'extreme') volcanoes++;
-        if (e.type === 'quake') {
-            if (nowMs - new Date(e.time).getTime() <= 86400000) quakes++;
-            if (e.mag >= 6.0) escalate++; else if (e.mag >= 5.0) alert++;
-        }
-        if (e.type === 'storm') {
-            if (e.wind >= 96) escalate++; else if (e.wind >= 64) alert++;
+        if (e.type === 'volcano' || e.type === 'wildfire') volcanoes++;
+        if (e.type === 'extreme') extreme++;
+        if (e.type === 'quake' && (nowMs - new Date(e.time).getTime() <= 86400000)) quakes++;
+        
+        // Severity gating logic for the highest tier tile
+        if (e.mag >= 6.0 || e.wind >= 96 || e.severity === 'Extreme' || (e.type === 'flood' && e.severity === 'Red')) {
+            escalate++;
         }
     });
 
-    $("c-escalate").textContent = escalate; $("sub-escalate").textContent = escalate > 0 ? "Events meeting maximum danger thresholds" : "No severe events right now.";
-    $("c-alert").textContent = alert; $("sub-alert").textContent = alert > 0 ? "Events above the elevated danger threshold" : "No elevated danger alerts right now.";
-    $("c-storms").textContent = storms; $("sub-storms").textContent = storms > 0 ? "Cyclones and severe hydrology events tracked" : "No active storms right now.";
-    $("c-quakes").textContent = quakes; $("sub-quakes").textContent = quakes > 0 ? "Felt or damaging shaking in the last 24 hours" : "No significant tremors right now.";
-    $("c-volcanoes").textContent = volcanoes; $("sub-volcanoes").textContent = volcanoes > 0 ? "Thermal anomalies and raised alerts" : "All volcanoes at background levels.";
+    $("c-escalate").textContent = escalate; 
+    $("c-storms").textContent = storms; 
+    $("c-quakes").textContent = quakes; 
+    $("c-volcanoes").textContent = volcanoes; 
+    $("c-extreme").textContent = extreme;
     $("c-watch").textContent = ALL_EVENTS.length;
 }
 
@@ -685,10 +672,7 @@ function setFeedFilter(filterType) {
 
     if (filterType === 'escalate') {
         $("btnFilterEscalate").classList.add('active'); titleStr = "Severe Events";
-        filtered = ALL_EVENTS.filter(e => (e.type === 'quake' && e.mag >= 6.0) || (e.type === 'storm' && e.wind >= 96));
-    } else if (filterType === 'alert') {
-        $("btnFilterAlert").classList.add('active'); titleStr = "Needs Attention";
-        filtered = ALL_EVENTS.filter(e => (e.type === 'quake' && e.mag >= 5.0 && e.mag < 6.0) || (e.type === 'storm' && e.wind >= 64 && e.wind < 96));
+        filtered = ALL_EVENTS.filter(e => e.mag >= 6.0 || e.wind >= 96 || e.severity === 'Extreme' || (e.type === 'flood' && e.severity === 'Red'));
     } else if (filterType === 'storms') {
         $("btnFilterStorms").classList.add('active'); titleStr = "Active Storms & Floods";
         filtered = ALL_EVENTS.filter(e => e.type === 'storm' || e.type === 'flood');
@@ -698,7 +682,10 @@ function setFeedFilter(filterType) {
         filtered = ALL_EVENTS.filter(e => e.type === 'quake' && (nowMs - new Date(e.time).getTime() <= 86400000));
     } else if (filterType === 'volcanoes') {
         $("btnFilterVolcanoes").classList.add('active'); titleStr = "Volcanoes & Wildfires";
-        filtered = ALL_EVENTS.filter(e => e.type === 'volcano' || e.type === 'wildfire' || e.type === 'extreme');
+        filtered = ALL_EVENTS.filter(e => e.type === 'volcano' || e.type === 'wildfire');
+    } else if (filterType === 'extreme') {
+        $("btnFilterExtreme").classList.add('active'); titleStr = "Heat & Drought";
+        filtered = ALL_EVENTS.filter(e => e.type === 'extreme');
     } else {
         $("btnFilterWatch").classList.add('active'); titleStr = "All Tracked Events";
         filtered = ALL_EVENTS;
@@ -790,7 +777,7 @@ function renderMap() {
         if (e.type === 'flood') { html = '🌊'; pinClass += " pin-flood"; size = 22; }
         if (e.type === 'extreme') { html = '🌡️'; pinClass += " pin-extreme"; size = 22; }
 
-        if (e.mag >= 6.0 || e.wind >= 96) { pinClass += " pulse-priority"; size += 4; }
+        if (e.mag >= 6.0 || e.wind >= 96 || e.severity === 'Extreme') { pinClass += " pulse-priority"; size += 4; }
         if (html) {
            const icon = L.divIcon({ className: pinClass, html: html, iconSize: [size, size], iconAnchor: [size/2, size/2] });
            L.marker([e.lat, e.lon], { icon }).bindPopup(`<strong>${escapeHTML(e.headline)}</strong><br/>${escapeHTML(e.metric)}`).addTo(baseMarkerLayer);
