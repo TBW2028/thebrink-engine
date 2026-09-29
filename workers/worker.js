@@ -81,30 +81,100 @@ async function geocodeRequestedLocation(body) {
     };
   }
 
-  const query = String(body.location || "").trim();
-  if (!query) throw new Error("Please enter a location.");
+  const rawQuery = String(body.location || "").trim();
+  if (!rawQuery) throw new Error("Please enter a location.");
 
-  const u = new URL("https://geocoding-api.open-meteo.com/v1/search");
-  u.searchParams.set("name", query);
-  u.searchParams.set("count", "8");
-  u.searchParams.set("language", "en");
-  u.searchParams.set("format", "json");
+  const parts = rawQuery
+    .split(",")
+    .map(x => x.trim())
+    .filter(Boolean);
 
-  const res = await fetch(u.toString());
-  if (!res.ok) throw new Error("Location lookup is temporarily unavailable.");
-  const data = await res.json();
-  const rows = data.results || [];
-  if (!rows.length) throw new Error("We could not confidently locate that place. Try city, state/province and country.");
+  // Open-Meteo's geocoder performs best when 'name' is the actual locality,
+  // not a long comma-separated address. Try progressively simpler place names,
+  // then rank the results against the remaining context (district/state/country).
+  const candidates = [];
+  if (rawQuery) candidates.push(rawQuery);
+  if (parts[0] && !candidates.includes(parts[0])) candidates.push(parts[0]);
+  if (parts.length >= 2) {
+    const firstTwo = parts.slice(0, 2).join(" ");
+    if (!candidates.includes(firstTwo)) candidates.push(firstTwo);
+  }
 
-  const first = rows[0];
+  const context = parts.slice(1).join(" ").toLowerCase();
+  const tokens = new Set(
+    context
+      .replace(/[^a-z0-9]+/gi, " ")
+      .split(/\s+/)
+      .filter(x => x.length >= 3)
+  );
+
+  let best = null;
+  let bestScore = -1;
+
+  for (const candidate of candidates.slice(0, 3)) {
+    const u = new URL("https://geocoding-api.open-meteo.com/v1/search");
+    u.searchParams.set("name", candidate);
+    u.searchParams.set("count", "10");
+    u.searchParams.set("language", "en");
+    u.searchParams.set("format", "json");
+
+    const res = await fetch(u.toString());
+    if (!res.ok) continue;
+
+    const data = await res.json();
+    const rows = data.results || [];
+
+    for (const row of rows) {
+      const haystack = [
+        row.name,
+        row.admin1,
+        row.admin2,
+        row.admin3,
+        row.admin4,
+        row.country,
+        row.country_code
+      ].filter(Boolean).join(" ").toLowerCase();
+
+      let score = 0;
+
+      // Strong preference for an exact locality-name match.
+      if (String(row.name || "").trim().toLowerCase() === String(parts[0] || candidate).trim().toLowerCase()) {
+        score += 8;
+      }
+
+      // Reward agreement with user-supplied district/state/country context.
+      for (const token of tokens) {
+        if (haystack.includes(token)) score += 2;
+      }
+
+      // Prefer populated / administrative places over weak generic matches.
+      if (row.population) score += 1;
+      if (row.admin1) score += 0.5;
+      if (row.country) score += 0.5;
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = row;
+      }
+    }
+
+    // A confident locality + context match is good enough; avoid extra requests.
+    if (best && bestScore >= 10) break;
+  }
+
+  if (!best || !Number.isFinite(Number(best.latitude)) || !Number.isFinite(Number(best.longitude))) {
+    throw new Error("We could not confidently locate that place. Try city/town, district or state, and country.");
+  }
+
   return {
-    label: [first.name, first.admin1, first.country].filter(Boolean).join(", "),
-    lat: Number(first.latitude),
-    lon: Number(first.longitude),
-    country: first.country || null,
-    countryCode: first.country_code || null
+    label: [best.name, best.admin2, best.admin1, best.country].filter(Boolean).join(", "),
+    lat: Number(best.latitude),
+    lon: Number(best.longitude),
+    country: best.country || null,
+    countryCode: best.country_code || null
   };
 }
+
 
 async function fetchLead(sbUrl, sbKey, email) {
   const u = new URL(`${sbUrl}/rest/v1/dossier_leads`);
