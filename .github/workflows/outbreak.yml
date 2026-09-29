@@ -4,7 +4,6 @@ on:
     - cron: "15 5 * * *"     # daily 05:15 UTC -> WHO + ECDC
     - cron: "30 22 * * 5"    # Fridays 22:30 UTC -> CDC wastewater
   workflow_dispatch:          # lets you run it by hand from the Actions tab
-
 jobs:
   run:
     runs-on: ubuntu-latest
