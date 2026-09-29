@@ -480,7 +480,7 @@ export default {
         }
 
         const sbUrl = env.SUPABASE_URL;
-        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY;
+        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
         if (!sbUrl || !sbKey) throw new Error("Dossier database environment is incomplete.");
 
         const lead = await fetchLead(sbUrl, sbKey, email);
@@ -574,7 +574,7 @@ export default {
         }
 
         const sbUrl = env.SUPABASE_URL;
-        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY;
+        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
         if (!sbUrl || !sbKey) throw new Error("Dossier database environment is incomplete.");
 
         const u = new URL(`${sbUrl}/rest/v1/dossier_verifications`);
