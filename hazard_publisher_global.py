@@ -56,6 +56,17 @@ SESSION.headers.update(HEADERS)
 
 SEVERITY_ORDER = {"Monitor": 1, "Significant": 2, "Severe": 3, "Critical": 4}
 
+# SWIC internal member IDs observed in the live WMO feed.
+# Keep this separate from ISO numeric codes: MID is a SWIC member identifier.
+SWIC_MID_COUNTRY = {
+    "001": ("China", "CHN"),
+    "089": ("Thailand", "THA"),
+    "093": ("United States", "USA"),
+    "097": ("Iceland", "ISL"),
+    "185": ("Australia", "AUS"),
+}
+
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -105,14 +116,19 @@ def cyclone_band(wind_kts: Optional[float], alert_level: str) -> str:
 
 
 def country_from_mid(mid: str) -> Tuple[Optional[str], Optional[str]]:
-    """Resolve SWIC member IDs only when they explicitly begin with ISO alpha-2.
+    """Resolve a SWIC member identifier.
 
-    Numeric MID values are WMO/SWIC member identifiers, not ISO country codes,
-    so they must not be interpreted as countries.
+    Numeric MID values are SWIC member IDs, not ISO numeric codes. Known values
+    are mapped explicitly from observed SWIC records. Alpha-2 values are handled
+    only when the feed actually supplies an ISO-looking member token.
     """
     if not mid:
         return None, None
-    first = str(mid).strip().split("-")[0].upper()
+    raw = str(mid).strip()
+    if raw in SWIC_MID_COUNTRY:
+        return SWIC_MID_COUNTRY[raw]
+
+    first = raw.split("-")[0].upper()
     if len(first) == 2 and first.isalpha() and pycountry:
         try:
             country = pycountry.countries.get(alpha_2=first)
@@ -124,39 +140,43 @@ def country_from_mid(mid: str) -> Tuple[Optional[str], Optional[str]]:
 
 
 def country_from_wmo_identifier(identifier: Any) -> Tuple[Optional[str], Optional[str]]:
-    """Resolve ISO-3166 numeric country code embedded in WMO/CAP identifiers.
-
-    Live SWIC records commonly use OID-shaped identifiers such as
-    urn:oid:2.49.0.1.840.... where 840 is the ISO numeric code for the US.
-    """
-    if not identifier or not pycountry:
+    """Resolve country from authoritative WMO/CAP identifier conventions."""
+    if not identifier:
         return None, None
+
     text = str(identifier).strip()
-
-    patterns = [
-        r"2\.49\.0\.[01]\.(\d{3})(?:\.|-|$)",
-        r"urn:oid:2\.49\.0\.[01]\.(\d{3})(?:\.|-|$)",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, text, flags=re.I)
-        if not match:
-            continue
-        try:
-            country = pycountry.countries.get(numeric=match.group(1))
-            if country:
-                return country.name, country.alpha_3
-        except Exception:
-            pass
-
-    # Recognize well-known national authority identifiers when the country is
-    # explicit in the issuer token but not encoded as an ISO number.
     lowered = text.lower()
+
+    # ISO-3166 numeric code embedded in OID-shaped CAP identifiers:
+    # e.g. urn:oid:2.49.0.1.840.... -> United States.
+    if pycountry:
+        for pattern in [
+            r"2\.49\.0\.[01]\.(\d{3})(?:\.|-|$)",
+            r"urn:oid:2\.49\.0\.[01]\.(\d{3})(?:\.|-|$)",
+        ]:
+            match = re.search(pattern, text, flags=re.I)
+            if match:
+                try:
+                    country = pycountry.countries.get(numeric=match.group(1))
+                    if country:
+                        return country.name, country.alpha_3
+                except Exception:
+                    pass
+
+    # National-authority identifier conventions seen in current SWIC records.
     authority_prefixes = {
         "ausbom": ("Australia", "AUS"),
+        "is-imo-": ("Iceland", "ISL"),
+        "tmd": ("Thailand", "THA"),
     }
     for prefix, pair in authority_prefixes.items():
         if lowered.startswith(prefix):
             return pair
+
+    # China CAP IDs observed in SWIC use a six-digit GB/T 2260 administrative
+    # code followed by 41600000 and a timestamp.
+    if re.match(r"^\d{6}41600000_", text):
+        return "China", "CHN"
 
     return None, None
 
@@ -208,6 +228,24 @@ def geocode_warning_area(
     if simplified and simplified not in candidates:
         candidates.append(simplified)
 
+    # Country-specific conservative fallbacks for common CAP area formatting.
+    # Australia often prefixes a broad state/territory before a colon.
+    if iso3 == "AUS" and ":" in raw:
+        state_name = raw.split(":", 1)[0].strip()
+        if state_name and state_name not in candidates:
+            candidates.insert(0, state_name)
+
+    # Thailand often publishes a whitespace-separated list of provinces.
+    # The first two words frequently form a single province such as "Chiang Mai".
+    if iso3 == "THA":
+        words = raw.split()
+        if len(words) >= 2:
+            first_two = " ".join(words[:2])
+            if first_two not in candidates:
+                candidates.insert(0, first_two)
+
+    # US county-style alerts preserve the state abbreviation in "County, ST".
+    # Keep the full first segment ahead of simplified forms.
     # State abbreviations in US CAP area text (e.g. "Maricopa, AZ") benefit from
     # keeping the comma suffix intact, so 'first' remains ahead of simplified forms.
     params_base = {"count": 10, "language": "en", "format": "json"}
