@@ -283,6 +283,55 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .services-fomo-banner h2 { font-family: var(--font-display); font-size: clamp(1.4rem, 3.2vw, 2rem); color: #fff; text-transform: uppercase; margin-bottom: 14px; letter-spacing: -0.02em; }
 .services-fomo-banner p { color: var(--soft); font-size: 1.05rem; line-height: 1.6; max-width: 48rem; margin: 0 auto 24px; }
 
+
+.sample-note {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 10px;
+  line-height: 1.55;
+}
+.sample-field { margin-bottom: 12px; text-align: left; }
+.sample-field label {
+  display:block; font-family:var(--font-mono); font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:6px;
+}
+.sample-input {
+  width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+  color:#fff; padding:11px 12px; font-family:var(--font-body); font-size:14px; outline:none;
+}
+.sample-input:focus { border-color:var(--accent); }
+.sample-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.sample-consent {
+  display:flex; align-items:flex-start; gap:8px; text-align:left; color:var(--soft);
+  font-size:12.5px; line-height:1.45; margin:12px 0;
+}
+.sample-consent input { margin-top:3px; accent-color:var(--accent); }
+.snapshot-result {
+  display:none; margin-top:14px; text-align:left; background:var(--bg);
+  border:1px solid var(--line); border-radius:8px; padding:16px;
+}
+.snapshot-kpis {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0;
+}
+.snapshot-kpi { background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:10px; }
+.snapshot-kpi .n { font-family:var(--font-display); font-size:1.35rem; color:#fff; }
+.snapshot-kpi .l { font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase; }
+.snapshot-signal {
+  border-top:1px solid var(--line); padding:10px 0; font-size:13px; color:var(--soft);
+}
+.snapshot-locked {
+  display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;
+}
+.snapshot-lock {
+  border:1px dashed rgba(148,163,184,.35); border-radius:6px; padding:9px;
+  color:var(--muted); font-size:12px;
+}
+@media(max-width:640px) {
+  .snapshot-kpis { grid-template-columns:1fr; }
+  .snapshot-locked { grid-template-columns:1fr; }
+}
+
 .modal{ position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.88); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; z-index:999999; }
 .modal-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; max-width:640px; width:92%; max-height:90vh; overflow-y:auto; box-shadow:var(--shadow); }
 
@@ -635,7 +684,8 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
     <p>
       You are watching the macro signals. But whether you are evaluating your vacation, a critical supply chain corridor, timing a high-exposure cross-border journey, protecting agricultural yield against unseasonal climate anomalies, or managing complex pilgrimage logistics under extreme heat, tailored intelligence changes everything.
     </p>
-    <a href="/services.html" class="btn btn-primary" style="display: inline-flex; padding: 12px 28px; font-size: 13.5px; text-transform: uppercase; font-weight: 750;">Explore Commissioned Services →</a>
+    <button type="button" class="btn btn-primary" onclick="openLocationThreatSample()" style="display:inline-flex; padding:12px 28px; font-size:13.5px; text-transform:uppercase; font-weight:750;">Test a Location — Free →</button>
+    <div class="sample-note">Two complimentary snapshots per verified email. No card required. The snapshot is intentionally concise; the full Location Threat Dossier is a separate paid report.</div>
   </div>
 </div>
 
@@ -694,6 +744,61 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 </footer>
 
 <!-- MODALS -->
+<div class="modal" id="modalLocationThreatSample">
+  <div class="modal-card" style="max-width:720px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:16px;">
+      <div>
+        <div class="mono" style="font-size:11px;color:var(--accent);font-weight:800;letter-spacing:.09em;text-transform:uppercase;">// LOCATION THREAT SNAPSHOT</div>
+        <h3 style="font-size:1.25rem;color:#fff;margin-top:4px;">Test a location before commissioning the full dossier.</h3>
+      </div>
+      <button onclick="closeModal('modalLocationThreatSample')" style="background:transparent;border:none;color:#fff;font-size:1.35rem;cursor:pointer;">✕</button>
+    </div>
+
+    <div id="sampleEntryStage">
+      <div class="sample-field">
+        <label for="sampleLocation">Location to analyse</label>
+        <input id="sampleLocation" class="sample-input" type="text" placeholder="e.g. Pune, India · Miami, Florida · Tokyo, Japan">
+      </div>
+
+      <button type="button" class="btn" onclick="useCurrentSampleLocation()" style="margin-bottom:12px;">Use my current location</button>
+
+      <div class="sample-field">
+        <label for="sampleEmail">Email</label>
+        <input id="sampleEmail" class="sample-input" type="email" placeholder="you@example.com">
+      </div>
+
+      <label class="sample-consent">
+        <input type="checkbox" id="sampleMarketingOptIn">
+        <span>Send me occasional Brink World risk updates, report releases and offers. This is optional and does not affect my free snapshot.</span>
+      </label>
+
+      <div class="sample-note" style="background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:6px;padding:10px;">
+        Privacy: we store the location you ask us to analyse separately from approximate network location. Approximate network location and a one-way IP fingerprint are used for abuse prevention and aggregate analytics; the raw IP address is not stored by this feature.
+      </div>
+
+      <div class="sample-actions">
+        <button type="button" id="sampleSendCodeBtn" class="btn btn-primary" onclick="requestLocationSampleCode()">Email my verification code</button>
+      </div>
+    </div>
+
+    <div id="sampleVerifyStage" style="display:none;">
+      <div style="font-size:14px;color:var(--soft);margin-bottom:12px;" id="sampleVerifyMessage">Enter the six-digit code sent to your email.</div>
+      <div class="sample-field">
+        <label for="sampleCode">Verification code</label>
+        <input id="sampleCode" class="sample-input" inputmode="numeric" maxlength="6" placeholder="000000">
+      </div>
+      <div class="sample-actions">
+        <button type="button" id="sampleVerifyBtn" class="btn btn-primary" onclick="verifyLocationSample()">Reveal my snapshot</button>
+        <button type="button" class="btn" onclick="resetLocationSample()">Start over</button>
+      </div>
+    </div>
+
+    <div id="sampleStatus" class="sample-note"></div>
+
+    <div id="sampleSnapshotResult" class="snapshot-result"></div>
+  </div>
+</div>
+
 <div class="modal" id="modalScientistBrief">
   <div class="modal-card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--line); padding-bottom:10px;">
@@ -741,6 +846,207 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 <script>
 const SUPABASE_URL = "https://jxapuzsgyoetrpnmohct.supabase.co";
 const SUPABASE_ANON = "sb_publishable_VLQoHAEpKndcjxO3BLRQuw_7UFA3orI";
+
+const DOSSIER_API = (window.BACKEND_API || "https://thebrink-engine.thebrink2028.workers.dev");
+let SAMPLE_STATE = { latitude: null, longitude: null, email: null, location: null };
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
+  }[ch]));
+}
+
+function openLocationThreatSample() {
+  const savedEmail = localStorage.getItem("brink_user_email");
+  if (savedEmail && $("sampleEmail") && !$("sampleEmail").value) $("sampleEmail").value = savedEmail;
+  openModal("modalLocationThreatSample");
+}
+
+function setSampleStatus(message, tone = "muted") {
+  const el = $("sampleStatus");
+  if (!el) return;
+  el.textContent = message || "";
+  el.style.color = tone === "error" ? "var(--hot)" : tone === "ok" ? "var(--ok)" : "var(--muted)";
+}
+
+function resetLocationSample() {
+  SAMPLE_STATE = { latitude: null, longitude: null, email: null, location: null };
+  $("sampleEntryStage").style.display = "block";
+  $("sampleVerifyStage").style.display = "none";
+  $("sampleSnapshotResult").style.display = "none";
+  $("sampleSnapshotResult").innerHTML = "";
+  $("sampleCode").value = "";
+  setSampleStatus("");
+}
+
+function useCurrentSampleLocation() {
+  if (!navigator.geolocation) {
+    setSampleStatus("This browser does not support precise device location.", "error");
+    return;
+  }
+  setSampleStatus("Waiting for your browser location permission…");
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      SAMPLE_STATE.latitude = Number(pos.coords.latitude.toFixed(6));
+      SAMPLE_STATE.longitude = Number(pos.coords.longitude.toFixed(6));
+      $("sampleLocation").value = `Current location (${SAMPLE_STATE.latitude}, ${SAMPLE_STATE.longitude})`;
+      setSampleStatus("Current device location selected. It will be used only as the location you asked us to analyse.", "ok");
+    },
+    () => setSampleStatus("Location permission was not granted. You can type any city or place instead.", "error"),
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+  );
+}
+
+async function requestLocationSampleCode() {
+  const location = $("sampleLocation").value.trim();
+  const email = $("sampleEmail").value.trim().toLowerCase();
+  const btn = $("sampleSendCodeBtn");
+
+  if (!location) return setSampleStatus("Enter the location you want analysed.", "error");
+  if (!email || !email.includes("@")) return setSampleStatus("Enter a valid email address.", "error");
+
+  btn.disabled = true;
+  btn.textContent = "SENDING…";
+  setSampleStatus("Resolving the location and preparing verification…");
+
+  const payload = {
+    email,
+    location,
+    marketing_opt_in: $("sampleMarketingOptIn").checked
+  };
+  if (Number.isFinite(SAMPLE_STATE.latitude) && Number.isFinite(SAMPLE_STATE.longitude)) {
+    payload.latitude = SAMPLE_STATE.latitude;
+    payload.longitude = SAMPLE_STATE.longitude;
+  }
+
+  try {
+    const res = await fetch(`${DOSSIER_API}/api/dossier/request-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (res.status === 402 || data.error === "free_sample_limit_reached") {
+      renderSamplePaywall(data.message || "You have used both complimentary snapshots.", data.paid_price);
+      return;
+    }
+    if (!res.ok) throw new Error(data.error || "Could not send verification code.");
+
+    SAMPLE_STATE.email = email;
+    SAMPLE_STATE.location = data.location;
+    localStorage.setItem("brink_user_email", email);
+    $("sampleEntryStage").style.display = "none";
+    $("sampleVerifyStage").style.display = "block";
+    $("sampleVerifyMessage").textContent =
+      `Verification sent to ${email}. Location resolved as ${data.location.label}. ${data.remaining_free} complimentary snapshot${data.remaining_free === 1 ? "" : "s"} available before this request.`;
+    setSampleStatus("Check your inbox for the six-digit code.", "ok");
+    $("sampleCode").focus();
+  } catch (err) {
+    setSampleStatus(err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Email my verification code";
+  }
+}
+
+async function verifyLocationSample() {
+  const code = $("sampleCode").value.trim();
+  const btn = $("sampleVerifyBtn");
+  if (!/^\d{6}$/.test(code)) return setSampleStatus("Enter the six-digit code from your email.", "error");
+
+  btn.disabled = true;
+  btn.textContent = "ANALYSING…";
+  setSampleStatus("Comparing this location with the live global hazard layer…");
+
+  try {
+    const res = await fetch(`${DOSSIER_API}/api/dossier/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: SAMPLE_STATE.email, code })
+    });
+    const data = await res.json();
+
+    if (res.status === 402 || data.error === "free_sample_limit_reached") {
+      renderSamplePaywall(data.message || "You have used both complimentary snapshots.", data.paid_price);
+      return;
+    }
+    if (!res.ok) throw new Error(data.error || "Verification failed.");
+
+    renderLocationSnapshot(data.snapshot, data.paid_price);
+    setSampleStatus("");
+  } catch (err) {
+    setSampleStatus(err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Reveal my snapshot";
+  }
+}
+
+function renderLocationSnapshot(s, price) {
+  const result = $("sampleSnapshotResult");
+  const strongest = s.highest_current_signal;
+  const nearest = (s.nearest_signals || []).map(h => `
+    <div class="snapshot-signal">
+      <strong style="color:#fff">${escapeHtml(String(h.category || "").replaceAll("_"," ").toUpperCase())}</strong>
+      · ${escapeHtml(h.name || "Monitored signal")} · ${Number(h.distance_km).toLocaleString()} km
+      <div class="mono" style="font-size:10.5px;color:var(--muted);margin-top:3px;">
+        ${escapeHtml(h.severity_tier || "Monitor")} · ${escapeHtml(h.source || "Source")}
+      </div>
+    </div>
+  `).join("");
+
+  const locked = (s.locked_sections || []).map(x =>
+    `<div class="snapshot-lock">🔒 ${escapeHtml(x)}</div>`
+  ).join("");
+
+  result.innerHTML = `
+    <div class="mono" style="font-size:11px;color:var(--accent);font-weight:800;">SNAPSHOT ${s.sample_number}/2 · GENERATED ${new Date(s.generated_at).toLocaleString()}</div>
+    <h3 style="font-size:1.25rem;color:#fff;margin:5px 0 2px;">${escapeHtml(s.location.label)}</h3>
+    <div style="font-size:12px;color:var(--muted);">300 km local scan · 1,000 km nearest-signal context</div>
+
+    <div class="snapshot-kpis">
+      <div class="snapshot-kpi"><div class="n">${s.local_signal_count}</div><div class="l">Resolved signals ≤300 km</div></div>
+      <div class="snapshot-kpi"><div class="n">${s.official_warning_count}</div><div class="l">Official warnings ≤300 km</div></div>
+      <div class="snapshot-kpi"><div class="n">${strongest ? escapeHtml(strongest.severity_tier) : "None"}</div><div class="l">Highest current signal</div></div>
+    </div>
+
+    <div style="background:rgba(0,243,255,.04);border:1px solid rgba(0,243,255,.18);padding:11px;border-radius:6px;color:var(--soft);font-size:13px;line-height:1.55;">
+      ${escapeHtml(s.observation)}
+    </div>
+
+    <div class="mono" style="font-size:11px;color:var(--muted);font-weight:800;margin-top:14px;">NEAREST RESOLVED SIGNALS</div>
+    ${nearest || '<div class="snapshot-signal">No geolocated monitored signals found within 1,000 km in the current feed.</div>'}
+
+    <div class="mono" style="font-size:11px;color:var(--muted);font-weight:800;margin-top:14px;">FULL DOSSIER INCLUDES</div>
+    <div class="snapshot-locked">${locked}</div>
+
+    <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px;">
+      <div style="font-size:14px;color:#fff;font-weight:700;">Full Location Threat Dossier</div>
+      <div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px;">Launch pricing: US$29 · ₹2,499 · 29 USDT</div>
+      <a class="btn btn-primary" href="/contact.html?service=location-threat-dossier" style="justify-content:center;">Commission the full dossier →</a>
+      <div class="sample-note">${s.remaining_free > 0 ? `You have ${s.remaining_free} complimentary snapshot remaining.` : "Your complimentary snapshots are now used."}</div>
+    </div>
+  `;
+  result.style.display = "block";
+  $("sampleVerifyStage").style.display = "none";
+}
+
+function renderSamplePaywall(message, price) {
+  $("sampleEntryStage").style.display = "none";
+  $("sampleVerifyStage").style.display = "none";
+  const result = $("sampleSnapshotResult");
+  result.innerHTML = `
+    <div class="mono" style="font-size:11px;color:var(--gold);font-weight:800;">COMPLIMENTARY LIMIT REACHED</div>
+    <h3 style="font-size:1.25rem;color:#fff;margin:6px 0;">${escapeHtml(message)}</h3>
+    <p style="color:var(--soft);font-size:13px;line-height:1.6;">Continue with the full Location Threat Dossier for deeper sourced analysis of one location.</p>
+    <div style="font-family:var(--font-display);font-size:1.5rem;color:#fff;margin:12px 0;">US$29 <span style="font-family:var(--font-body);font-size:13px;color:var(--muted);">· ₹2,499 · 29 USDT</span></div>
+    <a class="btn btn-primary" href="/contact.html?service=location-threat-dossier">Get the full dossier →</a>
+  `;
+  result.style.display = "block";
+  setSampleStatus("");
+}
+
 
 const $ = id => document.getElementById(id);
 function openModal(id){ const el = $(id); if(el) el.style.display = "flex"; }
