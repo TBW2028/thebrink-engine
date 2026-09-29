@@ -397,6 +397,36 @@
   .footer-nav a:hover {
     color: var(--accent-cyan);
   }
+
+  /* ===== LIVE SIGNALS (outbreak_signals) ===== */
+  .badge.static { cursor: default; text-decoration: none; }
+  button.badge { background-clip: padding-box; line-height: 1.3; }
+  .badge:focus-visible, .tab-btn:focus-visible, .btn-change-loc:focus-visible, .src-link:focus-visible {
+    outline: 2px solid var(--accent-cyan); outline-offset: 2px;
+  }
+  .src-link { color: var(--accent-cyan); text-decoration: none; }
+  .src-link:hover { text-decoration: underline; }
+  .trend-up { color: var(--accent-red); }
+  .trend-down { color: var(--accent-green); }
+  .trend-flat { color: var(--text-secondary); }
+  .note-line { font-size: 0.93rem; color: var(--text-secondary); line-height: 1.55; margin-bottom: 12px; }
+  .live-notice {
+    display: none; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 6px; padding: 10px 14px; margin-bottom: 18px; font-size: 0.92rem; color: var(--accent-amber);
+    font-family: var(--font-mono);
+  }
+  .section-label {
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--text-secondary); margin: 0 0 10px;
+  }
+  .ws-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .ws-tile { background: var(--bg-card-alt); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .ws-name { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--text-soft); }
+  .ws-meta { font-family: var(--font-mono); font-size: 13px; color: var(--text-secondary); }
+  .ws-asof { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font-family: var(--font-mono); font-size: 12.5px; padding: 5px 10px; border-radius: 4px; background: var(--bg-card-alt); border: 1px solid var(--border-subtle); color: var(--text-soft); }
+  .ev-lines { font-family: var(--font-mono); font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -442,6 +472,15 @@
     <button type="button" class="btn-change-loc" id="btnChangeLocal">Change Location</button>
   </div>
 
+  <div class="section-label">Live signals · official sources</div>
+  <div id="liveSignalNotice" class="live-notice" role="status"></div>
+  <div class="warning-stack" id="liveSummary" aria-live="polite">
+    <div class="warn-box" style="border-top: 3px solid var(--border-strong);">
+      <div class="note-line" style="margin:0">Loading live signals from WHO, ECDC and US CDC...</div>
+    </div>
+  </div>
+
+  <div class="section-label">Standing advisories · seasonal guidance, not live data</div>
   <div class="warning-stack">
     <div class="warn-box" style="border-top: 3px solid var(--accent-cyan);">
       <div>
@@ -507,7 +546,7 @@
     <div class="panel-header">
       <div class="panel-title">Global Pathogen Screener &amp; Outbreak Register</div>
       <span class="mono" id="healthSyncStatus" style="font-size:13px; color:var(--accent-cyan); cursor:pointer;">
-        ℹ️ CLICK ANY SEVERITY BADGE FOR EXPLANATION
+        ℹ️ CLICK ANY BADGE FOR EXPLANATION
       </span>
     </div>
 
@@ -516,16 +555,18 @@
       ← SWIPE HORIZONTALLY TO VIEW ALL METRICS →
     </div>
 
+    <div class="note-line" id="registerNote">Official notices from WHO Disease Outbreak News. Case counts and detail are in each linked notice.</div>
+
     <div class="table-scroll-wrapper">
       <table class="table-custom mono">
         <thead>
           <tr>
-            <th style="width:16%">Disease / Strain</th>
-            <th style="width:18%">Hotspot Zone</th>
-            <th style="width:26%">Verified Cases / Population Infected</th>
-            <th style="width:18%">Spread Vector</th>
-            <th style="width:10%">Reported</th>
-            <th style="width:12%">Severity Level</th>
+            <th style="width:18%">Disease / Strain</th>
+            <th style="width:17%">Where</th>
+            <th style="width:28%">Official summary</th>
+            <th style="width:12%">Source</th>
+            <th style="width:12%">Published</th>
+            <th style="width:13%">Evidence tier</th>
           </tr>
         </thead>
         <tbody id="screenerTableBody">
@@ -537,6 +578,24 @@
         </tbody>
       </table>
     </div>
+  </div>
+
+  <!-- SARS-CoV-2 Variant Tracker (ECDC) -->
+  <div class="card" id="variantCard">
+    <div class="panel-header">
+      <div class="panel-title">SARS-CoV-2 Variant Tracker</div>
+      <span class="mono" style="font-size:13px; color:var(--accent-green)">ECDC CLASSIFICATION · EU/EEA</span>
+    </div>
+    <div id="variantBody"><p class="note-line">Loading ECDC variant classification...</p></div>
+  </div>
+
+  <!-- Wastewater early signal (US CDC NWSS) -->
+  <div class="card" id="wastewaterCard">
+    <div class="panel-header">
+      <div class="panel-title">Wastewater Early Signal</div>
+      <span class="mono" style="font-size:13px; color:var(--accent-amber)">US CDC NWSS · EARLY INDICATOR · US ONLY</span>
+    </div>
+    <div id="wastewaterBody"><p class="note-line">Loading US wastewater data...</p></div>
   </div>
 
   <!-- Seasonal Precautions -->
@@ -672,6 +731,7 @@
 
     <div style="font-size:12px; color:var(--text-muted); margin-top:20px; font-family:var(--font-mono);">
       The Brink World, 2026. Global monitoring layer operational.
+      <div id="footerSyncStamp" style="margin-top:6px;"></div>
     </div>
 
   </div>
@@ -933,51 +993,303 @@ document.getElementById("btnChangeLocal").addEventListener("click", () => {
     .catch(() => alert("Lookup error."));
 });
 
-async function loadLiveHealthScreener() {
-  const tableBody = document.getElementById("screenerTableBody");
-  const syncStatus = document.getElementById("healthSyncStatus");
+/* ================= LIVE SIGNALS =================
+   Source of truth: Supabase table `outbreak_signals`, filled by outbreak_publisher.py
+   (WHO Disease Outbreak News, ECDC variant classification, US CDC wastewater).
+   This page never calls those agencies directly and never invents a figure:
+   if a source has no current data, its section says so instead of showing old numbers. */
+const SB_HEADERS = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
+const SRC_WHO = "WHO Disease Outbreak News", SRC_ECDC = "ECDC", SRC_CDC = "US CDC NWSS";
+const SOURCE_MAX_AGE_H = { [SRC_WHO]: 72, [SRC_ECDC]: 72, [SRC_CDC]: 216 };
+const CAT_LABEL = { VOC: "variant of concern", VOI: "variant of interest", VUM: "variant under monitoring" };
 
+const EXPLAIN = {
+  tier_confirmed: ["Evidence tier: Confirmed", "Published by an official public-health authority (WHO, ECDC or US CDC). What you see is what the agency reported, shown with its publication date and a link to the source."],
+  tier_reported: ["Evidence tier: Reported", "Reported by a credible local source but not yet confirmed by an international health authority. Treat as provisional."],
+  tier_early_signal: ["Evidence tier: Early signal", "An indicator that tends to move before official case counts, such as wastewater viral levels. It shows direction of travel, not confirmed cases, and can be revised or turn out to be a false alarm."],
+  cat_VOC: ["ECDC category: Variant of Concern", "ECDC's highest category: a variant with concerning properties likely to affect the epidemiological situation in the EU/EEA."],
+  cat_VOI: ["ECDC category: Variant of Interest", "The middle ECDC category, above monitoring and below concern. It signals closer tracking, not a confirmed threat."],
+  cat_VUM: ["ECDC category: Variant Under Monitoring", "A lineage ECDC is watching. This is the lowest of ECDC's three categories and is not a finding that the variant is dangerous."],
+  evidence: ["What 'No evidence' means", "ECDC has not yet evaluated evidence for that property (transmissibility, immunity or severity). It does not mean the variant is milder or harmless, and it does not mean it is worse."],
+  lvl: ["Wastewater viral activity level", "CDC compares current virus levels in sewage with each site's own baseline and grades them from minimal to very high. It is an early indicator of community spread, not a count of cases, and covers US sites only."]
+};
+
+const $ = id => document.getElementById(id);
+const shorten = (s, n) => { s = String(s || "").trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s; };
+function safeUrl(u) { try { const x = new URL(u); return x.protocol === "https:" ? x.href : "#"; } catch (e) { return "#"; } }
+function fmtDate(v) {
+  if (!v) return "—";
+  const d = new Date(String(v).length === 10 ? v + "T00:00:00Z" : v);
+  return isNaN(d) ? "—" : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+}
+function trendHtml(t) {
+  if (t === "rising") return `<span class="trend-up">▲ rising</span>`;
+  if (t === "falling") return `<span class="trend-down">▼ falling</span>`;
+  if (t === "flat") return `<span class="trend-flat">► flat</span>`;
+  return `<span class="trend-flat">trend n/a</span>`;
+}
+function levelClass(l) { return ({ Minimal: "badge-green", Low: "badge-green", Moderate: "badge-amber", High: "badge-red", "Very High": "badge-red" })[l] || "badge-cyan"; }
+function levelColor(l) { return ({ Minimal: "var(--accent-green)", Low: "var(--accent-green)", Moderate: "var(--accent-amber)", High: "var(--accent-red)", "Very High": "var(--accent-red)" })[l] || "var(--accent-cyan)"; }
+function explainBadge(cls, label, key) {
+  return `<button type="button" class="badge ${cls}" data-explain="${escapeHtml(key)}">${escapeHtml(label)} ℹ️</button>`;
+}
+function tierBadge(t) {
+  const m = { confirmed: ["badge-green", "Confirmed"], reported: ["badge-cyan", "Reported"], early_signal: ["badge-amber", "Early signal"] };
+  const [cls, label] = m[t] || ["badge-cyan", String(t)];
+  return explainBadge(cls, label, "tier_" + t);
+}
+function srcLink(s, label) {
+  return `<a class="src-link" href="${escapeHtml(safeUrl(s.source_url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)} ↗</a>`;
+}
+function tileHtml(color, tagBg, tag, title, desc, meta) {
+  return `<div class="warn-box" style="border-top:3px solid ${color};">
+    <div>
+      <span class="warn-tag" style="background:${tagBg}; color:${color};">${escapeHtml(tag)}</span>
+      <h4>${title}</h4>
+      <p style="font-size:0.95rem; color:var(--text-secondary); line-height:1.5;">${desc}</p>
+    </div>
+    <div class="warn-meta mono">${meta}</div>
+  </div>`;
+}
+
+async function fetchSignals() {
+  const cols = "kind,entity,entity_group,geo_scope,geo_code,geo_name,value,unit,value_text,trend,tier,headline,detail,source_name,source_url,as_of,published_at,fetched_at,change_type";
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/outbreak_signals?select=${cols}&order=as_of.desc&limit=600`, { headers: SB_HEADERS });
+  if (!res.ok) throw new Error(`Supabase ${res.status}`);
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+function nationalWastewater(signals, pathogen) {
+  return signals.find(s => s.kind === "wastewater" && s.entity === pathogen && s.geo_scope === "country");
+}
+function dominantVariants(signals) {
+  return signals.filter(s => s.kind === "variant_status" && (s.detail || {}).transmission_in_eu_eea === "Dominant");
+}
+
+function renderLiveSummary(signals) {
+  const box = $("liveSummary");
+  if (!signals.length) {
+    box.innerHTML = `<div class="warn-box" style="border-top:3px solid var(--border-strong);"><div class="note-line" style="margin:0">Live signals are not available right now. The standing advisories below remain valid.</div></div>`;
+    return;
+  }
+  const tiles = [];
+
+  // 1. newest WHO notice
+  const notices = signals.filter(s => s.kind === "outbreak_notice")
+    .sort((a, b) => String(b.published_at || b.as_of).localeCompare(String(a.published_at || a.as_of)));
+  if (notices.length) {
+    const n = notices[0];
+    tiles.push(tileHtml("var(--accent-cyan)", "rgba(6,182,212,0.15)", "LATEST WHO NOTICE",
+      escapeHtml(n.headline),
+      escapeHtml(shorten((n.detail || {}).summary_excerpt, 200)),
+      `<strong>Published:</strong> ${fmtDate(n.published_at || n.as_of)}<br/><strong>Source:</strong> ${srcLink(n, "WHO Disease Outbreak News")}`));
+  } else {
+    tiles.push(tileHtml("var(--accent-cyan)", "rgba(6,182,212,0.15)", "LATEST WHO NOTICE", "No recent notices",
+      "No WHO Disease Outbreak News items in the last 60 days.", `<strong>Source:</strong> WHO Disease Outbreak News`));
+  }
+
+  // 2. dominant SARS-CoV-2 lineage in EU/EEA
+  const dom = dominantVariants(signals);
+  if (dom.length) {
+    const d = dom[0], ev = (d.detail || {}).evidence || {};
+    const desc = dom.length === 1
+      ? `ECDC category: ${escapeHtml(CAT_LABEL[(d.detail || {}).ecdc_category] || d.value_text)}. Assessed properties — transmissibility: ${escapeHtml(ev.transmissibility || "n/a")}; immunity: ${escapeHtml(ev.immunity || "n/a")}; severity: ${escapeHtml(ev.severity || "n/a")}.`
+      : "See the variant tracker below for each lineage.";
+    tiles.push(tileHtml("var(--accent-purple)", "rgba(139,92,246,0.15)", "SARS-COV-2 · DOMINANT IN EU/EEA",
+      escapeHtml(dom.map(x => x.entity).join(", ")), desc,
+      `<strong>As of:</strong> ${fmtDate(d.as_of)}<br/><strong>Source:</strong> ${srcLink(d, "ECDC variant classification")}`));
+  } else if (signals.some(s => s.kind === "variant_status")) {
+    const v = signals.find(s => s.kind === "variant_status");
+    tiles.push(tileHtml("var(--accent-purple)", "rgba(139,92,246,0.15)", "SARS-COV-2 · EU/EEA", "No lineage marked dominant",
+      "ECDC does not currently list a lineage as dominant in the EU/EEA.",
+      `<strong>As of:</strong> ${fmtDate(v.as_of)}<br/><strong>Source:</strong> ${srcLink(v, "ECDC variant classification")}`));
+  } else {
+    tiles.push(tileHtml("var(--accent-purple)", "rgba(139,92,246,0.15)", "SARS-COV-2 · EU/EEA", "No current ECDC data",
+      "The ECDC variant feed has no current data. Nothing is shown rather than an out-of-date lineage.", `<strong>Source:</strong> ECDC`));
+  }
+
+  // 3. US wastewater, national COVID
+  const w = nationalWastewater(signals, "SARS-CoV-2");
+  if (w) {
+    tiles.push(tileHtml(levelColor(w.value_text), "rgba(148,163,184,0.12)", "EARLY SIGNAL · US WASTEWATER",
+      `SARS-CoV-2: ${escapeHtml(w.value_text)} · ${trendHtml(w.trend)}`,
+      `National wastewater viral activity level${w.value != null ? " (WVAL " + Number(w.value).toFixed(1) + ")" : ""}. An early indicator, not a case count.`,
+      `<strong>As of:</strong> ${fmtDate(w.as_of)}<br/><strong>Source:</strong> ${srcLink(w, "US CDC NWSS")}`));
+  } else {
+    tiles.push(tileHtml("var(--accent-amber)", "rgba(245,158,11,0.15)", "EARLY SIGNAL · US WASTEWATER", "No current data",
+      "No recent US wastewater reading is available.", `<strong>Source:</strong> US CDC NWSS`));
+  }
+  box.innerHTML = tiles.join("");
+}
+
+function renderOutbreakRegister(notices) {
+  const tbody = $("screenerTableBody");
+  $("registerNote").textContent = "Official notices from WHO Disease Outbreak News. Case counts and detail are in each linked notice.";
+  if (!notices.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted); font-size:15px;">No WHO Disease Outbreak News items in the last 60 days.</td></tr>`;
+    return;
+  }
+  const rows = notices.slice()
+    .sort((a, b) => String(b.published_at || b.as_of).localeCompare(String(a.published_at || a.as_of)))
+    .slice(0, 15);
+  tbody.innerHTML = rows.map(n => `
+    <tr>
+      <td><strong style="color:#fff">${escapeHtml(n.entity)}</strong></td>
+      <td>${escapeHtml(n.geo_name || "Multi-country / global")}</td>
+      <td style="color:var(--text-soft); font-size:13.5px;">${escapeHtml(shorten((n.detail || {}).summary_excerpt || n.headline, 170))}</td>
+      <td>${srcLink(n, "WHO DON")}</td>
+      <td style="color:var(--text-muted); font-size:13.5px;">${fmtDate(n.published_at || n.as_of)}</td>
+      <td>${tierBadge(n.tier)}</td>
+    </tr>`).join("");
+}
+
+function renderVariantTracker(signals) {
+  const box = $("variantBody");
+  const vs = signals.filter(s => s.kind === "variant_status");
+  if (!vs.length) {
+    box.innerHTML = `<p class="note-line">No current ECDC variant data. Nothing is shown rather than an out-of-date classification.</p>`;
+    return;
+  }
+  const txRank = t => ({ Dominant: 0, Community: 1 })[t] ?? (/outbreak/i.test(t || "") ? 2 : /sporadic/i.test(t || "") ? 3 : 4);
+  const catRank = { VOC: 0, VOI: 1, VUM: 2 };
+  vs.sort((a, b) => txRank((a.detail || {}).transmission_in_eu_eea) - txRank((b.detail || {}).transmission_in_eu_eea)
+    || (catRank[a.value_text] ?? 9) - (catRank[b.value_text] ?? 9) || a.entity.localeCompare(b.entity));
+  const asOf = vs[0].as_of;
+  const dom = dominantVariants(signals).map(x => x.entity);
+  const headline = dom.length
+    ? `Dominant in the EU/EEA: <strong style="color:#fff">${escapeHtml(dom.join(", "))}</strong>.`
+    : `ECDC does not currently mark any lineage as dominant in the EU/EEA.`;
+  const catCls = { VOC: "badge-red", VOI: "badge-amber", VUM: "badge-cyan" };
+  const rows = vs.map(v => {
+    const d = v.detail || {}, ev = d.evidence || {};
+    const who = d.who_label && d.who_label.toLowerCase() !== "n/a" ? `<div style="color:var(--text-muted); font-size:12.5px;">${escapeHtml(d.who_label)}</div>` : "";
+    const chg = v.change_type ? ` <span class="badge badge-amber static">${v.change_type === "new" ? "NEW" : "RECLASSIFIED"}</span>` : "";
+    return `<tr>
+      <td><strong style="color:#fff">${escapeHtml(v.entity)}</strong>${who}${chg}</td>
+      <td>${explainBadge(catCls[v.value_text] || "badge-cyan", v.value_text, "cat_" + v.value_text)}</td>
+      <td>${escapeHtml(d.transmission_in_eu_eea || "n/a")}</td>
+      <td class="ev-lines">Transmissibility: ${escapeHtml(ev.transmissibility || "n/a")}<br/>Immunity: ${escapeHtml(ev.immunity || "n/a")}<br/>Severity: ${escapeHtml(ev.severity || "n/a")}</td>
+    </tr>`;
+  }).join("");
+  box.innerHTML = `
+    <p class="note-line">${headline} Classification as of ${fmtDate(asOf)} · ${srcLink(vs[0], "ECDC")}<br/>
+      <button type="button" class="badge badge-cyan" data-explain="evidence" style="margin-top:8px;">What does “No evidence” mean? ℹ️</button></p>
+    <div class="table-scroll-wrapper">
+      <table class="table-custom mono" style="min-width:620px;">
+        <thead><tr><th style="width:22%">Lineage</th><th style="width:20%">ECDC status</th><th style="width:18%">EU/EEA circulation</th><th style="width:40%">Evidence assessed by ECDC</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderWastewater(signals) {
+  const box = $("wastewaterBody");
+  const ws = signals.filter(s => s.kind === "wastewater");
+  if (!ws.length) {
+    box.innerHTML = `<p class="note-line">No current US wastewater data. Nothing is shown rather than an out-of-date reading.</p>`;
+    return;
+  }
+  const order = ["SARS-CoV-2", "Influenza A", "RSV"];
+  const tiles = order.map(p => nationalWastewater(signals, p)).filter(Boolean).map(s => `
+    <div class="ws-tile">
+      <div class="ws-name">${escapeHtml(s.entity)} · United States</div>
+      ${explainBadge(levelClass(s.value_text), s.value_text, "lvl")}
+      <div class="ws-meta">${s.value != null ? "WVAL " + Number(s.value).toFixed(1) + " · " : ""}${trendHtml(s.trend)}</div>
+      <div class="ws-asof">As of ${fmtDate(s.as_of)}</div>
+    </div>`).join("");
+  const states = ws.filter(s => s.geo_scope === "subnational").sort((a, b) => (b.value || 0) - (a.value || 0)).slice(0, 12);
+  const chips = states.length
+    ? `<div class="section-label" style="margin-top:6px;">US states with high activity or a rising trend</div>
+       <div class="chip-row">${states.map(s => `<span class="chip">${escapeHtml(s.geo_name)} · ${escapeHtml(s.entity)} · ${escapeHtml(s.value_text)} ${trendHtml(s.trend)}</span>`).join("")}</div>`
+    : `<p class="note-line">No US state currently shows high activity or a rising trend at moderate-or-higher levels.</p>`;
+  box.innerHTML = `
+    <p class="note-line">Wastewater changes tend to show up before clinical case counts. Read it as direction of travel, not as confirmed cases. Source: ${srcLink(ws[0], "US CDC NWSS")}</p>
+    <div class="ws-grid">${tiles}</div>${chips}`;
+}
+
+function checkFreshness(signals) {
+  const notice = $("liveSignalNotice");
+  const now = Date.now(), stale = [];
+  Object.keys(SOURCE_MAX_AGE_H).forEach(src => {
+    const mine = signals.filter(s => s.source_name === src);
+    if (!mine.length) { stale.push(`${src} (no current data)`); return; }
+    const newest = Math.max(...mine.map(s => Date.parse(s.fetched_at) || 0));
+    if (now - newest > SOURCE_MAX_AGE_H[src] * 3600e3) stale.push(`${src} (last sync ${fmtDate(new Date(newest).toISOString())})`);
+  });
+  if (stale.length) {
+    notice.style.display = "block";
+    notice.textContent = `Sync delayed: ${stale.join("; ")}. Figures from delayed sources may be out of date.`;
+  } else {
+    notice.style.display = "none";
+  }
+}
+
+function updateSyncStatus(signals) {
+  const newest = Math.max(...signals.map(s => Date.parse(s.fetched_at) || 0));
+  const stamp = newest ? new Date(newest).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "n/a";
+  $("healthSyncStatus").textContent = `SYNCHRONIZED: ${stamp} · ${signals.length} LIVE SIGNALS (CLICK A BADGE FOR EXPLANATION)`;
+  $("footerSyncStamp").textContent = `LAST DATA SYNC: ${stamp}`;
+}
+
+/* Legacy register (old Render API). Used ONLY when the live table is unreachable or empty, and labelled as unverified. */
+async function loadLegacyScreener() {
+  const tableBody = $("screenerTableBody");
+  const syncStatus = $("healthSyncStatus");
+  $("registerNote").textContent = "Legacy feed — not source-verified. Live official data replaces this as soon as it is available.";
+  // legacy rows use the old 6-column layout; keep headers readable
   try {
     const res = await fetch(`${API}/api/health/screener`);
     if (!res.ok) throw new Error("Feed temporarily unavailable");
     const data = await res.json();
-    
-    syncStatus.textContent = `SYNCHRONIZED: ${data.updated_utc} · ${data.active_records} ADVISORIES (CLICK TO INSPECT)`;
-    const footerStamp = document.getElementById("footerSyncStamp");
-    if (footerStamp) footerStamp.textContent = `VERIFIED CYCLE: ${data.updated_utc}`;
-
+    syncStatus.textContent = `LEGACY FEED: ${data.updated_utc} · ${data.active_records} ADVISORIES (UNVERIFIED)`;
     if (!data.screener || data.screener.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted); font-size:15px;">All regional sectors operating within nominal baselines.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted); font-size:15px;">No advisories in the legacy feed.</td></tr>`;
       return;
     }
-
-    tableBody.innerHTML = data.screener.map(row => {
-      const expl = getExplanationForSeverity(row.severity);
-      const safeTitle = String(row.severity || "").replace(/'/g, "\\'");
-      const safeExpl = String(expl || "").replace(/'/g, "\\'");
-
-      return `
-        <tr>
-          <td><strong style="color:#fff">${escapeHtml(row.disease)}</strong></td>
-          <td>${escapeHtml(row.location)}</td>
-          <td style="color:var(--accent-amber); font-weight:700;">${escapeHtml(row.cases_infected || row.summary)}</td>
-          <td>${escapeHtml(row.vector)}</td>
-          <td style="color:var(--text-muted); font-size:13.5px;">${escapeHtml(row.timestamp)}</td>
-          <td>
-            <span class="badge ${row.badge_class || 'badge-amber'}" onclick="showSeverityDetail('${safeTitle}', '${safeExpl}')">
-              ${escapeHtml(row.severity)} ℹ️
-            </span>
-          </td>
-        </tr>
-      `;
-    }).join("");
-  } catch(e) {
-    syncStatus.textContent = "SYNCHRONIZED: BASELINE ACTIVE (CLICK TO INSPECT)";
+    tableBody.innerHTML = data.screener.map(row => `
+      <tr>
+        <td><strong style="color:#fff">${escapeHtml(row.disease)}</strong></td>
+        <td>${escapeHtml(row.location)}</td>
+        <td style="color:var(--text-soft); font-size:13.5px;">${escapeHtml(row.cases_infected || row.summary)}</td>
+        <td><span class="badge badge-amber static">Legacy</span></td>
+        <td style="color:var(--text-muted); font-size:13.5px;">${escapeHtml(row.timestamp)}</td>
+        <td><button type="button" class="badge ${escapeHtml(row.badge_class || "badge-amber")}" data-title="${escapeHtml(row.severity)}" data-body="${escapeHtml(getExplanationForSeverity(row.severity))}">${escapeHtml(row.severity)} ℹ️</button></td>
+      </tr>`).join("");
+  } catch (e) {
+    syncStatus.textContent = "LIVE FEED UNAVAILABLE — TRY AGAIN LATER";
+    tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted); font-size:15px;">The outbreak register is temporarily unavailable.</td></tr>`;
   }
 }
 
+async function loadLiveHealthScreener() {
+  let signals = [];
+  try { signals = await fetchSignals(); } catch (e) { console.warn("Live signals unavailable:", e); }
+  renderLiveSummary(signals);
+  renderVariantTracker(signals);
+  renderWastewater(signals);
+  if (signals.length) {
+    renderOutbreakRegister(signals.filter(s => s.kind === "outbreak_notice"));
+    checkFreshness(signals);
+    updateSyncStatus(signals);
+  } else {
+    await loadLegacyScreener();
+  }
+}
+
+// One handler for every explanatory badge (no inline JS, no quote-escaping problems)
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-explain],[data-title]");
+  if (!el) return;
+  if (el.dataset.explain && EXPLAIN[el.dataset.explain]) {
+    showSeverityDetail(EXPLAIN[el.dataset.explain][0], EXPLAIN[el.dataset.explain][1]);
+  } else if (el.dataset.title) {
+    showSeverityDetail(el.dataset.title, el.dataset.body || "");
+  }
+});
+
 function escapeHtml(str) {
-  return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/'/g, "&#39;");
+  return String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 document.getElementById("formMedicalIntake").addEventListener("submit", async e => {
