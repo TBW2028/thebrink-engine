@@ -13,16 +13,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - - name: Check out repository
-  uses: actions/checkout@v7
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-- name: Set up Python
-  uses: actions/setup-python@v7
-  with:
-    python-version: '3.11'
-    cache: 'pip'
-    cache-dependency-path: requirements_global.txt
-    
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements_global.txt
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -32,9 +32,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
           WORLDPOP_API_KEY: ${{ secrets.WORLDPOP_API_KEY }}
-
           WORLDPOP_YEAR: '2026'
           WORLDPOP_RESOLUTION: '1km'
           WMO_DETAIL_LIMIT: '120'
