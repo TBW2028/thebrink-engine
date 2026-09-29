@@ -538,6 +538,7 @@ export default {
           body: JSON.stringify({
             from: env.DOSSIER_FROM_EMAIL || "The Brink World <intel@thebrinkworld.com>",
             to: [email],
+            reply_to: env.DOSSIER_REPLY_TO || "thebrink2028@gmail.com",
             subject: "Your Location Threat Snapshot verification code",
             html: `
               <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#111">
