@@ -12,8 +12,10 @@ Important semantics:
 - WMO SWIC warnings are authoritative where participating NMHS CAP feeds are available; absence of a CAP alert is not proof of no hazard.
 """
 
+import json
 import math
 import os
+import re
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
@@ -360,44 +362,231 @@ def classify_weather_alert(text: str) -> Optional[str]:
     return None
 
 
+
+def normalize_country(value: Any) -> Tuple[Optional[str], Optional[str]]:
+    """Normalize an explicit country name or ISO-2/ISO-3 code."""
+    if value is None:
+        return None, None
+    raw = str(value).strip()
+    if not raw:
+        return None, None
+    raw = raw.split(",")[0].strip()
+    upper = raw.upper()
+    aliases = {
+        "UK": "GB", "UAE": "AE", "USA": "US",
+        "UNITED STATES OF AMERICA": "US",
+        "RUSSIA": "RU", "SOUTH KOREA": "KR", "NORTH KOREA": "KP",
+        "VIETNAM": "VN", "LAOS": "LA", "BOLIVIA": "BO",
+        "VENEZUELA": "VE", "IRAN": "IR", "SYRIA": "SY",
+        "TANZANIA": "TZ", "MOLDOVA": "MD", "BRUNEI": "BN",
+    }
+    upper = aliases.get(upper, upper)
+    if pycountry:
+        try:
+            if len(upper) == 2:
+                country = pycountry.countries.get(alpha_2=upper)
+            elif len(upper) == 3:
+                country = pycountry.countries.get(alpha_3=upper)
+            else:
+                country = pycountry.countries.lookup(raw)
+            if country:
+                return country.name, country.alpha_3
+        except Exception:
+            pass
+    return (raw if len(raw) > 3 else None), (upper if len(upper) == 3 else None)
+
+
+def country_from_sender(sender: Any) -> Tuple[Optional[str], Optional[str]]:
+    """Best-effort country extraction from authoritative sender domains such as *.gov.cn."""
+    if not sender:
+        return None, None
+    text = str(sender).strip().lower()
+    # First allow a senderName that explicitly contains a country name.
+    if pycountry:
+        for country in pycountry.countries:
+            names = [country.name]
+            official = getattr(country, "official_name", None)
+            common = getattr(country, "common_name", None)
+            if official: names.append(official)
+            if common: names.append(common)
+            for name in names:
+                if len(name) >= 5 and re.search(r"\b" + re.escape(name.lower()) + r"\b", text):
+                    return country.name, country.alpha_3
+    # Then use ccTLD from an email/domain when it is an ISO country code.
+    match = re.search(r"(?:@|\b)([a-z0-9.-]+\.([a-z]{2}))\b", text)
+    if match:
+        cc = match.group(2).upper()
+        cc = {"UK": "GB"}.get(cc, cc)
+        return normalize_country(cc)
+    return None, None
+
+
+def country_from_wmo_fields(item: Dict[str, Any], details: Optional[Dict[str, Any]] = None) -> Tuple[Optional[str], Optional[str]]:
+    """Resolve country using explicit SWIC/CAP metadata before any inference."""
+    details = details or {}
+
+    # 1. Explicit country/code fields from SWIC summary.
+    for key in [
+        "country", "countryName", "countryname", "country_code", "countryCode",
+        "iso2", "iso3", "cc", "memberCountry", "member_country"
+    ]:
+        country, iso3 = normalize_country(item.get(key))
+        if country or iso3:
+            return country, iso3
+
+    # 2. WMO member id when it begins with ISO-2.
+    for key in ["mid", "memberId", "member_id"]:
+        country, iso3 = country_from_mid(str(item.get(key) or ""))
+        if country or iso3:
+            return country, iso3
+
+    # 3. CAP geocodes when an authority supplies ISO/country values.
+    for pair in details.get("geocodes", []) or []:
+        name = str(pair.get("name") or "").lower()
+        value = pair.get("value")
+        if any(token in name for token in ["iso", "country", "nation"]):
+            country, iso3 = normalize_country(value)
+            if country or iso3:
+                return country, iso3
+
+    # 4. Authoritative sender / senderName.
+    sender_candidates = [
+        details.get("sender"), details.get("senderName"),
+        item.get("sender"), item.get("senderName"), item.get("sender_name"),
+        item.get("source"), item.get("publisher"), item.get("author"),
+    ]
+    for sender in sender_candidates:
+        country, iso3 = country_from_sender(sender)
+        if country or iso3:
+            return country, iso3
+
+    return None, None
+
+
+def cap_shape_centroid(value: Any, shape: str) -> Tuple[Optional[float], Optional[float]]:
+    if not value:
+        return None, None
+    try:
+        if shape == "polygon":
+            pts = []
+            for token in str(value).replace(";", " ").split():
+                if "," not in token:
+                    continue
+                a, b = token.split(",", 1)
+                pts.append((float(a), float(b)))  # CAP uses lat,lon
+            if pts:
+                return sum(x[0] for x in pts) / len(pts), sum(x[1] for x in pts) / len(pts)
+        if shape == "circle":
+            center = str(value).split()[0]
+            if "," in center:
+                a, b = center.split(",", 1)
+                return float(a), float(b)
+    except Exception:
+        pass
+    return None, None
+
+
+def wmo_item_centroid(item: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
+    """Use geometry already present in the SWIC summary before spending a CAP detail request."""
+    for key in ["geometry", "geojson"]:
+        geom = item.get(key)
+        if isinstance(geom, str):
+            try:
+                geom = json.loads(geom)
+            except Exception:
+                geom = None
+        if isinstance(geom, dict):
+            lat, lon = feature_centroid(geom)
+            if lat is not None and lon is not None:
+                return lat, lon
+
+    lat = safe_float(item.get("latitude") if item.get("latitude") is not None else item.get("lat"))
+    lon = safe_float(item.get("longitude") if item.get("longitude") is not None else item.get("lon"))
+    if lat is not None and lon is not None:
+        return lat, lon
+
+    for key in ["polygon", "areaPolygon"]:
+        lat, lon = cap_shape_centroid(item.get(key), "polygon")
+        if lat is not None and lon is not None:
+            return lat, lon
+    for key in ["circle", "areaCircle"]:
+        lat, lon = cap_shape_centroid(item.get(key), "circle")
+        if lat is not None and lon is not None:
+            return lat, lon
+
+    return None, None
+
+
+def get_wmo_enrichment_cache() -> Dict[str, Dict[str, Any]]:
+    """Reuse country/geometry already resolved in earlier cycles so detail requests progress through the feed."""
+    cache: Dict[str, Dict[str, Any]] = {}
+    try:
+        res = (
+            supabase.table("live_hazards")
+            .select("id,country,iso3,latitude,longitude,urgency,certainty,expires_at")
+            .eq("source", "WMO SWIC / National Authority")
+            .execute()
+        )
+        for row in (res.data or []):
+            if row.get("id"):
+                cache[row["id"]] = row
+    except Exception as exc:
+        print(f"[WARN] WMO enrichment cache unavailable: {exc}")
+    return cache
+
+
 def cap_xml_summary(url: str) -> Dict[str, Any]:
-    """Best-effort CAP XML parser. Returns severity/urgency/certainty plus point/area centroid where supplied."""
+    """Best-effort CAP parser with authoritative sender, geocodes and area centroid."""
     try:
         full_url = url if url.startswith("http") else "https://severeweather.wmo.int" + (url if url.startswith("/") else "/" + url)
         r = SESSION.get(full_url, timeout=12)
         r.raise_for_status()
         root = ET.fromstring(r.content)
+
         vals: Dict[str, List[str]] = {}
         for el in root.iter():
             tag = el.tag.split("}")[-1]
             if el.text and el.text.strip():
                 vals.setdefault(tag, []).append(el.text.strip())
+
+        geocodes: List[Dict[str, str]] = []
+        for geocode in root.iter():
+            if geocode.tag.split("}")[-1] != "geocode":
+                continue
+            value_name = None
+            value = None
+            for child in list(geocode):
+                tag = child.tag.split("}")[-1]
+                txt = (child.text or "").strip()
+                if tag == "valueName":
+                    value_name = txt
+                elif tag == "value":
+                    value = txt
+            if value_name or value:
+                geocodes.append({"name": value_name or "", "value": value or ""})
+
         lat = lon = None
         polygons = vals.get("polygon", [])
         circles = vals.get("circle", [])
         if polygons:
-            pts = []
-            for token in polygons[0].replace(";", " ").split():
-                if "," not in token: continue
-                a, b = token.split(",", 1)
-                try: pts.append((float(a), float(b))) # CAP: lat,lon
-                except Exception: pass
-            if pts:
-                lat = sum(x[0] for x in pts)/len(pts); lon = sum(x[1] for x in pts)/len(pts)
+            lat, lon = cap_shape_centroid(polygons[0], "polygon")
         elif circles:
-            center = circles[0].split()[0]
-            if "," in center:
-                a,b = center.split(",",1)
-                try: lat,lon=float(a),float(b)
-                except Exception: pass
+            lat, lon = cap_shape_centroid(circles[0], "circle")
+
         return {
-            "lat": lat, "lon": lon,
+            "lat": lat,
+            "lon": lon,
             "severity": (vals.get("severity") or [None])[0],
             "urgency": (vals.get("urgency") or [None])[0],
             "certainty": (vals.get("certainty") or [None])[0],
             "event": (vals.get("event") or [None])[0],
             "headline": (vals.get("headline") or [None])[0],
             "areaDesc": (vals.get("areaDesc") or [None])[0],
+            "sender": (vals.get("sender") or [None])[0],
+            "senderName": (vals.get("senderName") or [None])[0],
+            "effective": (vals.get("effective") or [None])[0],
+            "expires": (vals.get("expires") or [None])[0],
+            "geocodes": geocodes,
         }
     except Exception:
         return {}
@@ -411,51 +600,125 @@ def fetch_wmo_cap_warnings() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]
         items = payload.get("items") if isinstance(payload, dict) else payload
         if not isinstance(items, list):
             items = payload.get("data", []) if isinstance(payload, dict) else []
+
         rows: List[Dict[str, Any]] = []
         detail_budget = WMO_DETAIL_LIMIT
+        enrichment_cache = get_wmo_enrichment_cache()
+        detail_fetches = 0
+        resolved_country = 0
+        resolved_geometry = 0
 
         for item in items:
-            if not isinstance(item, dict): continue
+            if not isinstance(item, dict):
+                continue
+
             text = " ".join(str(item.get(k) or "") for k in ["event", "headline", "areaDesc"])
             cat = classify_weather_alert(text)
-            if not cat: continue
+            if not cat:
+                continue
 
             severity = str(item.get("severity") or item.get("s") or "Unknown")
             urgency = str(item.get("urgency") or item.get("u") or "Unknown")
             certainty = str(item.get("certainty") or item.get("c") or "Unknown")
-            # Some SWIC summaries use coded values. Preserve them if not human-readable; CAP detail can improve them.
-            mid = str(item.get("mid") or "")
-            country, iso3 = country_from_mid(mid)
-            lat = lon = None
-            source_url = item.get("url")
+            mid = str(item.get("mid") or item.get("memberId") or item.get("member_id") or "")
+
+            effective = clean_timestamp(item.get("effective") or item.get("sent")) or now_iso()
+            record_id = f"WMO_CAP_{item.get('id') or (mid + '_' + str(effective))}"
+            source_url = item.get("url") or item.get("cap") or item.get("capUrl") or item.get("link")
+
+            country, iso3 = country_from_wmo_fields(item)
+            lat, lon = wmo_item_centroid(item)
+            expires = clean_timestamp(item.get("expires"))
+
+            # Reuse previously resolved values so each 15-minute cycle can spend its
+            # CAP-detail budget on warnings that are still missing metadata.
+            cached = enrichment_cache.get(record_id) or {}
+            country = country or cached.get("country")
+            iso3 = iso3 or cached.get("iso3")
+            lat = lat if lat is not None else cached.get("latitude")
+            lon = lon if lon is not None else cached.get("longitude")
+            if urgency in {"", "Unknown", "None"} and cached.get("urgency"):
+                urgency = cached.get("urgency")
+            if certainty in {"", "Unknown", "None"} and cached.get("certainty"):
+                certainty = cached.get("certainty")
+            expires = expires or cached.get("expires_at")
+
             details: Dict[str, Any] = {}
             sev_lower = severity.lower()
-            needs_detail = source_url and detail_budget > 0 and (sev_lower in {"extreme", "severe", "4", "3"} or cat in {"flash_flood", "cyclone", "landslide"})
-            if needs_detail:
-                details = cap_xml_summary(str(source_url)); detail_budget -= 1
-                lat, lon = details.get("lat"), details.get("lon")
+            priority_detail = (
+                country is None or iso3 is None or lat is None or lon is None
+                or sev_lower in {"extreme", "severe", "4", "3"}
+                or cat in {"flash_flood", "cyclone", "landslide"}
+            )
+
+            if source_url and detail_budget > 0 and priority_detail:
+                details = cap_xml_summary(str(source_url))
+                detail_budget -= 1
+                detail_fetches += 1
+
+                detail_lat, detail_lon = details.get("lat"), details.get("lon")
+                if detail_lat is not None and detail_lon is not None:
+                    lat, lon = detail_lat, detail_lon
+
+                detail_country, detail_iso3 = country_from_wmo_fields(item, details)
+                country = country or detail_country
+                iso3 = iso3 or detail_iso3
+
                 severity = details.get("severity") or severity
                 urgency = details.get("urgency") or urgency
                 certainty = details.get("certainty") or certainty
-                if details.get("event"): text = f"{details.get('event')} {details.get('headline') or ''} {details.get('areaDesc') or ''}"
-                cat = classify_weather_alert(text) or cat
+                effective = clean_timestamp(details.get("effective")) or effective
+                expires = clean_timestamp(details.get("expires")) or expires
 
-            # normalize coded SWIC severities if necessary
+                if details.get("event"):
+                    text = f"{details.get('event')} {details.get('headline') or ''} {details.get('areaDesc') or ''}"
+                    cat = classify_weather_alert(text) or cat
+
             coded = {"4":"Extreme", "3":"Severe", "2":"Moderate", "1":"Minor", "0":"Unknown"}
             severity = coded.get(str(severity), str(severity).capitalize())
             band = source_level_to_band(severity)
 
-            effective = item.get("effective") or item.get("sent") or now_iso()
-            expires = item.get("expires")
-            name = item.get("headline") or item.get("event") or f"Official {cat.replace('_',' ')} warning"
+            name = (
+                details.get("headline")
+                or item.get("headline")
+                or details.get("event")
+                or item.get("event")
+                or f"Official {cat.replace('_',' ')} warning"
+            )
+            intensity = details.get("event") or item.get("event") or cat.replace("_", " ").title()
+
+            if country:
+                resolved_country += 1
+            if lat is not None and lon is not None:
+                resolved_geometry += 1
+
             rows.append(base_event(
-                id=f"WMO_CAP_{item.get('id') or (mid + '_' + str(effective))}", category=cat, name=str(name),
-                basin="WMO MEMBER", intensity=str(item.get("event") or cat.replace("_"," ").title()),
-                latitude=lat, longitude=lon, alert_level=severity, severity_tier=band,
-                source="WMO SWIC / National Authority", signal_mode="official_warning", record_type="warning",
-                country=country, iso3=iso3, observed_at=effective, source_url=(str(source_url) if source_url else None),
-                expires_at=expires, urgency=urgency, certainty=certainty
+                id=record_id,
+                category=cat,
+                name=str(name),
+                basin="WMO MEMBER",
+                intensity=str(intensity),
+                latitude=lat,
+                longitude=lon,
+                alert_level=severity,
+                severity_tier=band,
+                source="WMO SWIC / National Authority",
+                signal_mode="official_warning",
+                record_type="warning",
+                country=country,
+                iso3=iso3,
+                observed_at=effective,
+                source_url=(str(source_url) if source_url else None),
+                expires_at=expires,
+                urgency=urgency,
+                certainty=certainty,
             ))
+
+        print(
+            f"[WMO] detail fetches={detail_fetches}; "
+            f"country resolved={resolved_country}/{len(rows)}; "
+            f"geometry resolved={resolved_geometry}/{len(rows)}"
+        )
         return True, rows, None
     except Exception as e:
         return False, [], str(e)
