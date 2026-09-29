@@ -77,7 +77,8 @@ async function geocodeRequestedLocation(body) {
       label: String(body.location || "Selected location").trim().slice(0, 220),
       lat, lon,
       country: body.country || null,
-      countryCode: body.country_code || null
+      countryCode: body.country_code || null,
+      geocoder: "device_coordinates"
     };
   }
 
@@ -89,15 +90,15 @@ async function geocodeRequestedLocation(body) {
     .map(x => x.trim())
     .filter(Boolean);
 
-  // Open-Meteo's geocoder performs best when 'name' is the actual locality,
-  // not a long comma-separated address. Try progressively simpler place names,
-  // then rank the results against the remaining context (district/state/country).
-  const candidates = [];
-  if (rawQuery) candidates.push(rawQuery);
-  if (parts[0] && !candidates.includes(parts[0])) candidates.push(parts[0]);
-  if (parts.length >= 2) {
-    const firstTwo = parts.slice(0, 2).join(" ");
-    if (!candidates.includes(firstTwo)) candidates.push(firstTwo);
+  // ---- Primary: Open-Meteo / GeoNames ----
+  // Open-Meteo matches best when name is a locality plus at most one qualifier.
+  const openMeteoCandidates = [];
+  if (parts[0]) openMeteoCandidates.push(parts[0]);
+  if (parts[0] && parts.length >= 2) {
+    openMeteoCandidates.push(`${parts[0]}, ${parts[parts.length - 1]}`);
+  }
+  if (parts[0] && parts.length >= 3) {
+    openMeteoCandidates.push(`${parts[0]}, ${parts[parts.length - 2]}`);
   }
 
   const context = parts.slice(1).join(" ").toLowerCase();
@@ -111,68 +112,137 @@ async function geocodeRequestedLocation(body) {
   let best = null;
   let bestScore = -1;
 
-  for (const candidate of candidates.slice(0, 3)) {
-    const u = new URL("https://geocoding-api.open-meteo.com/v1/search");
-    u.searchParams.set("name", candidate);
-    u.searchParams.set("count", "10");
-    u.searchParams.set("language", "en");
-    u.searchParams.set("format", "json");
+  for (const candidate of [...new Set(openMeteoCandidates)].slice(0, 3)) {
+    try {
+      const u = new URL("https://geocoding-api.open-meteo.com/v1/search");
+      u.searchParams.set("name", candidate);
+      u.searchParams.set("count", "20");
+      u.searchParams.set("language", "en");
+      u.searchParams.set("format", "json");
 
-    const res = await fetch(u.toString());
-    if (!res.ok) continue;
+      const res = await fetch(u.toString());
+      if (!res.ok) continue;
 
-    const data = await res.json();
-    const rows = data.results || [];
+      const data = await res.json();
+      const rows = data.results || [];
 
-    for (const row of rows) {
-      const haystack = [
-        row.name,
-        row.admin1,
-        row.admin2,
-        row.admin3,
-        row.admin4,
-        row.country,
-        row.country_code
-      ].filter(Boolean).join(" ").toLowerCase();
+      for (const row of rows) {
+        const haystack = [
+          row.name,
+          row.admin1,
+          row.admin2,
+          row.admin3,
+          row.admin4,
+          row.country,
+          row.country_code
+        ].filter(Boolean).join(" ").toLowerCase();
 
-      let score = 0;
+        let score = 0;
+        if (String(row.name || "").trim().toLowerCase() === String(parts[0] || candidate).trim().toLowerCase()) {
+          score += 8;
+        }
 
-      // Strong preference for an exact locality-name match.
-      if (String(row.name || "").trim().toLowerCase() === String(parts[0] || candidate).trim().toLowerCase()) {
-        score += 8;
+        for (const token of tokens) {
+          if (haystack.includes(token)) score += 2;
+        }
+
+        if (row.population) score += 1;
+        if (row.admin1) score += 0.5;
+        if (row.country) score += 0.5;
+
+        if (score > bestScore) {
+          bestScore = score;
+          best = row;
+        }
       }
 
-      // Reward agreement with user-supplied district/state/country context.
-      for (const token of tokens) {
-        if (haystack.includes(token)) score += 2;
+      if (best && bestScore >= 10) break;
+    } catch (_) {
+      // Fall through to the next provider.
+    }
+  }
+
+  if (best && Number.isFinite(Number(best.latitude)) && Number.isFinite(Number(best.longitude))) {
+    return {
+      label: [best.name, best.admin2, best.admin1, best.country].filter(Boolean).join(", "),
+      lat: Number(best.latitude),
+      lon: Number(best.longitude),
+      country: best.country || null,
+      countryCode: best.country_code || null,
+      geocoder: "open_meteo_geonames"
+    };
+  }
+
+  // ---- Fallback: OpenStreetMap Nominatim ----
+  // This is called only after the visitor explicitly submits a location; it is
+  // not autocomplete or bulk geocoding. One request per submitted query.
+  try {
+    const u = new URL("https://nominatim.openstreetmap.org/search");
+    u.searchParams.set("q", rawQuery);
+    u.searchParams.set("format", "jsonv2");
+    u.searchParams.set("addressdetails", "1");
+    u.searchParams.set("limit", "5");
+
+    const nomRes = await fetch(u.toString(), {
+      headers: {
+        "User-Agent": "TheBrinkWorld/1.0 (+https://thebrinkworld.com; contact: thebrink2028@gmail.com)",
+        "Referer": "https://thebrinkworld.com/",
+        "Accept-Language": "en"
       }
+    });
 
-      // Prefer populated / administrative places over weak generic matches.
-      if (row.population) score += 1;
-      if (row.admin1) score += 0.5;
-      if (row.country) score += 0.5;
+    if (nomRes.ok) {
+      const rows = await nomRes.json();
+      if (Array.isArray(rows) && rows.length) {
+        const locality = String(parts[0] || "").toLowerCase();
+        let chosen = null;
+        let chosenScore = -1;
 
-      if (score > bestScore) {
-        bestScore = score;
-        best = row;
+        for (const row of rows) {
+          const address = row.address || {};
+          const haystack = [
+            row.display_name,
+            address.city,
+            address.town,
+            address.village,
+            address.hamlet,
+            address.county,
+            address.state,
+            address.country
+          ].filter(Boolean).join(" ").toLowerCase();
+
+          let score = 0;
+          if (locality && haystack.includes(locality)) score += 8;
+          for (const token of tokens) {
+            if (haystack.includes(token)) score += 2;
+          }
+          score += Math.min(Number(row.importance || 0), 1);
+
+          if (score > chosenScore) {
+            chosenScore = score;
+            chosen = row;
+          }
+        }
+
+        if (chosen && Number.isFinite(Number(chosen.lat)) && Number.isFinite(Number(chosen.lon))) {
+          const address = chosen.address || {};
+          const countryCode = String(address.country_code || "").toUpperCase() || null;
+          return {
+            label: chosen.display_name || rawQuery,
+            lat: Number(chosen.lat),
+            lon: Number(chosen.lon),
+            country: address.country || null,
+            countryCode,
+            geocoder: "openstreetmap_nominatim"
+          };
+        }
       }
     }
-
-    // A confident locality + context match is good enough; avoid extra requests.
-    if (best && bestScore >= 10) break;
+  } catch (_) {
+    // Final error below.
   }
 
-  if (!best || !Number.isFinite(Number(best.latitude)) || !Number.isFinite(Number(best.longitude))) {
-    throw new Error("We could not confidently locate that place. Try city/town, district or state, and country.");
-  }
-
-  return {
-    label: [best.name, best.admin2, best.admin1, best.country].filter(Boolean).join(", "),
-    lat: Number(best.latitude),
-    lon: Number(best.longitude),
-    country: best.country || null,
-    countryCode: best.country_code || null
-  };
+  throw new Error("We could not locate that place. Try a nearby town/city, postcode, or use 'Use my current location'.");
 }
 
 
