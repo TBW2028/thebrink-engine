@@ -39,7 +39,7 @@ WMO_SWIC_JSON_URL = os.getenv("WMO_SWIC_JSON_URL", "https://severeweather.wmo.in
 WORLDPOP_YEAR = int(os.getenv("WORLDPOP_YEAR", str(datetime.now(timezone.utc).year)))
 WORLDPOP_RESOLUTION = os.getenv("WORLDPOP_RESOLUTION", "1km")
 WMO_DETAIL_LIMIT = int(os.getenv("WMO_DETAIL_LIMIT", "120"))
-WMO_GEOCODE_LIMIT = int(os.getenv("WMO_GEOCODE_LIMIT", "60"))
+WMO_GEOCODE_LIMIT = int(os.getenv("WMO_GEOCODE_LIMIT", "100"))
 
 if not SUPABASE_URL:
     raise ValueError("Missing SUPABASE_URL.")
@@ -105,41 +105,59 @@ def cyclone_band(wind_kts: Optional[float], alert_level: str) -> str:
 
 
 def country_from_mid(mid: str) -> Tuple[Optional[str], Optional[str]]:
-    """Resolve SWIC member IDs such as cn-cma-xx, and tolerate ISO numeric IDs."""
+    """Resolve SWIC member IDs only when they explicitly begin with ISO alpha-2.
+
+    Numeric MID values are WMO/SWIC member identifiers, not ISO country codes,
+    so they must not be interpreted as countries.
+    """
     if not mid:
         return None, None
-    raw = str(mid).strip()
-    first = raw.split("-")[0].upper()
-    if pycountry:
+    first = str(mid).strip().split("-")[0].upper()
+    if len(first) == 2 and first.isalpha() and pycountry:
         try:
-            if len(first) == 2 and first.isalpha():
-                c = pycountry.countries.get(alpha_2=first)
-                if c:
-                    return c.name, c.alpha_3
-            if first.isdigit() and len(first) <= 3:
-                c = pycountry.countries.get(numeric=first.zfill(3))
-                if c:
-                    return c.name, c.alpha_3
+            country = pycountry.countries.get(alpha_2=first)
+            if country:
+                return country.name, country.alpha_3
         except Exception:
             pass
     return None, None
 
 
 def country_from_wmo_identifier(identifier: Any) -> Tuple[Optional[str], Optional[str]]:
-    """Resolve ISO numeric country code embedded in WMO/CAP OID-style identifiers."""
+    """Resolve ISO-3166 numeric country code embedded in WMO/CAP identifiers.
+
+    Live SWIC records commonly use OID-shaped identifiers such as
+    urn:oid:2.49.0.1.840.... where 840 is the ISO numeric code for the US.
+    """
     if not identifier or not pycountry:
         return None, None
     text = str(identifier).strip()
-    # Common SWIC CAP identifiers contain 2.49.0.0.<ISO numeric country code>.
-    m = re.search(r"2\.49\.0\.0\.(\d{1,3})(?:\.|-|$)", text)
-    if not m:
-        return None, None
-    try:
-        c = pycountry.countries.get(numeric=m.group(1).zfill(3))
-        if c:
-            return c.name, c.alpha_3
-    except Exception:
-        pass
+
+    patterns = [
+        r"2\.49\.0\.[01]\.(\d{3})(?:\.|-|$)",
+        r"urn:oid:2\.49\.0\.[01]\.(\d{3})(?:\.|-|$)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.I)
+        if not match:
+            continue
+        try:
+            country = pycountry.countries.get(numeric=match.group(1))
+            if country:
+                return country.name, country.alpha_3
+        except Exception:
+            pass
+
+    # Recognize well-known national authority identifiers when the country is
+    # explicit in the issuer token but not encoded as an ISO number.
+    lowered = text.lower()
+    authority_prefixes = {
+        "ausbom": ("Australia", "AUS"),
+    }
+    for prefix, pair in authority_prefixes.items():
+        if lowered.startswith(prefix):
+            return pair
+
     return None, None
 
 
@@ -153,64 +171,106 @@ def iso3_to_iso2(iso3: Optional[str]) -> Optional[str]:
         return None
 
 
-def geocode_warning_area(area_desc: Any, country: Optional[str], iso3: Optional[str]) -> Tuple[Optional[float], Optional[float], Optional[str]]:
-    """Resolve a representative point for a CAP area using a country-constrained global geocoder.
+def geocode_warning_area(
+    area_desc: Any,
+    country: Optional[str],
+    iso3: Optional[str],
+) -> Tuple[Optional[float], Optional[float], Optional[str], Optional[str], Optional[str]]:
+    """Resolve a representative warning point and, when needed, infer country.
 
-    This is a point-tier fallback, not a reconstruction of the warning polygon.
+    This is intentionally a representative-point fallback, not a reconstruction
+    of the full warning polygon.
     """
     if not area_desc:
-        return None, None, "No area description"
+        return None, None, None, None, "No area description"
+
     raw = re.sub(r"\s+", " ", str(area_desc)).strip()
     if not raw:
-        return None, None, "Empty area description"
+        return None, None, None, None, "Empty area description"
 
-    # CAP areaDesc often lists many zones. Use the first named area as a representative point.
+    # Build conservative candidate place names. Prefixes such as "Western Australia:"
+    # and "Queensland:" are highly useful when the downstream coastal-zone text is not.
+    candidates: List[str] = []
+    prefix = raw.split(":", 1)[0].strip() if ":" in raw else ""
+    if prefix and 2 <= len(prefix) <= 80:
+        candidates.append(prefix)
+
     first = re.split(r";|\||\n| / ", raw, maxsplit=1)[0].strip()
-    if len(first) > 140:
-        first = first[:140].rsplit(" ", 1)[0]
+    if first and first not in candidates:
+        candidates.append(first)
 
-    candidates = [first]
     simplified = re.sub(
-        r"\b(city jurisdiction|administrative district|municipality|prefecture)\b",
+        r"\b(city jurisdiction|administrative district|autonomous county|autonomous prefecture|municipality|prefecture|county)\b",
         "",
         first,
         flags=re.I,
     ).strip(" ,-")
-    if simplified and simplified != first:
+    if simplified and simplified not in candidates:
         candidates.append(simplified)
 
+    # State abbreviations in US CAP area text (e.g. "Maricopa, AZ") benefit from
+    # keeping the comma suffix intact, so 'first' remains ahead of simplified forms.
     params_base = {"count": 10, "language": "en", "format": "json"}
-    iso2 = iso3_to_iso2(iso3)
-    if iso2:
-        params_base["countryCode"] = iso2
+    requested_iso2 = iso3_to_iso2(iso3)
+    if requested_iso2:
+        params_base["countryCode"] = requested_iso2
 
     last_error = None
-    for query in candidates:
+    for query in candidates[:3]:
         try:
             params = dict(params_base)
-            params["name"] = query
-            r = SESSION.get("https://geocoding-api.open-meteo.com/v1/search", params=params, timeout=12)
-            r.raise_for_status()
-            results = (r.json() or {}).get("results") or []
+            params["name"] = query[:140]
+            response = SESSION.get(
+                "https://geocoding-api.open-meteo.com/v1/search",
+                params=params,
+                timeout=12,
+            )
+            response.raise_for_status()
+            results = (response.json() or {}).get("results") or []
             if not results:
                 continue
-            # Prefer an exact country match when available.
+
             chosen = None
-            for result in results:
-                if iso2 and str(result.get("country_code") or "").upper() == iso2:
-                    chosen = result
-                    break
-            chosen = chosen or results[0]
+            if requested_iso2:
+                for result in results:
+                    if str(result.get("country_code") or "").upper() == requested_iso2:
+                        chosen = result
+                        break
+            else:
+                # Without a known country, only accept a result if the geocoder gives
+                # us an explicit country code. Prefer exact-ish name matches.
+                qnorm = re.sub(r"[^a-z0-9]+", " ", query.lower()).strip()
+                for result in results:
+                    rname = re.sub(r"[^a-z0-9]+", " ", str(result.get("name") or "").lower()).strip()
+                    if rname == qnorm and result.get("country_code"):
+                        chosen = result
+                        break
+                if chosen is None:
+                    with_country = [r for r in results if r.get("country_code")]
+                    if len(with_country) == 1:
+                        chosen = with_country[0]
+
+            if chosen is None:
+                continue
+
             lat = safe_float(chosen.get("latitude"))
             lon = safe_float(chosen.get("longitude"))
-            if lat is not None and lon is not None:
-                label = ", ".join(
-                    x for x in [chosen.get("name"), chosen.get("admin1"), chosen.get("country")] if x
-                )
-                return lat, lon, label
+            if lat is None or lon is None:
+                continue
+
+            discovered_country, discovered_iso3 = normalize_country(chosen.get("country_code"))
+            label = ", ".join(
+                x for x in [
+                    chosen.get("name"),
+                    chosen.get("admin1"),
+                    chosen.get("country"),
+                ] if x
+            )
+            return lat, lon, discovered_country, discovered_iso3, label
         except Exception as exc:
             last_error = str(exc)
-    return None, None, last_error or "No geocoding match"
+
+    return None, None, None, None, last_error or "No reliable geocoding match"
 
 
 def feature_centroid(geometry: Optional[Dict[str, Any]]) -> Tuple[Optional[float], Optional[float]]:
@@ -527,16 +587,16 @@ def country_from_wmo_fields(item: Dict[str, Any], details: Optional[Dict[str, An
         if country or iso3:
             return country, iso3
 
-    # 2. WMO member id when it begins with ISO-2 (or is an ISO numeric code).
-    for key in ["mid", "memberId", "member_id"]:
-        country, iso3 = country_from_mid(str(item.get(key) or ""))
+    # 2. CAP/WMO identifiers are the strongest fallback when they embed an ISO
+    #    numeric country code, e.g. urn:oid:2.49.0.1.840....
+    for key in ["id", "identifier", "uid"]:
+        country, iso3 = country_from_wmo_identifier(item.get(key))
         if country or iso3:
             return country, iso3
 
-    # 3. Many SWIC/CAP identifiers embed ISO-3166 numeric country code
-    #    in an OID-shaped identifier such as 2.49.0.0.<numeric>....
-    for key in ["id", "identifier", "uid"]:
-        country, iso3 = country_from_wmo_identifier(item.get(key))
+    # 3. WMO member id only when it explicitly begins with ISO alpha-2.
+    for key in ["mid", "memberId", "member_id"]:
+        country, iso3 = country_from_mid(str(item.get(key) or ""))
         if country or iso3:
             return country, iso3
 
@@ -549,7 +609,13 @@ def country_from_wmo_fields(item: Dict[str, Any], details: Optional[Dict[str, An
             if country or iso3:
                 return country, iso3
 
-    # 5. Authoritative sender / senderName.
+    # 5. National authority tokens may be present directly in the alert identifier.
+    for key in ["id", "identifier", "uid"]:
+        country, iso3 = country_from_wmo_identifier(item.get(key))
+        if country or iso3:
+            return country, iso3
+
+    # 6. Authoritative sender / senderName.
     sender_candidates = [
         details.get("sender"), details.get("senderName"),
         item.get("sender"), item.get("senderName"), item.get("sender_name"),
@@ -792,13 +858,23 @@ def fetch_wmo_cap_warnings() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]
             # so the dashboard can offer a clearly-labelled 50 km reference exposure.
             area_desc = details.get("areaDesc") or item.get("areaDesc") or item.get("area") or ""
             needs_point = lat is None or lon is None
-            point_priority = band in {"Critical", "Severe"} or cat in {"flash_flood", "cyclone", "landslide"}
-            if needs_point and point_priority and country and geocode_budget > 0 and area_desc:
-                geo_lat, geo_lon, geo_label = geocode_warning_area(area_desc, country, iso3)
+            point_priority = (
+                band in {"Critical", "Severe"}
+                or cat in {"flash_flood", "cyclone", "landslide"}
+                or country is None
+            )
+            if needs_point and point_priority and geocode_budget > 0 and area_desc:
+                geo_lat, geo_lon, geo_country, geo_iso3, geo_label = geocode_warning_area(
+                    area_desc, country, iso3
+                )
                 geocode_budget -= 1
                 geocode_fetches += 1
                 if geo_lat is not None and geo_lon is not None:
                     lat, lon = geo_lat, geo_lon
+                if not country and geo_country:
+                    country = geo_country
+                if not iso3 and geo_iso3:
+                    iso3 = geo_iso3
 
             name = (
                 details.get("headline")
