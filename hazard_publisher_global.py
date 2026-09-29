@@ -44,7 +44,10 @@ if not SUPABASE_KEY:
     raise ValueError("Missing SUPABASE_SERVICE_ROLE_KEY.")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-HEADERS = {"User-Agent": "TheBrinkEngine/5.0 (contact@thebrinkworld.com)"}
+HEADERS = {
+    "User-Agent": "TheBrinkEngine/5.1 (contact@thebrinkworld.com)",
+    "Accept": "application/geo+json, application/json;q=0.9, */*;q=0.8",
+}
 SESSION = requests.Session()
 SESSION.headers.update(HEADERS)
 
@@ -53,6 +56,17 @@ SEVERITY_ORDER = {"Monitor": 1, "Significant": 2, "Severe": 3, "Critical": 4}
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def clean_timestamp(value: Any) -> Optional[Any]:
+    """Convert blank timestamp-like values to None before sending them to Postgres."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+    return value
 
 
 def safe_float(value: Any) -> Optional[float]:
@@ -156,14 +170,14 @@ def base_event(**kwargs) -> Dict[str, Any]:
         "depth_km": kwargs.get("depth_km"),
         "severity_tier": kwargs.get("severity_tier", "Monitor"),
         "source": kwargs.get("source"),
-        "observed_at": kwargs.get("observed_at") or now_iso(),
+        "observed_at": clean_timestamp(kwargs.get("observed_at")) or now_iso(),
         "updated_at": now_iso(),
         "country": kwargs.get("country"),
         "iso3": kwargs.get("iso3"),
         "signal_mode": kwargs.get("signal_mode", "reported"),
         "record_type": kwargs.get("record_type", "event"),
         "source_url": kwargs.get("source_url"),
-        "expires_at": kwargs.get("expires_at"),
+        "expires_at": clean_timestamp(kwargs.get("expires_at")),
         "urgency": kwargs.get("urgency"),
         "certainty": kwargs.get("certainty"),
         "population_50km": kwargs.get("population_50km"),
@@ -209,65 +223,93 @@ def fetch_usgs_earthquakes() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]
         return False, [], str(e)
 
 
-def fetch_gdacs_category(code: str, category: str, source_label: str, signal_mode: str) -> Tuple[bool, List[Dict[str, Any]], Optional[str]]:
+def fetch_gdacs_search(
+    code: str,
+    category: str,
+    source_label: str,
+    signal_mode: str,
+    lookback_days: int,
+) -> Tuple[bool, List[Dict[str, Any]], Optional[str]]:
+    """Fetch GDACS through its supported GeoJSON SEARCH API, not the static resource folders."""
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=lookback_days)
+    params = {
+        "eventlist": code,
+        "fromDate": start.isoformat(),
+        "toDate": end.isoformat(),
+        "alertlevel": "Green;Orange;Red",
+    }
     try:
-        r = SESSION.get(f"https://www.gdacs.org/datareport/resources/{code}/events.geojson", timeout=30)
+        r = SESSION.get(
+            "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH",
+            params=params, timeout=45,
+        )
         r.raise_for_status()
-        events = []
-        for f in r.json().get("features", []):
-            p = f.get("properties", {})
+        payload = r.json()
+        features = payload.get("features", []) if isinstance(payload, dict) else []
+        events: List[Dict[str, Any]] = []
+
+        for f in features:
+            p = f.get("properties") or {}
             lat, lon = feature_centroid(f.get("geometry"))
-            if lat is None or lon is None: continue
+            if lat is None or lon is None:
+                continue
+
             level = str(p.get("alertlevel") or "Unrated").capitalize()
-            country, iso3 = gdacs_country_fields(p)
             severity = p.get("severitydata") or {}
             sev_text = severity.get("severitytext") or severity.get("severity")
-            name = p.get("eventname") or p.get("name") or f"{category.title()} event"
+            event_id = p.get("eventid")
+            episode_id = p.get("episodeid")
+            name = p.get("name") or p.get("eventname") or f"{category.title()} event"
+            country = p.get("country") or None
+            iso3 = p.get("iso3") or None
+            source_url = None
+            if event_id:
+                source_url = f"https://www.gdacs.org/resources.aspx?eventid={event_id}&eventtype={code}"
+
+            wind_kts = None
+            if code == "TC":
+                raw = safe_float(severity.get("severity"))
+                unit = str(severity.get("severityunit") or "").strip().lower()
+                if raw is not None:
+                    if "km" in unit and ("/h" in unit or "h" in unit):
+                        wind_kts = round(raw * 0.539957)
+                    elif "kt" in unit or "knot" in unit:
+                        wind_kts = round(raw)
+
+            band = cyclone_band(wind_kts, level) if code == "TC" else source_level_to_band(level)
+
             events.append(base_event(
-                id=f"GDACS_{code}_{p.get('eventid', name.replace(' ', ''))}", category=category, name=name,
-                basin=(p.get("basin") or "GLOBAL").upper(), intensity=sev_text or f"GDACS {level}",
-                latitude=lat, longitude=lon, alert_level=level, severity_tier=source_level_to_band(level),
-                source=source_label, signal_mode=signal_mode, record_type="event", country=country, iso3=iso3,
-                observed_at=p.get("fromdate") or p.get("todate") or now_iso(),
-                source_url=((p.get("url") or {}).get("report") if isinstance(p.get("url"), dict) else None),
-                expires_at=p.get("todate")
+                id=f"GDACS_{code}_{event_id or (str(name).replace(' ', ''))}",
+                category=category, name=str(name),
+                basin="GLOBAL", intensity=str(sev_text or f"GDACS {level}"),
+                wind_kts=wind_kts, pressure_mb=None,
+                latitude=lat, longitude=lon, alert_level=level, severity_tier=band,
+                source=source_label, signal_mode=signal_mode, record_type="event",
+                country=country, iso3=iso3,
+                observed_at=p.get("fromdate") or now_iso(),
+                expires_at=p.get("todate"), source_url=source_url,
             ))
+
         return True, events, None
     except Exception as e:
         return False, [], str(e)
 
 
 def fetch_gdacs_cyclones() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]:
-    try:
-        r = SESSION.get("https://www.gdacs.org/datareport/resources/TC/events.geojson", timeout=30)
-        r.raise_for_status()
-        events = []
-        for f in r.json().get("features", []):
-            p = f.get("properties", {})
-            lat, lon = feature_centroid(f.get("geometry"))
-            if lat is None or lon is None: continue
-            level = str(p.get("alertlevel") or "Unrated").capitalize()
-            country, iso3 = gdacs_country_fields(p)
-            sev = p.get("severitydata") or {}
-            raw_wind = safe_float(sev.get("severity") or p.get("windspeed"))
-            wind_kts = None
-            if raw_wind is not None:
-                # GDACS severity is commonly km/h. Values already in knot-like ranges are preserved conservatively.
-                wind_kts = round(raw_wind * 0.539957) if raw_wind > 150 else round(raw_wind)
-            pressure = safe_float(p.get("pressure"))
-            name = p.get("eventname") or p.get("name") or "Tropical Cyclone"
-            events.append(base_event(
-                id=f"GDACS_TC_{p.get('eventid', name.replace(' ', ''))}", category="cyclone", name=name,
-                basin=(p.get("basin") or "GLOBAL").upper(), intensity=sev.get("severitytext") or f"GDACS {level}",
-                wind_kts=wind_kts, pressure_mb=pressure, latitude=lat, longitude=lon, alert_level=level,
-                severity_tier=cyclone_band(wind_kts, level), source="GDACS / RSMC", signal_mode="forecast",
-                record_type="event", country=country, iso3=iso3, observed_at=p.get("fromdate") or now_iso(),
-                expires_at=p.get("todate"),
-                source_url=((p.get("url") or {}).get("report") if isinstance(p.get("url"), dict) else None)
-            ))
-        return True, events, None
-    except Exception as e:
-        return False, [], str(e)
+    return fetch_gdacs_search("TC", "cyclone", "GDACS / RSMC", "forecast", 21)
+
+
+def fetch_gdacs_volcanoes() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]:
+    return fetch_gdacs_search("VO", "volcano", "GDACS / GVP", "monitoring", 90)
+
+
+def fetch_gdacs_floods() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]:
+    return fetch_gdacs_search("FL", "flood", "GDACS", "reported", 30)
+
+
+def fetch_gdacs_droughts() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]:
+    return fetch_gdacs_search("DR", "drought", "GDACS / GDO", "monitoring", 180)
 
 
 def fetch_eonet_landslides() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]:
@@ -536,9 +578,9 @@ def run_ingestion_cycle() -> None:
     streams = [
         ("usgs_eq", "USGS", ["earthquake"], fetch_usgs_earthquakes),
         ("gdacs_tc", "GDACS / RSMC", ["cyclone"], fetch_gdacs_cyclones),
-        ("gdacs_vo", "GDACS / GVP", ["volcano"], lambda: fetch_gdacs_category("VO", "volcano", "GDACS / GVP", "monitoring")),
-        ("gdacs_fl", "GDACS", ["flood"], lambda: fetch_gdacs_category("FL", "flood", "GDACS", "reported")),
-        ("gdacs_dr", "GDACS / GDO", ["drought"], lambda: fetch_gdacs_category("DR", "drought", "GDACS / GDO", "monitoring")),
+        ("gdacs_vo", "GDACS / GVP", ["volcano"], fetch_gdacs_volcanoes),
+        ("gdacs_fl", "GDACS", ["flood"], fetch_gdacs_floods),
+        ("gdacs_dr", "GDACS / GDO", ["drought"], fetch_gdacs_droughts),
         ("eonet_ls", "NASA EONET", ["landslide"], fetch_eonet_landslides),
         ("wmo_cap", "WMO SWIC / National Authority", ["flash_flood","flood","heavy_rain","extreme_temperature","cyclone","landslide","drought","extreme_weather"], fetch_wmo_cap_warnings),
     ]
