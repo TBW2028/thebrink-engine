@@ -1,0 +1,28 @@
+name: outbreak-publisher
+on:
+  schedule:
+    - cron: "15 5 * * *"     # daily 05:15 UTC -> WHO + ECDC
+    - cron: "30 22 * * 5"    # Fridays 22:30 UTC -> CDC wastewater
+  workflow_dispatch:          # lets you run it by hand from the Actions tab
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests beautifulsoup4
+      - name: Run publisher
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+                    if [ "${{ github.event.schedule }}" = "30 22 * * 5" ]; then
+            python thebrink-engine/outbreak_publisher.py --only cdc
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python thebrink-engine/outbreak_publisher.py
+          else
+            python thebrink-engine/outbreak_publisher.py --only who,ecdc
+          fi
