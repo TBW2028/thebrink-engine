@@ -191,15 +191,72 @@ def iso3_to_iso2(iso3: Optional[str]) -> Optional[str]:
         return None
 
 
+def _norm_place(value: Any) -> str:
+    text = str(value or "").lower()
+    text = re.sub(r"\b(the|of)\b", " ", text)
+    text = re.sub(
+        r"\b(city jurisdiction|administrative district|autonomous county|autonomous prefecture|"
+        r"municipality|prefecture|county|district|province|region|state)\b",
+        " ",
+        text,
+    )
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _geocode_match_score(query: str, result: Dict[str, Any]) -> float:
+    """Score how well a geocoder result matches the requested warning area.
+
+    Country match is handled separately. We intentionally reject weak fuzzy matches
+    because a wrong point would create a misleading 50 km population estimate.
+    """
+    q = _norm_place(query)
+    if not q:
+        return 0.0
+
+    fields = [
+        result.get("name"),
+        result.get("admin1"),
+        result.get("admin2"),
+        result.get("admin3"),
+        result.get("admin4"),
+    ]
+    norms = [_norm_place(x) for x in fields if x]
+
+    if q in norms:
+        return 1.0
+
+    q_tokens = set(q.split())
+    best = 0.0
+    for candidate in norms:
+        if not candidate:
+            continue
+        c_tokens = set(candidate.split())
+        if not c_tokens:
+            continue
+        if q in candidate or candidate in q:
+            shorter = min(len(q_tokens), len(c_tokens))
+            longer = max(len(q_tokens), len(c_tokens))
+            if longer:
+                best = max(best, 0.82 + 0.12 * (shorter / longer))
+        overlap = len(q_tokens & c_tokens)
+        union = len(q_tokens | c_tokens)
+        if union:
+            best = max(best, overlap / union)
+
+    return min(best, 1.0)
+
+
 def geocode_warning_area(
     area_desc: Any,
     country: Optional[str],
     iso3: Optional[str],
 ) -> Tuple[Optional[float], Optional[float], Optional[str], Optional[str], Optional[str]]:
-    """Resolve a representative warning point and, when needed, infer country.
+    """Resolve a defensible representative point for a CAP warning area.
 
-    This is intentionally a representative-point fallback, not a reconstruction
-    of the full warning polygon.
+    A point is accepted only when the geocoder result closely matches the named
+    administrative area. Weak fuzzy matches are rejected so WorldPop is never run
+    around an arbitrary location.
     """
     if not area_desc:
         return None, None, None, None, "No area description"
@@ -208,19 +265,22 @@ def geocode_warning_area(
     if not raw:
         return None, None, None, None, "Empty area description"
 
-    # Build conservative candidate place names. Prefixes such as "Western Australia:"
-    # and "Queensland:" are highly useful when the downstream coastal-zone text is not.
     candidates: List[str] = []
-    prefix = raw.split(":", 1)[0].strip() if ":" in raw else ""
-    if prefix and 2 <= len(prefix) <= 80:
-        candidates.append(prefix)
 
+    # First named CAP area is usually the most useful unit.
     first = re.split(r";|\||\n| / ", raw, maxsplit=1)[0].strip()
-    if first and first not in candidates:
+    if first:
         candidates.append(first)
 
+    # Preserve useful comma-qualified forms such as "Maricopa, AZ".
+    comma_first = raw.split(";", 1)[0].strip()
+    if comma_first and comma_first not in candidates:
+        candidates.append(comma_first)
+
+    # Administrative suffixes often prevent a direct gazetteer match.
     simplified = re.sub(
-        r"\b(city jurisdiction|administrative district|autonomous county|autonomous prefecture|municipality|prefecture|county)\b",
+        r"\b(city jurisdiction|administrative district|autonomous county|autonomous prefecture|"
+        r"municipality|prefecture|county|district|province|region)\b",
         "",
         first,
         flags=re.I,
@@ -228,15 +288,7 @@ def geocode_warning_area(
     if simplified and simplified not in candidates:
         candidates.append(simplified)
 
-    # Country-specific conservative fallbacks for common CAP area formatting.
-    # Australia often prefixes a broad state/territory before a colon.
-    if iso3 == "AUS" and ":" in raw:
-        state_name = raw.split(":", 1)[0].strip()
-        if state_name and state_name not in candidates:
-            candidates.insert(0, state_name)
-
-    # Thailand often publishes a whitespace-separated list of provinces.
-    # The first two words frequently form a single province such as "Chiang Mai".
+    # Thailand frequently lists provinces as whitespace-separated names.
     if iso3 == "THA":
         words = raw.split()
         if len(words) >= 2:
@@ -244,17 +296,23 @@ def geocode_warning_area(
             if first_two not in candidates:
                 candidates.insert(0, first_two)
 
-    # US county-style alerts preserve the state abbreviation in "County, ST".
-    # Keep the full first segment ahead of simplified forms.
-    # State abbreviations in US CAP area text (e.g. "Maricopa, AZ") benefit from
-    # keeping the comma suffix intact, so 'first' remains ahead of simplified forms.
-    params_base = {"count": 10, "language": "en", "format": "json"}
+    # Do not reduce a very broad Australian coastal warning to the state centroid.
+    # That would create a misleading 50 km exposure estimate.
+    if iso3 == "AUS" and ":" in raw:
+        broad_prefix = raw.split(":", 1)[0].strip().lower()
+        if broad_prefix in {
+            "western australia", "queensland", "new south wales", "victoria",
+            "south australia", "tasmania", "northern territory",
+        }:
+            candidates = [x for x in candidates if _norm_place(x) != _norm_place(broad_prefix)]
+
     requested_iso2 = iso3_to_iso2(iso3)
+    params_base = {"count": 10, "language": "en", "format": "json"}
     if requested_iso2:
         params_base["countryCode"] = requested_iso2
 
     last_error = None
-    for query in candidates[:3]:
+    for query in candidates[:4]:
         try:
             params = dict(params_base)
             params["name"] = query[:140]
@@ -268,28 +326,20 @@ def geocode_warning_area(
             if not results:
                 continue
 
-            chosen = None
-            if requested_iso2:
-                for result in results:
-                    if str(result.get("country_code") or "").upper() == requested_iso2:
-                        chosen = result
-                        break
-            else:
-                # Without a known country, only accept a result if the geocoder gives
-                # us an explicit country code. Prefer exact-ish name matches.
-                qnorm = re.sub(r"[^a-z0-9]+", " ", query.lower()).strip()
-                for result in results:
-                    rname = re.sub(r"[^a-z0-9]+", " ", str(result.get("name") or "").lower()).strip()
-                    if rname == qnorm and result.get("country_code"):
-                        chosen = result
-                        break
-                if chosen is None:
-                    with_country = [r for r in results if r.get("country_code")]
-                    if len(with_country) == 1:
-                        chosen = with_country[0]
+            ranked: List[Tuple[float, Dict[str, Any]]] = []
+            for result in results:
+                result_iso2 = str(result.get("country_code") or "").upper()
+                if requested_iso2 and result_iso2 != requested_iso2:
+                    continue
+                score = _geocode_match_score(query, result)
+                if score >= 0.82 and result_iso2:
+                    ranked.append((score, result))
 
-            if chosen is None:
+            if not ranked:
                 continue
+
+            ranked.sort(key=lambda pair: pair[0], reverse=True)
+            score, chosen = ranked[0]
 
             lat = safe_float(chosen.get("latitude"))
             lon = safe_float(chosen.get("longitude"))
@@ -301,14 +351,21 @@ def geocode_warning_area(
                 x for x in [
                     chosen.get("name"),
                     chosen.get("admin1"),
+                    chosen.get("admin2"),
                     chosen.get("country"),
                 ] if x
             )
-            return lat, lon, discovered_country, discovered_iso3, label
+            return (
+                lat,
+                lon,
+                discovered_country,
+                discovered_iso3,
+                f"{label} [match={score:.2f}]",
+            )
         except Exception as exc:
             last_error = str(exc)
 
-    return None, None, None, None, last_error or "No reliable geocoding match"
+    return None, None, None, None, last_error or "No high-confidence geocoding match"
 
 
 def feature_centroid(geometry: Optional[Dict[str, Any]]) -> Tuple[Optional[float], Optional[float]]:
@@ -955,10 +1012,19 @@ def fetch_wmo_cap_warnings() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]
                 certainty=certainty,
             ))
 
+        high_priority = [
+            row for row in rows
+            if row.get("severity_tier") in {"Critical", "Severe"}
+        ]
+        high_priority_geometry = sum(
+            1 for row in high_priority
+            if row.get("latitude") is not None and row.get("longitude") is not None
+        )
         print(
             f"[WMO] detail fetches={detail_fetches}; geocode fetches={geocode_fetches}; "
             f"country resolved={resolved_country}/{len(rows)}; "
-            f"geometry resolved={resolved_geometry}/{len(rows)}"
+            f"geometry resolved={resolved_geometry}/{len(rows)}; "
+            f"high-priority geometry={high_priority_geometry}/{len(high_priority)}"
         )
         if unresolved_samples:
             print("[WMO] unresolved country samples:")
