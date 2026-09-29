@@ -768,7 +768,20 @@ export default {
       }
     }
 
-    // 8. Root Gateway Status
+    // 9. Unknown API routes should always return JSON so browser clients
+    // never fail with a cryptic JSON.parse error.
+    if (url.pathname.startsWith("/api/")) {
+      return new Response(JSON.stringify({
+        error: "api_route_not_found",
+        path: url.pathname,
+        message: "This API route is not available on the currently deployed Worker."
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // 10. Root Gateway Status
     return new Response("The Brink World Gateway Active", { 
       status: 200, 
       headers: { ...corsHeaders, "Content-Type": "text/plain" } 
