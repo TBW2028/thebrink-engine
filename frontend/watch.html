@@ -856,6 +856,20 @@ function escapeHtml(value) {
   }[ch]));
 }
 
+async function readApiJson(res) {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch (_) {
+    const preview = text.replace(/\s+/g, " ").slice(0, 120);
+    throw new Error(
+      `The Brink API returned a non-JSON response (${res.status}). ` +
+      `The Cloudflare Worker may still be on an older deployment.` +
+      (preview ? ` Response: ${preview}` : "")
+    );
+  }
+}
+
 function openLocationThreatSample() {
   const savedEmail = localStorage.getItem("brink_user_email");
   if (savedEmail && $("sampleEmail") && !$("sampleEmail").value) $("sampleEmail").value = savedEmail;
@@ -925,7 +939,7 @@ async function requestLocationSampleCode() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
+    const data = await readApiJson(res);
 
     if (res.status === 402 || data.error === "free_sample_limit_reached") {
       renderSamplePaywall(data.message || "You have used both complimentary snapshots.", data.paid_price);
@@ -965,7 +979,7 @@ async function verifyLocationSample() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: SAMPLE_STATE.email, code })
     });
-    const data = await res.json();
+    const data = await readApiJson(res);
 
     if (res.status === 402 || data.error === "free_sample_limit_reached") {
       renderSamplePaywall(data.message || "You have used both complimentary snapshots.", data.paid_price);
