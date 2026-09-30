@@ -65,6 +65,7 @@ SWIC_MID_COUNTRY = {
     "093": ("United States", "USA"),
     "097": ("Iceland", "ISL"),
     "185": ("Australia", "AUS"),
+    "079": ("Saudi Arabia", "SAU"),
 }
 
 
@@ -1062,6 +1063,27 @@ def fetch_wmo_cap_warnings() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]
         if not isinstance(items, list):
             items = payload.get("data", []) if isinstance(payload, dict) else []
 
+        # Spend finite enrichment calls on the warnings that matter most operationally.
+        # SWIC often returns hundreds of warnings; source order is not a safe priority order.
+        def _wmo_priority(item: Dict[str, Any]) -> Tuple[int, int]:
+            severity_raw = str(item.get("severity") or item.get("s") or "").strip().lower()
+            sev_rank = {
+                "extreme": 5, "4": 5,
+                "severe": 4, "3": 4,
+                "moderate": 3, "2": 3,
+                "minor": 2, "1": 2,
+            }.get(severity_raw, 1)
+            item_text = " ".join(str(item.get(k) or "") for k in ["event", "headline", "areaDesc"])
+            cat = classify_weather_alert(item_text)
+            location_sensitive = 1 if cat in {"flash_flood", "cyclone", "landslide"} else 0
+            return sev_rank, location_sensitive
+
+        items = sorted(
+            [item for item in items if isinstance(item, dict)],
+            key=_wmo_priority,
+            reverse=True,
+        )
+
         rows: List[Dict[str, Any]] = []
         detail_budget = WMO_DETAIL_LIMIT
         geocode_budget = WMO_GEOCODE_LIMIT
@@ -1339,10 +1361,20 @@ def update_feed_status(stream_key: str, source: str, category: str, success: boo
 
 
 def prune_stream(source: str, categories: List[str], cycle_start: str) -> None:
-    q = supabase.table("live_hazards").delete().eq("source", source).lt("updated_at", cycle_start)
-    if categories:
-        q = q.in_("category", categories)
-    q.execute()
+    last_error: Optional[Exception] = None
+    for attempt in range(3):
+        try:
+            q = supabase.table("live_hazards").delete().eq("source", source).lt("updated_at", cycle_start)
+            if categories:
+                q = q.in_("category", categories)
+            q.execute()
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt < 2:
+                time.sleep(0.8 * (attempt + 1))
+    if last_error:
+        raise last_error
 
 
 def run_ingestion_cycle() -> None:
