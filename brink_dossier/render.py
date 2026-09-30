@@ -115,14 +115,23 @@ def produce(location, answers, site_name, customer_email, out_dir="reports"):
             timeout=20
         )
 
-        if customer_res.status_code in [200, 201]:
+        customer_ok = customer_res.status_code in [200, 201]
+        admin_ok = admin_res.status_code in [200, 201]
+
+        if customer_ok:
             print("[✓] Customer dossier email accepted by Resend.")
         else:
             print(f"[!] Customer Resend error: {customer_res.status_code} - {customer_res.text}")
 
-        if admin_res.status_code in [200, 201]:
+        if admin_ok:
             print("[✓] Internal archive copy accepted by Resend.")
         else:
             print(f"[!] Admin archive Resend error: {admin_res.status_code} - {admin_res.text}")
+
+        if not customer_ok or not admin_ok:
+            raise RuntimeError(
+                "Dossier PDF was created, but email delivery failed. "
+                "The order must not be marked delivered."
+            )
 
     return pdf_path, ref_code
