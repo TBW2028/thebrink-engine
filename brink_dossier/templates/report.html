@@ -48,11 +48,12 @@
   .cover-classif { font-family: 'IBM Plex Mono', monospace; font-size: 6.6pt; font-weight: 600; color: #C6564E; letter-spacing: 0.12em; }
   .cover-site { font-family: 'Bebas Neue', sans-serif; font-size: 32pt; line-height: 0.98; color: #fff; margin-top: 4px; }
   .cover-client { font-size: 10.5pt; color: #99A0AE; margin-top: 5px; font-weight: 500; }
-  .rule-score { font-family: 'IBM Plex Mono', monospace; font-size: 46pt; font-weight: 700; line-height: 0.85; }
-  .rule-tier { font-family: 'Bebas Neue', sans-serif; font-size: 15pt; color: #fff; }
-  .rule-band { position: relative; height: 7px; background: #1C2029; margin-top: 12px; }
-  .rule-seg { position: absolute; top: 0; height: 7px; }
-  .rule-mark { position: absolute; top: -5px; width: 2px; height: 17px; background: #fff; }
+  .posture-label { font-family: 'IBM Plex Mono', monospace; font-size: 6.2pt; color:#7C8290; letter-spacing:.08em; text-transform:uppercase; }
+  .posture-value { font-family: 'Bebas Neue', sans-serif; font-size: 28pt; line-height: 1; color:#fff; margin-top:3px; }
+  .posture-grid { display:table; width:100%; margin-top:10px; border-top:.5pt solid #2A2E36; border-bottom:.5pt solid #2A2E36; }
+  .posture-cell { display:table-cell; width:33.33%; padding:8px 8px 8px 0; vertical-align:top; }
+  .posture-num { font-family:'IBM Plex Mono', monospace; font-size:15pt; font-weight:700; color:#fff; }
+  .posture-sub { font-family:'IBM Plex Mono', monospace; font-size:5.6pt; color:#7C8290; text-transform:uppercase; letter-spacing:.05em; }
   .dec { border: 0.5pt solid var(--rule); border-left: 3pt solid var(--ink); background: #fff; padding: 8px 10px; margin-bottom: 7px; }
   .dec-act { font-family: 'Bebas Neue', sans-serif; font-size: 12pt; line-height: 1.1; margin: 1px 0 3px 0; }
   .dec-why { font-size: 7.3pt; color: #3A3F48; line-height: 1.45; }
@@ -69,7 +70,7 @@
   <div class="cover-grid"></div>
   <div class="cover-inner">
     <div class="wordmark">THE BRINK <em>WORLD</em></div>
-    <div class="cover-classif">SITE THREAT DOSSIER · {{ meta.tier_label }}</div>
+    <div class="cover-classif">LOCATION THREAT DOSSIER · {{ meta.tier_label }}</div>
     <div class="cover-rule"></div>
     <div class="cover-meta">{{ meta.coords_str }} · {{ meta.occupancy_label }} · Ref: {{ meta.ref }}</div>
     <div style="margin-top: 42mm;">
@@ -77,22 +78,24 @@
       <div class="cover-client">Prepared for {{ meta.customer_name }}</div>
     </div>
     <div style="margin-top: 14mm;">
-      <div class="row">
-        <div class="col" style="width: 38%;">
-          <div class="rule-score" style="color: {{ cover.score_color }};">{{ cover.score }}</div>
-          <div class="rule-tier">{{ cover.tier_name }}</div>
+      <div class="posture-label">CURRENT MONITORED POSTURE</div>
+      <div class="posture-value" style="color:{{ cover.posture_color }};">{{ cover.posture }}</div>
+      <div class="cover-meta" style="color:#99A0AE; line-height:1.6; margin-top:6px;">{{ cover.summary_line }}</div>
+      <div class="posture-grid">
+        <div class="posture-cell">
+          <div class="posture-num">{{ cover.signal_count }}</div>
+          <div class="posture-sub">Resolved signals ≤300 km</div>
         </div>
-        <div class="col" style="width: 62%; vertical-align: bottom; padding-bottom: 2px;">
-          <div class="cover-meta" style="color:#99A0AE; line-height:1.6;">Baseline Ground Truth & Operational Telemetry<br>{{ cover.summary_line }}</div>
+        <div class="posture-cell">
+          <div class="posture-num">{{ cover.warning_count }}</div>
+          <div class="posture-sub">Official warnings ≤300 km</div>
+        </div>
+        <div class="posture-cell">
+          <div class="posture-num">LIVE</div>
+          <div class="posture-sub">Operational retrieval</div>
         </div>
       </div>
-      <div class="rule-band">
-        <div class="rule-seg" style="left:0%; width:25%; background:#2E4C3A;"></div>
-        <div class="rule-seg" style="left:25%; width:25%; background:#6B5A1E;"></div>
-        <div class="rule-seg" style="left:50%; width:25%; background:#8A5A14;"></div>
-        <div class="rule-seg" style="left:75%; width:25%; background:#7E2721;"></div>
-        <div class="rule-mark" style="left: {{ cover.score }}%;"></div>
-      </div>
+      <div class="cover-meta" style="margin-top:7px;">Current monitored conditions only · Not a disaster prediction</div>
     </div>
   </div>
 </div>
