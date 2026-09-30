@@ -48,36 +48,81 @@ def produce(location, answers, site_name, customer_email, out_dir="reports"):
     print(f"[✓] PDF created: {pdf_path}")
 
     if RESEND_API_KEY:
-        print(f"[*] Dispatching PDF to {customer_email} and thebrink2028@gmail.com via Resend...")
-        
-        # Base64 encode the binary PDF for standard Resend REST payload
+        print(f"[*] Dispatching customer dossier to {customer_email} and internal archive copy to thebrink2028@gmail.com via Resend...")
+
         with open(pdf_path, "rb") as f:
             pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
 
-        payload = {
-            "from": "The Brink World <onboarding@resend.dev>",
-            "to": [customer_email, "thebrink2028@gmail.com"],
-            "subject": f"[SITE DOSSIER] Exposure Report: {site_name} ({ref_code})",
-            "html": f"<h3>The Brink World — Asset Threat Dossier</h3><p>Your requested site exposure report for <strong>{site_name}</strong> ({coords_formatted}) is attached.</p><p>Dossier Reference: <strong>{ref_code}</strong></p>",
-            "attachments": [
-                {
-                    "filename": f"Dossier_{ref_code}.pdf",
-                    "content": pdf_b64
-                }
-            ]
+        attachment = {
+            "filename": f"Dossier_{ref_code}.pdf",
+            "content": pdf_b64
         }
-        r = requests.post(
+        resend_headers = {
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        sender = os.environ.get("DOSSIER_FROM_EMAIL", "The Brink World <intel@thebrinkworld.com>")
+        reply_to = os.environ.get("DOSSIER_REPLY_TO", "thebrink2028@gmail.com")
+
+        # Customer delivery: only the customer is visible as a recipient.
+        customer_payload = {
+            "from": sender,
+            "to": [customer_email],
+            "reply_to": reply_to,
+            "subject": f"Your Location Threat Dossier — {site_name} ({ref_code})",
+            "html": (
+                f"<h3>The Brink World — Location Threat Dossier</h3>"
+                f"<p>Your requested location intelligence report for <strong>{site_name}</strong> "
+                f"({coords_formatted}) is attached.</p>"
+                f"<p>Dossier Reference: <strong>{ref_code}</strong></p>"
+                f"<p>This report combines observed, official-warning and modelled data. "
+                f"Source and confidence notes inside the dossier explain how each finding should be interpreted.</p>"
+            ),
+            "attachments": [attachment]
+        }
+
+        customer_res = requests.post(
             "https://api.resend.com/emails",
-            headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json=payload,
-            timeout=15
+            headers=resend_headers,
+            json=customer_payload,
+            timeout=20
         )
-        if r.status_code in [200, 201]:
-            print("[✓] Email delivered successfully.")
+
+        # Internal archive/operations copy: includes recipient details without
+        # exposing the admin inbox to the customer.
+        admin_payload = {
+            "from": sender,
+            "to": ["thebrink2028@gmail.com"],
+            "reply_to": customer_email,
+            "subject": f"[DOSSIER DELIVERED] {site_name} · {ref_code}",
+            "html": (
+                f"<h3>The Brink World — Dossier Delivery Record</h3>"
+                f"<p><strong>Reference:</strong> {ref_code}</p>"
+                f"<p><strong>Client recipient:</strong> {customer_email}</p>"
+                f"<p><strong>Client / contact:</strong> {meta.get('customer_name', 'Not supplied')}</p>"
+                f"<p><strong>Site / location name:</strong> {site_name}</p>"
+                f"<p><strong>Coordinates:</strong> {coords_formatted}</p>"
+                f"<p><strong>Occupancy / use:</strong> {meta.get('occupancy_label', 'Not supplied')}</p>"
+                f"<p>The exact PDF delivered to the client is attached for the internal archive.</p>"
+            ),
+            "attachments": [attachment]
+        }
+
+        admin_res = requests.post(
+            "https://api.resend.com/emails",
+            headers=resend_headers,
+            json=admin_payload,
+            timeout=20
+        )
+
+        if customer_res.status_code in [200, 201]:
+            print("[✓] Customer dossier email accepted by Resend.")
         else:
-            print(f"[!] Resend notification error: {r.status_code} - {r.text}")
+            print(f"[!] Customer Resend error: {customer_res.status_code} - {customer_res.text}")
+
+        if admin_res.status_code in [200, 201]:
+            print("[✓] Internal archive copy accepted by Resend.")
+        else:
+            print(f"[!] Admin archive Resend error: {admin_res.status_code} - {admin_res.text}")
 
     return pdf_path, ref_code
