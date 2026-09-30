@@ -47,7 +47,7 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
 <label>Organisation</label><input id="organization" placeholder="Company / organisation (optional)">
 <label>Location to analyse *</label><input id="location" required placeholder="Town, district/state, country">
 <label>Purpose of report *</label>
-<select id="purpose" required>
+<select id="purpose" required onchange="updatePurposeFields()">
 <option value="">Choose one</option>
 <option>Home / residential property</option>
 <option>Commercial property / facility</option>
@@ -56,6 +56,26 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
 <option>Supply chain / logistics</option>
 <option>General location intelligence</option>
 </select>
+
+<div id="agricultureFields" style="display:none;margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)">
+  <div class="eyebrow" style="margin-bottom:8px">// AGRICULTURE DETAILS</div>
+  <label>Main crop or intended crop *</label>
+  <input id="crop" placeholder="e.g. maize, wheat, tomato, apple">
+  <label>Current crop stage *</label>
+  <select id="cropStage">
+    <option value="">Choose one</option>
+    <option>Planning</option>
+    <option>Sowing</option>
+    <option>Growing</option>
+    <option>Flowering / fruiting</option>
+    <option>Harvest</option>
+    <option>Post-harvest</option>
+  </select>
+  <label>Approximate sowing date</label>
+  <input id="sowingDate" type="date">
+  <div class="small" style="margin-top:8px">If the crop is already planted, the sowing date helps us interpret maturity and harvest timing. Leave it blank if not applicable.</div>
+</div>
+
 <label>Specific concern</label><textarea id="concern" placeholder="Optional: flood, earthquake, road access, extreme heat, landslide, etc."></textarea>
 
 <h2 style="margin-top:26px">2 · Choose payment</h2>
@@ -122,6 +142,18 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
 const API = window.BACKEND_API || "https://thebrink-engine.thebrink2028.workers.dev";
 let selectedMethod = "";
 
+function updatePurposeFields(){
+  const purpose=document.getElementById("purpose").value;
+  const ag=document.getElementById("agricultureFields");
+  const isAg=purpose==="Agriculture / land";
+  ag.style.display=isAg?"block":"none";
+  if(!isAg){
+    document.getElementById("crop").value="";
+    document.getElementById("cropStage").value="";
+    document.getElementById("sowingDate").value="";
+  }
+}
+
 function chooseMethod(method){
   selectedMethod=method;
   document.getElementById("paymentMethod").value=method;
@@ -153,10 +185,16 @@ async function submitPaymentReference(){
   const email=document.getElementById("clientEmail").value.trim();
   const reportLocation=document.getElementById("location").value.trim();
   const purpose=document.getElementById("purpose").value;
+  const isAgriculture=purpose==="Agriculture / land";
+  const crop=document.getElementById("crop")?.value.trim() || "";
+  const cropStage=document.getElementById("cropStage")?.value || "";
+  const sowingDate=document.getElementById("sowingDate")?.value || "";
   if(!clientName){notice.className="notice err";notice.textContent="Enter the client name.";return;}
   if(!email || !email.includes("@")){notice.className="notice err";notice.textContent="Enter a valid report-delivery email.";return;}
   if(!reportLocation){notice.className="notice err";notice.textContent="Enter the location to analyse.";return;}
   if(!purpose){notice.className="notice err";notice.textContent="Choose the purpose of the report.";return;}
+  if(isAgriculture && !crop){notice.className="notice err";notice.textContent="Enter the crop or intended crop.";return;}
+  if(isAgriculture && !cropStage){notice.className="notice err";notice.textContent="Choose the current crop stage.";return;}
   if(!selectedMethod){notice.className="notice err";notice.textContent="Choose a payment method first.";return;}
   const btn=document.getElementById("submitBtn");
   btn.disabled=true; btn.textContent="SUBMITTING…";
@@ -168,6 +206,11 @@ async function submitPaymentReference(){
     organization:document.getElementById("organization").value.trim(),
     location:document.getElementById("location").value.trim(),
     purpose:document.getElementById("purpose").value,
+    purpose_details:isAgriculture ? {
+      crop,
+      crop_stage:cropStage,
+      sowing_date:sowingDate || null
+    } : {},
     concern:document.getElementById("concern").value.trim(),
     payment_method:selectedMethod,
     payment_reference:document.getElementById("paymentReference").value.trim()
