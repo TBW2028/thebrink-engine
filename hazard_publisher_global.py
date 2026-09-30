@@ -18,6 +18,7 @@ import os
 import re
 import time
 import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -471,6 +472,205 @@ def fetch_usgs_earthquakes() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]
         return True, events, None
     except Exception as e:
         return False, [], str(e)
+
+
+
+class NCSRecentEarthquakeParser(HTMLParser):
+    """Small dependency-free parser for the NCS recent-earthquake table."""
+    def __init__(self):
+        super().__init__()
+        self.rows: List[List[str]] = []
+        self._row: Optional[List[str]] = None
+        self._cell: Optional[List[str]] = None
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag == "tr":
+            self._row = []
+        elif tag in {"td", "th"} and self._row is not None:
+            self._cell = []
+
+    def handle_data(self, data):
+        if self._cell is not None:
+            self._cell.append(data)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in {"td", "th"} and self._row is not None and self._cell is not None:
+            self._row.append(" ".join("".join(self._cell).split()))
+            self._cell = None
+        elif tag == "tr" and self._row is not None:
+            if self._row:
+                self.rows.append(self._row)
+            self._row = None
+            self._cell = None
+
+
+def _ncs_time_to_utc(value: str) -> Optional[str]:
+    m = re.search(r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})", str(value or ""))
+    if not m:
+        return None
+    try:
+        ist = timezone(timedelta(hours=5, minutes=30))
+        dt = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=ist)
+        return dt.astimezone(timezone.utc).isoformat()
+    except Exception:
+        return None
+
+
+def fetch_ncs_india_earthquakes() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]:
+    """India-focused NCS feed, including sub-M3 events omitted by the global USGS threshold."""
+    url = "https://riseq.seismo.gov.in/riseq/earthquake/recent_earthquake"
+    try:
+        r = SESSION.get(
+            url,
+            headers={**HEADERS, "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"},
+            timeout=35,
+        )
+        r.raise_for_status()
+        parser = NCSRecentEarthquakeParser()
+        parser.feed(r.text)
+
+        headers: Dict[str, int] = {}
+        start_idx = 0
+        for i, row in enumerate(parser.rows):
+            lowered = [x.strip().lower() for x in row]
+            if "origin time" in lowered and "magnitude" in lowered:
+                headers = {name: j for j, name in enumerate(lowered)}
+                start_idx = i + 1
+                break
+
+        def get_col(row: List[str], *names: str) -> Optional[str]:
+            for name in names:
+                pos = headers.get(name)
+                if pos is not None and pos < len(row):
+                    return row[pos]
+            return None
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+        out: List[Dict[str, Any]] = []
+
+        for row in parser.rows[start_idx:]:
+            if len(row) < 6:
+                continue
+
+            if headers:
+                origin = get_col(row, "origin time")
+                lat = safe_float(get_col(row, "lat", "latitude"))
+                lon = safe_float(get_col(row, "long", "lon", "longitude"))
+                depth = safe_float(get_col(row, "depth", "depth(km)", "depth (km)"))
+                mag = safe_float(get_col(row, "magnitude", "mag"))
+                region = get_col(row, "region") or ""
+                location = get_col(row, "location") or region
+            else:
+                origin = row[0] if len(row) > 0 else None
+                lat = safe_float(row[1] if len(row) > 1 else None)
+                lon = safe_float(row[2] if len(row) > 2 else None)
+                depth = safe_float(row[3] if len(row) > 3 else None)
+                mag = safe_float(row[4] if len(row) > 4 else None)
+                region = row[5] if len(row) > 5 else ""
+                location = row[6] if len(row) > 6 else region
+
+            if lat is None or lon is None or mag is None:
+                continue
+
+            observed_at = _ncs_time_to_utc(origin or "")
+            if not observed_at:
+                continue
+            observed_dt = datetime.fromisoformat(observed_at)
+            if observed_dt < cutoff:
+                continue
+
+            # NCS also lists neighbouring-country earthquakes. Keep records whose
+            # published location/region is explicitly India-facing.
+            india_text = f"{region} {location}".lower()
+            if "india" not in india_text:
+                continue
+
+            stable = (
+                f"NCS_EQ_{observed_dt.strftime('%Y%m%dT%H%M%S')}_"
+                f"{lat:.3f}_{lon:.3f}_M{mag:.1f}"
+            ).replace("-", "m").replace(".", "p")
+
+            out.append(base_event(
+                id=stable,
+                category="earthquake",
+                name=location or region or "India region earthquake",
+                basin="INDIA / NCS",
+                intensity=f"Magnitude {mag:.1f}",
+                latitude=lat,
+                longitude=lon,
+                magnitude=mag,
+                depth_km=depth,
+                alert_level="Reviewed",
+                severity_tier=earthquake_band(mag),
+                source="NCS India",
+                signal_mode="reported",
+                record_type="event",
+                country="India",
+                iso3="IND",
+                observed_at=observed_at,
+                source_url=url,
+            ))
+
+        return True, out, None
+    except Exception as e:
+        return False, [], str(e)
+
+
+def _event_dt(value: Any) -> Optional[datetime]:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _great_circle_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371.0088
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def dedupe_cross_source_earthquakes(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Prefer NCS for near-identical India records while preserving real aftershocks."""
+    ordered = sorted(
+        events,
+        key=lambda e: (0 if e.get("source") == "NCS India" else 1, str(e.get("id") or "")),
+    )
+    kept: List[Dict[str, Any]] = []
+    for event in ordered:
+        if event.get("category") != "earthquake":
+            kept.append(event)
+            continue
+
+        t1 = _event_dt(event.get("observed_at"))
+        lat1 = safe_float(event.get("latitude"))
+        lon1 = safe_float(event.get("longitude"))
+        mag1 = safe_float(event.get("magnitude"))
+        duplicate = False
+
+        if None not in {t1, lat1, lon1, mag1}:
+            for prior in kept:
+                if prior.get("category") != "earthquake":
+                    continue
+                t2 = _event_dt(prior.get("observed_at"))
+                lat2 = safe_float(prior.get("latitude"))
+                lon2 = safe_float(prior.get("longitude"))
+                mag2 = safe_float(prior.get("magnitude"))
+                if None in {t2, lat2, lon2, mag2}:
+                    continue
+                if abs((t1 - t2).total_seconds()) <= 60 and abs(mag1 - mag2) <= 0.4:
+                    if _great_circle_km(lat1, lon1, lat2, lon2) <= 30:
+                        duplicate = True
+                        break
+
+        if not duplicate:
+            kept.append(event)
+
+    return kept
 
 
 def fetch_gdacs_search(
@@ -1150,6 +1350,7 @@ def run_ingestion_cycle() -> None:
     print(f"--- Brink Global Hazard Cycle {cycle_start} ---")
 
     streams = [
+        ("ncs_india_eq", "NCS India", ["earthquake"], fetch_ncs_india_earthquakes),
         ("usgs_eq", "USGS", ["earthquake"], fetch_usgs_earthquakes),
         ("gdacs_tc", "GDACS / RSMC", ["cyclone"], fetch_gdacs_cyclones),
         ("gdacs_vo", "GDACS / GVP", ["volcano"], fetch_gdacs_volcanoes),
@@ -1179,6 +1380,7 @@ def run_ingestion_cycle() -> None:
 
     # Deduplicate only exact stable IDs; different authoritative warnings remain separate signals by design.
     unique = list({e["id"]: e for e in collected if e.get("id")}.values())
+    unique = dedupe_cross_source_earthquakes(unique)
     add_population_estimates(unique)
 
     if unique:
