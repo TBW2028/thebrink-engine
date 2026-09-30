@@ -41,7 +41,7 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
 <div class="grid">
 <section class="card">
 <h2>1 · Report brief</h2>
-<form id="dossierForm" onsubmit="submitPaymentReference(event)">
+<div id="dossierForm">
 <label>Client name *</label><input id="clientName" required placeholder="Full name">
 <label>Email for report delivery *</label><input id="clientEmail" type="email" required placeholder="name@company.com">
 <label>Organisation</label><input id="organization" placeholder="Company / organisation (optional)">
@@ -84,14 +84,14 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
 <div class="disclosure"><strong>Important:</strong> send USDT only on TRON (TRC20). Do not use ERC20, BEP20, Solana or another network.</div>
 </div>
 
-<label id="paymentRefLabel">Payment reference / transaction ID *</label>
-<input id="paymentReference" required placeholder="Complete payment first, then enter the reference">
+<label id="paymentRefLabel">Payment reference / transaction ID <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+<input id="paymentReference" placeholder="Optional — enter it if Razorpay or your wallet shows one">
 <input type="hidden" id="paymentMethod">
 
 <div class="small" style="margin-top:10px">Payment is not auto-approved. After you submit the reference, The Brink World manually checks receipt before generating your dossier.</div>
-<button id="submitBtn" class="btn btn-primary" style="margin-top:14px;width:100%" type="submit">I Have Paid — Submit for Verification</button>
+<button id="submitBtn" class="btn btn-primary" style="margin-top:14px;width:100%" type="button" onclick="submitPaymentReference()">I Have Paid — Submit for Verification</button>
 <div id="formNotice" class="notice"></div>
-</form>
+</div>
 </section>
 
 <aside class="card">
@@ -131,11 +131,11 @@ function chooseMethod(method){
   const label=document.getElementById("paymentRefLabel");
   const ref=document.getElementById("paymentReference");
   if(method==="usdt_trc20"){
-    label.textContent="TRON transaction hash (TxID) *";
-    ref.placeholder="Paste the completed TRON TxID";
+    label.innerHTML='TRON transaction hash (TxID) <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>';
+    ref.placeholder="Optional — paste the completed TRON TxID if available";
   }else{
-    label.textContent="Razorpay payment ID / reference *";
-    ref.placeholder="Paste the Razorpay payment reference";
+    label.innerHTML='Razorpay payment ID / reference <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>';
+    ref.placeholder="Optional — paste the Razorpay payment reference if available";
   }
 }
 
@@ -147,9 +147,16 @@ async function readJson(res){
   const t=await res.text(); try{return t?JSON.parse(t):{}}catch{throw new Error("Payment service returned an unexpected response.");}
 }
 
-async function submitPaymentReference(e){
-  e.preventDefault();
+async function submitPaymentReference(){
   const notice=document.getElementById("formNotice");
+  const clientName=document.getElementById("clientName").value.trim();
+  const email=document.getElementById("clientEmail").value.trim();
+  const reportLocation=document.getElementById("location").value.trim();
+  const purpose=document.getElementById("purpose").value;
+  if(!clientName){notice.className="notice err";notice.textContent="Enter the client name.";return;}
+  if(!email || !email.includes("@")){notice.className="notice err";notice.textContent="Enter a valid report-delivery email.";return;}
+  if(!reportLocation){notice.className="notice err";notice.textContent="Enter the location to analyse.";return;}
+  if(!purpose){notice.className="notice err";notice.textContent="Choose the purpose of the report.";return;}
   if(!selectedMethod){notice.className="notice err";notice.textContent="Choose a payment method first.";return;}
   const btn=document.getElementById("submitBtn");
   btn.disabled=true; btn.textContent="SUBMITTING…";
