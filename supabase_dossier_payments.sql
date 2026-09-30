@@ -1,7 +1,7 @@
 -- The Brink World — paid Location Threat Dossier manual-verification workflow
 -- Run after supabase_dossier_funnel.sql.
 alter table public.dossier_requests
-  
+
   add column if not exists order_code text,
   add column if not exists client_name text,
   add column if not exists organization text,
