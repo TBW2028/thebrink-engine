@@ -490,6 +490,32 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .footer-nav a:hover {
   color: var(--accent);
 }
+
+.space-live-grid{
+  display:grid;grid-template-columns:90px minmax(0,1fr);gap:15px;align-items:center;
+}
+.moon-visual{
+  width:72px;height:72px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.12),rgba(255,255,255,.02) 45%,rgba(0,0,0,.18));
+  border:1px solid rgba(255,255,255,.12);box-shadow:0 0 28px rgba(107,158,255,.08);
+}
+.moon-visual span{font-size:52px;line-height:1;filter:drop-shadow(0 3px 8px rgba(0,0,0,.45));}
+.space-moon-name{color:#fff;font-weight:800;font-size:1rem;}
+.space-moon-meta{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.45;}
+.eclipse-notice{
+  display:none;margin-top:10px;padding:9px 10px;border-radius:6px;
+  border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.07);
+  color:var(--soft);font-size:.8rem;line-height:1.45;
+}
+.eclipse-notice.active{display:block;}
+.eclipse-notice.urgent{border-color:rgba(239,68,68,.6);background:rgba(239,68,68,.09);}
+.astro-credit{margin-top:8px;font-family:var(--font-mono);font-size:8.5px;color:var(--muted);}
+.astro-credit a{color:var(--muted);}
+@media(max-width:460px){
+  .space-live-grid{grid-template-columns:64px minmax(0,1fr);gap:11px;}
+  .moon-visual{width:58px;height:58px;}
+  .moon-visual span{font-size:42px;}
+}
 </style>
 </head>
 <body>
@@ -674,30 +700,28 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 
   <div class="tray-accordion" id="tray-space">
     <div class="tray-header" onclick="toggleTray('tray-space')">
-      <div class="tray-title"><span style="color:var(--gold)">☀️</span> Space Weather, Solar Plasma &amp; Lunar Tides</div>
+      <div class="tray-title"><span style="color:var(--gold)">☀️</span> Space Weather &amp; Local Sky</div>
       <div class="tray-toggle-btn">+</div>
     </div>
     <div class="tray-content">
-      <div class="space-intel-grid">
-        <div class="space-intel-card">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
-            <span class="mono" style="font-size:12px; font-weight:700; color:var(--accent-blue);">NOAA SPACE WEATHER</span>
-            <span class="badge" id="spaceBadge">ACTIVE MONITOR</span>
-          </div>
-          <div id="spaceSummary" style="font-size:.92rem; color:#fff; font-weight:600;">Interrogating NOAA SWPC telemetry…</div>
+      <div style="background:var(--panel2);padding:14px;border-radius:7px;border:1px solid var(--line);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap;">
+          <span class="mono" style="font-size:11px;font-weight:800;color:var(--accent-blue);">NOAA SPACE WEATHER + LOCAL LUNAR EPHEMERIS</span>
+          <span class="badge" id="spaceBadge">ACTIVE MONITOR</span>
         </div>
-
-        <div class="space-intel-card moon-card">
-          <canvas id="moonCanvas" width="96" height="96" aria-label="Current moon phase schematic"></canvas>
-          <div style="min-width:0;">
-            <div class="mono" style="font-size:10px;color:var(--muted);text-transform:uppercase;">Moon phase at selected location</div>
-            <div id="moonPhaseName" style="font-size:1rem;font-weight:800;color:#fff;margin-top:3px;">Calculating…</div>
-            <div id="moonPhaseMeta" class="mono" style="font-size:10px;color:var(--soft);margin-top:3px;">Local phase schematic</div>
-            <div id="eclipseNotice" class="eclipse-notice" style="display:none;"></div>
+        <div class="space-live-grid">
+          <div class="moon-visual" id="moonDisc"><span id="moonPhaseIcon">🌙</span></div>
+          <div>
+            <div id="spaceSummary" style="font-size:.9rem;color:#fff;font-weight:650;">Reading NOAA geomagnetic conditions…</div>
+            <div class="space-moon-name" id="moonPhaseName" style="margin-top:8px;">Calculating Moon phase…</div>
+            <div class="space-moon-meta" id="moonPhaseMeta">Using the selected location for local sky visibility.</div>
           </div>
+        </div>
+        <div id="eclipseNotice" class="eclipse-notice"></div>
+        <div class="astro-credit">
+          Moon and eclipse geometry: <a href="https://www.cyclecalcs.com/" target="_blank" rel="noopener">CycleCalcs / Astronomy Engine</a>.
         </div>
       </div>
-      <div class="mono" style="font-size:10px;color:var(--muted);margin-top:9px;" id="lunarTideSummary">Computing lunar ephemeris…</div>
     </div>
   </div>
 
@@ -1696,57 +1720,107 @@ function focusMapOnEvent(lat, lon) {
 }
 
 // REAL SCIENTIFIC SPACE WEATHER & SATELLITE SOLAR WIND TELEMETRY
+function moonPhaseEmoji(name) {
+  const n=String(name||"").toLowerCase();
+  if(n.includes("new")) return "🌑";
+  if(n.includes("waxing crescent")) return "🌒";
+  if(n.includes("first quarter")) return "🌓";
+  if(n.includes("waxing gibbous")) return "🌔";
+  if(n.includes("full")) return "🌕";
+  if(n.includes("waning gibbous")) return "🌖";
+  if(n.includes("last quarter") || n.includes("third quarter")) return "🌗";
+  if(n.includes("waning crescent")) return "🌘";
+  return "🌙";
+}
+
+async function loadSpaceAstronomy() {
+  if (!Number.isFinite(Number(userLat)) || !Number.isFinite(Number(userLon))) return;
+
+  try {
+    const moonUrl = "https://www.cyclecalcs.com/v2/moon?lat=" + encodeURIComponent(userLat) + "&lon=" + encodeURIComponent(userLon);
+    const eclipseUrl = "https://www.cyclecalcs.com/v2/eclipses?lat=" + encodeURIComponent(userLat) +
+      "&lon=" + encodeURIComponent(userLon) + "&visible_only=true&count=2&type=both";
+
+    const results = await Promise.allSettled([fetch(moonUrl), fetch(eclipseUrl)]);
+
+    if (results[0].status === "fulfilled" && results[0].value.ok) {
+      const moonBody = await results[0].value.json();
+      const phase = moonBody?.data?.phase || {};
+      const name = phase.name || "Moon phase";
+      const illumination = Number(phase.illumination_percent);
+      $("moonPhaseIcon").textContent = moonPhaseEmoji(name);
+      $("moonPhaseName").textContent = name;
+      $("moonPhaseMeta").textContent =
+        (Number.isFinite(illumination) ? illumination.toFixed(1) + "% illuminated" : "Illumination unavailable") +
+        " · local sky context for " + userCity;
+    }
+
+    const notice = $("eclipseNotice");
+    notice.className = "eclipse-notice";
+    notice.textContent = "";
+
+    if (results[1].status === "fulfilled" && results[1].value.ok) {
+      const eclipseBody = await results[1].value.json();
+      const eclipses = eclipseBody?.data?.eclipses || [];
+      const now = Date.now();
+
+      const visible = eclipses
+        .filter(e => e?.local?.visible === true && e.peak)
+        .map(e => ({...e, peakMs:new Date(e.peak).getTime()}))
+        .filter(e => Number.isFinite(e.peakMs) && e.peakMs >= now)
+        .sort((a,b) => a.peakMs-b.peakMs);
+
+      const next = visible[0];
+      if (next) {
+        const hours = (next.peakMs-now)/3600000;
+        if (hours <= 36) {
+          const kind = String(next.kind || "").replace(/_/g," ");
+          const type = next.type === "solar" ? "Solar eclipse" : "Lunar eclipse";
+          const localVerdict = next.local?.verdict || "This eclipse is calculated to be visible from the selected location.";
+          notice.className = "eclipse-notice active" + (hours <= 12 ? " urgent" : "");
+          notice.innerHTML =
+            "<strong>" + (hours <= 12 ? "ECLIPSE TODAY" : "ECLIPSE WATCH — WITHIN 1 DAY") + ":</strong> " +
+            escapeHtml(type + (kind ? " (" + kind + ")" : "")) + " · peak " +
+            escapeHtml(new Date(next.peakMs).toLocaleString()) + ". " + escapeHtml(localVerdict);
+          $("moonDisc").style.boxShadow = next.type === "solar"
+            ? "0 0 30px rgba(245,158,11,.28)"
+            : "0 0 30px rgba(239,68,68,.22)";
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Local astronomy refresh failed:", err);
+  }
+}
+
 async function fetchSpaceWeather() {
   let kpVal = null;
-  let windSpeedKmS = null;
-  let protonDensity = null;
-  let dynamicPressureNpa = null;
-
   try {
     const res = await fetch("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json");
     if (res.ok) {
       const data = await res.json();
-      if (data && data.length > 0) {
-        const latest = data[data.length - 1];
-        kpVal = latest.kp_index !== undefined ? latest.kp_index : latest.kp;
-        if (kpVal !== undefined && kpVal !== null) {
-          $("c-space").textContent = `Kp ${Math.round(kpVal)}`;
-          $("spaceBadge").textContent = kpVal >= 5 ? "GEOMAGNETIC STORM" : (kpVal >= 4 ? "UNSETTLED" : "QUIET / NOMINAL");
-          $("spaceBadge").style.color = kpVal >= 5 ? "var(--hot)" : (kpVal >= 4 ? "var(--warn)" : "var(--accent)");
-        }
+      if (data && data.length) {
+        const latest = data[data.length-1];
+        kpVal = Number(latest.kp_index !== undefined ? latest.kp_index : latest.kp);
       }
     }
   } catch(e) {
     console.warn("NOAA SWPC Kp fetch failed:", e);
   }
 
-  const now = new Date();
-  const baseDate = new Date('2026-03-01T00:00:00Z');
-  const daysSince = (now - baseDate) / (1000 * 60 * 60 * 24);
-  const lunarMonthDays = 27.55455;
-  const phase = (daysSince % lunarMonthDays) / lunarMonthDays;
-  const distanceKm = Math.round(384400 + 21100 * Math.cos(phase * 2 * Math.PI));
-  const declination = (18.5 * Math.sin((daysSince / lunarMonthDays) * 2 * Math.PI)).toFixed(1);
-
-  let nearestRegion = "Equatorial Convergence Basin";
-  if (parseFloat(declination) > 5) {
-    nearestRegion = "Northern Subtropical Belt (East Asia / North Pacific)";
-  } else if (parseFloat(declination) < -5) {
-    nearestRegion = "Southern Indian Ocean / Australasian Margin";
+  if (Number.isFinite(kpVal)) {
+    $("c-space").textContent = "Kp " + Math.round(kpVal);
+    $("spaceBadge").textContent = kpVal >= 5 ? "GEOMAGNETIC STORM" : (kpVal >= 4 ? "UNSETTLED" : "QUIET / NOMINAL");
+    $("spaceBadge").style.color = kpVal >= 5 ? "var(--hot)" : (kpVal >= 4 ? "var(--warn)" : "var(--accent)");
+    $("spaceSummary").innerHTML =
+      "<strong>Geomagnetic condition:</strong> Kp " + kpVal.toFixed(1) +
+      " · " + (kpVal >= 5 ? "storm-level geomagnetic activity." : kpVal >= 4 ? "unsettled geomagnetic activity." : "quiet to nominal geomagnetic activity.");
+  } else {
+    $("c-space").textContent = "Kp --";
+    $("spaceSummary").textContent = "NOAA geomagnetic reading temporarily unavailable.";
   }
 
-  const kpDisplay = kpVal !== null ? `Kp ${Math.round(kpVal)}` : "Kp --";
-
-  $("spaceSummary").innerHTML = `
-    <strong>Planetary Geomagnetic Baseline:</strong> Global Dipole Deflection: <span style="color:var(--accent); font-weight:700;">${kpDisplay}</span> · 
-    Telemetry Link: <span style="color:var(--ok);">NOAA Space Weather Prediction Center</span>.
-  `;
-
-  $("lunarTideSummary").innerHTML = `
-    <strong>Lunar Distance:</strong> ${distanceKm.toLocaleString()} km (${distanceKm < 370000 ? 'Perigee Window' : 'Apogee Window'}).<br/>
-    <strong>Peak Sublunar Coordinate:</strong> ${nearestRegion} (Declination: ${declination}°).<br/>
-    <strong>Geophysical Regime:</strong> Micro-barometric ocean tide loading evaluated continuously against lithospheric fault strain norms.
-  `;
+  loadSpaceAstronomy();
 }
 
 // HISTORICAL MEGATHRUSTS & CALDERAS (CONSTANT GEOGRAPHICAL BENCHMARKS)
