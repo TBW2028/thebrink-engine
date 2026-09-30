@@ -295,6 +295,13 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .legacy-table th { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); color: var(--muted); }
 .legacy-table td { padding: 8px; border-bottom: 1px solid rgba(30,42,56,.6); color: #fff; }
 
+.space-intel-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.space-intel-card{background:var(--panel2);padding:14px;border-radius:7px;border:1px solid var(--line);}
+.moon-card{display:flex;align-items:center;gap:14px;}
+#moonCanvas{width:82px;height:82px;flex:0 0 82px;border-radius:50%;background:#05070a;}
+.eclipse-notice{margin-top:7px;padding:6px 8px;border:1px solid rgba(245,158,11,.45);border-radius:5px;background:rgba(245,158,11,.08);color:var(--warn);font-family:var(--font-mono);font-size:9.5px;line-height:1.4;}
+@media(max-width:700px){.space-intel-grid{grid-template-columns:1fr}.moon-card{align-items:flex-start}#moonCanvas{width:70px;height:70px;flex-basis:70px}}
+
 .services-fomo-banner {
   background: linear-gradient(135deg, rgba(0, 243, 255, 0.05), rgba(139, 92, 246, 0.06));
   border: 1px solid var(--line); border-top: 3px solid var(--accent);
@@ -539,7 +546,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
           <div class="station-metric-value" id="userFeelsLike">--°</div>
         </div>
         <div class="station-metric">
-          <div class="station-metric-label">Surface temp</div>
+          <div class="station-metric-label">Surface temp · 0 cm</div>
           <div class="station-metric-value" id="userSurfaceTemp">--°</div>
         </div>
         <div class="station-metric">
@@ -622,7 +629,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
       <div class="tray-toggle-btn">+</div>
     </div>
     <div class="tray-content">
-      <div id="stormContainer" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+      <div id="stormContainer" class="region-scroll" style="max-height:420px;">
         <div style="color:var(--muted); padding:10px;">Interrogating live meteorological feeds...</div>
       </div>
     </div>
@@ -634,7 +641,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
       <div class="tray-toggle-btn">+</div>
     </div>
     <div class="tray-content">
-      <div id="volcanoContainer" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+      <div id="volcanoContainer" class="region-scroll" style="max-height:420px;">
         <div style="color:var(--muted); padding:10px;">Interrogating volcanic observatory feeds...</div>
       </div>
     </div>
@@ -671,14 +678,26 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
       <div class="tray-toggle-btn">+</div>
     </div>
     <div class="tray-content">
-      <div style="background:var(--panel2); padding:16px; border-radius:6px; border:1px solid var(--line); cursor:pointer;" onclick="inspectSpaceWeatherDetail()">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <span class="mono" style="font-size:13px; font-weight:700; color:var(--accent-blue);">NOAA SWPC DSCOVR SATELLITE TELEMETRY &amp; TIDAL EPHEMERIS</span>
-          <span class="badge" id="spaceBadge">ACTIVE MONITOR</span>
+      <div class="space-intel-grid">
+        <div class="space-intel-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
+            <span class="mono" style="font-size:12px; font-weight:700; color:var(--accent-blue);">NOAA SPACE WEATHER</span>
+            <span class="badge" id="spaceBadge">ACTIVE MONITOR</span>
+          </div>
+          <div id="spaceSummary" style="font-size:.92rem; color:#fff; font-weight:600;">Interrogating NOAA SWPC telemetry…</div>
         </div>
-        <div id="spaceSummary" style="font-size:1rem; color:#fff; font-weight:600; margin-bottom:4px;">Interrogating DSCOVR Faraday Cup plasma data...</div>
-        <div class="mono" style="font-size:11.5px; color:var(--gold); margin-top:6px;" id="lunarTideSummary">🕒 Computing live ephemeris...</div>
+
+        <div class="space-intel-card moon-card">
+          <canvas id="moonCanvas" width="96" height="96" aria-label="Current moon phase schematic"></canvas>
+          <div style="min-width:0;">
+            <div class="mono" style="font-size:10px;color:var(--muted);text-transform:uppercase;">Moon phase at selected location</div>
+            <div id="moonPhaseName" style="font-size:1rem;font-weight:800;color:#fff;margin-top:3px;">Calculating…</div>
+            <div id="moonPhaseMeta" class="mono" style="font-size:10px;color:var(--soft);margin-top:3px;">Local phase schematic</div>
+            <div id="eclipseNotice" class="eclipse-notice" style="display:none;"></div>
+          </div>
+        </div>
       </div>
+      <div class="mono" style="font-size:10px;color:var(--muted);margin-top:9px;" id="lunarTideSummary">Computing lunar ephemeris…</div>
     </div>
   </div>
 
