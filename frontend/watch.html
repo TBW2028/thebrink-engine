@@ -1195,10 +1195,19 @@ async function handleDirectUnsubscribe(e) {
 let userLat = null, userLon = null, userCity = "Detecting...";
 let climateUnit = "C";
 let climateState = {
-  curTempC: null, apparentTempC: null, wetBulbC: null, surfaceTempC: null,
-  humidity: null, currentWindKmh: null, weatherCode: null,
-  todayMaxC: null, todayMinC: null, fiveYearsAgoC: null,
-  forecastDaily: []
+  curTempC: null,
+  apparentTempC: null,
+  wetBulbC: null,
+  surfaceTempC: null,
+  humidity: null,
+  currentWindKmh: null,
+  weatherCode: null,
+  todayMaxC: null,
+  todayMinC: null,
+  fiveYearsAgoC: null,
+  forecastDaily: [],
+  timezone: null,
+  localCurrentTime: null
 };
 
 let ALL_ACTIVE_EVENTS = [];
@@ -1209,13 +1218,12 @@ function formatTimeElapsed(isoStr) {
   if (!isoStr) return { elapsed: "Recent", fullDate: "Undated" };
   const d = new Date(isoStr);
   if (isNaN(d.getTime())) return { elapsed: "Recent", fullDate: isoStr };
-  const diffSec = Math.floor((new Date() - d) / 1000);
+  const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
   let elapsed = "";
   if (diffSec < 60) elapsed = "Just now";
-  else if (diffSec < 3600) elapsed = `${Math.floor(diffSec / 60)}m ago`;
-  else if (diffSec < 86400) elapsed = `${Math.floor(diffSec / 3600)}h ago`;
-  else elapsed = `${Math.floor(diffSec / 86400)}d ago`;
-
+  else if (diffSec < 3600) elapsed = Math.floor(diffSec / 60) + "m ago";
+  else if (diffSec < 86400) elapsed = Math.floor(diffSec / 3600) + "h ago";
+  else elapsed = Math.floor(diffSec / 86400) + "d ago";
   const fullDate = d.toISOString().replace("T", " ").substring(0, 16) + " UTC";
   return { elapsed, fullDate };
 }
@@ -1224,36 +1232,39 @@ function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function toUnit(celsius) {
-  if (celsius === null || isNaN(celsius)) return "--";
-  if (climateUnit === "F") return Math.round((celsius * 9/5) + 32);
-  return Math.round(celsius);
+  if (celsius === null || celsius === undefined || !Number.isFinite(Number(celsius))) return "--";
+  const c = Number(celsius);
+  return climateUnit === "F" ? Math.round((c * 9 / 5) + 32) : Math.round(c);
 }
 
 function switchUnit(u) {
   climateUnit = u;
   $("btnUnitC").className = u === "C" ? "active" : "";
   $("btnUnitF").className = u === "F" ? "active" : "";
-  renderClimateWidgetCompact();
+  renderClimateWidget();
 }
 
 function weatherCodeToGlyph(code) {
-  if (code === null || code === undefined) return { icon: "❓", text: "No Live Reading" };
-  if (code === 0) return { icon: "☀️", text: "Clear Sky" };
-  if (code <= 3) return { icon: "⛅", text: "Partly Cloudy" };
-  if (code <= 48) return { icon: "🌫️", text: "Atmospheric Inversion / Haze" };
-  if (code <= 67) return { icon: "🌧️", text: "Precipitation Front" };
-  if (code <= 77) return { icon: "❄️", text: "Snow Flurries" };
-  if (code <= 82) return { icon: "🌧️", text: "Heavy Convective Squall" };
-  return { icon: "⛈️", text: "Convective Storm Cell" };
+  if (code === null || code === undefined) return { icon: "❓", text: "No live reading" };
+  if (code === 0) return { icon: "☀️", text: "Clear sky" };
+  if (code <= 3) return { icon: "⛅", text: "Partly cloudy" };
+  if (code <= 48) return { icon: "🌫️", text: "Fog / haze" };
+  if (code <= 67) return { icon: "🌧️", text: "Rain" };
+  if (code <= 77) return { icon: "❄️", text: "Snow" };
+  if (code <= 82) return { icon: "🌧️", text: "Rain showers" };
+  return { icon: "⛈️", text: "Thunderstorm" };
 }
 
 function wetBulbApproxC(tempC, rh) {
-  const T = Number(tempC), R = Number(rh);
+  const T = Number(tempC);
+  const R = Number(rh);
   if (!Number.isFinite(T) || !Number.isFinite(R)) return null;
   return T * Math.atan(0.151977 * Math.sqrt(R + 8.313659))
     + Math.atan(T + R)
@@ -1263,106 +1274,120 @@ function wetBulbApproxC(tempC, rh) {
 }
 
 async function loadFullClimateEngineCompact(lat, lon, label) {
-  userLat = lat; userLon = lon; userCity = label;
-  $("userLocationBadge").textContent = label;
+  userLat = lat;
+  userLon = lon;
+  userCity = label;
+  $("userLocationBadge").textContent = "📍 " + label;
 
   try {
-    const forecastUrl = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon +
+    const forecastUrl =
+      "https://api.open-meteo.com/v1/forecast?latitude=" + encodeURIComponent(lat) +
+      "&longitude=" + encodeURIComponent(lon) +
       "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m" +
       "&hourly=soil_temperature_0cm" +
       "&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max" +
       "&forecast_days=3&timezone=auto";
+
     const forecastRes = await fetch(forecastUrl);
     if (!forecastRes.ok) throw new Error("Forecast status " + forecastRes.status);
     const fd = await forecastRes.json();
 
-    climateState.curTempC = Number.isFinite(Number(fd.current?.temperature_2m)) ? Number(fd.current.temperature_2m) : null;
-    climateState.apparentTempC = Number.isFinite(Number(fd.current?.apparent_temperature)) ? Number(fd.current.apparent_temperature) : null;
-    climateState.humidity = Number.isFinite(Number(fd.current?.relative_humidity_2m)) ? Number(fd.current.relative_humidity_2m) : null;
-    climateState.currentWindKmh = Number.isFinite(Number(fd.current?.wind_speed_10m)) ? Number(fd.current.wind_speed_10m) : null;
-    climateState.weatherCode = fd.current?.weather_code ?? null;
-    climateState.todayMaxC = Number.isFinite(Number(fd.daily?.temperature_2m_max?.[0])) ? Number(fd.daily.temperature_2m_max[0]) : null;
-    climateState.todayMinC = Number.isFinite(Number(fd.daily?.temperature_2m_min?.[0])) ? Number(fd.daily.temperature_2m_min[0]) : null;
+    climateState.curTempC = Number.isFinite(Number(fd.current && fd.current.temperature_2m)) ? Number(fd.current.temperature_2m) : null;
+    climateState.apparentTempC = Number.isFinite(Number(fd.current && fd.current.apparent_temperature)) ? Number(fd.current.apparent_temperature) : null;
+    climateState.humidity = Number.isFinite(Number(fd.current && fd.current.relative_humidity_2m)) ? Number(fd.current.relative_humidity_2m) : null;
+    climateState.currentWindKmh = Number.isFinite(Number(fd.current && fd.current.wind_speed_10m)) ? Number(fd.current.wind_speed_10m) : null;
+    climateState.weatherCode = fd.current ? fd.current.weather_code : null;
+    climateState.todayMaxC = Number.isFinite(Number(fd.daily && fd.daily.temperature_2m_max && fd.daily.temperature_2m_max[0])) ? Number(fd.daily.temperature_2m_max[0]) : null;
+    climateState.todayMinC = Number.isFinite(Number(fd.daily && fd.daily.temperature_2m_min && fd.daily.temperature_2m_min[0])) ? Number(fd.daily.temperature_2m_min[0]) : null;
     climateState.wetBulbC = wetBulbApproxC(climateState.curTempC, climateState.humidity);
+    climateState.timezone = fd.timezone || null;
+    climateState.localCurrentTime = fd.current ? fd.current.time : null;
 
-    climateState.forecastDaily = (fd.daily?.time || []).slice(0,3).map((t, idx) => ({
-      date:t,
-      maxC:fd.daily.temperature_2m_max?.[idx] ?? null,
-      minC:fd.daily.temperature_2m_min?.[idx] ?? null,
-      code:fd.daily.weather_code?.[idx] ?? null,
-      pop:fd.daily.precipitation_probability_max?.[idx] ?? null
-    }));
+    climateState.forecastDaily = (fd.daily && fd.daily.time ? fd.daily.time : []).slice(0, 3).map(function(t, idx) {
+      return {
+        date: t,
+        maxC: fd.daily.temperature_2m_max ? fd.daily.temperature_2m_max[idx] : null,
+        minC: fd.daily.temperature_2m_min ? fd.daily.temperature_2m_min[idx] : null,
+        code: fd.daily.weather_code ? fd.daily.weather_code[idx] : null,
+        pop: fd.daily.precipitation_probability_max ? fd.daily.precipitation_probability_max[idx] : null
+      };
+    });
 
-    const currentLocalIso = fd.current?.time || "";
-    const currentHour = currentLocalIso.match(/T(\d{2}):/)?.[1] || String(new Date().getHours()).padStart(2,"0");
-    const hourlyTimes = fd.hourly?.time || [];
-    const currentHourIso = currentLocalIso.slice(0,13);
-    const surfaceIdx = hourlyTimes.findIndex(t => String(t).slice(0,13) === currentHourIso);
-    const surfaceVal = surfaceIdx >= 0 ? fd.hourly?.soil_temperature_0cm?.[surfaceIdx] : null;
+    const hourlyTimes = fd.hourly && fd.hourly.time ? fd.hourly.time : [];
+    const currentHourKey = climateState.localCurrentTime ? String(climateState.localCurrentTime).slice(0, 13) : null;
+    const surfaceIdx = currentHourKey ? hourlyTimes.findIndex(function(t) { return String(t).slice(0, 13) === currentHourKey; }) : -1;
+    const surfaceVal = surfaceIdx >= 0 && fd.hourly && fd.hourly.soil_temperature_0cm ? fd.hourly.soil_temperature_0cm[surfaceIdx] : null;
     climateState.surfaceTempC = Number.isFinite(Number(surfaceVal)) ? Number(surfaceVal) : null;
 
-    const datePart = currentLocalIso.slice(0,10);
-    const currentYear = Number(datePart.slice(0,4)) || new Date().getFullYear();
-    const fallbackMonth = String(new Date().getMonth()+1).padStart(2,"0");
-    const fallbackDay = String(new Date().getDate()).padStart(2,"0");
-    const mmdd = datePart.slice(5) || (fallbackMonth + "-" + fallbackDay);
-    const archiveDate = String(currentYear - 5) + "-" + mmdd;
+    const localTime = climateState.localCurrentTime ? new Date(climateState.localCurrentTime) : new Date();
+    const targetYear = localTime.getFullYear() - 5;
+    const mm = String(localTime.getMonth() + 1).padStart(2, "0");
+    const dd = String(localTime.getDate()).padStart(2, "0");
+    const hour = String(localTime.getHours()).padStart(2, "0");
+    const archiveDate = targetYear + "-" + mm + "-" + dd;
 
     climateState.fiveYearsAgoC = null;
     try {
-      const archiveUrl = "https://archive-api.open-meteo.com/v1/archive?latitude=" + lat + "&longitude=" + lon +
-        "&start_date=" + archiveDate + "&end_date=" + archiveDate + "&hourly=temperature_2m&timezone=auto";
+      const archiveUrl =
+        "https://archive-api.open-meteo.com/v1/archive?latitude=" + encodeURIComponent(lat) +
+        "&longitude=" + encodeURIComponent(lon) +
+        "&start_date=" + archiveDate +
+        "&end_date=" + archiveDate +
+        "&hourly=temperature_2m&timezone=auto";
       const ar = await fetch(archiveUrl);
       if (ar.ok) {
         const ad = await ar.json();
-        const idx = (ad.hourly?.time || []).findIndex(t => String(t).endsWith("T" + currentHour + ":00"));
-        const oldVal = idx >= 0 ? ad.hourly?.temperature_2m?.[idx] : null;
+        const times = ad.hourly && ad.hourly.time ? ad.hourly.time : [];
+        const idx = times.findIndex(function(t) { return String(t).endsWith("T" + hour + ":00"); });
+        const oldVal = idx >= 0 && ad.hourly && ad.hourly.temperature_2m ? ad.hourly.temperature_2m[idx] : null;
         climateState.fiveYearsAgoC = Number.isFinite(Number(oldVal)) ? Number(oldVal) : null;
       }
     } catch (_) {}
 
-    renderClimateWidgetCompact();
-    if (typeof loadSpaceAstronomy === "function") loadSpaceAstronomy();
-  } catch(e) {
-    console.warn("Local climate engine refresh failed:", e);
+    renderClimateWidget();
+    renderMoonAndEclipse();
+  } catch (e) {
+    console.warn("Local climate refresh failed:", e);
   }
 }
 
-function renderClimateWidgetCompact() {
+function renderClimateWidget() {
   if (climateState.curTempC === null) return;
   const u = "°" + climateUnit;
   const glyph = weatherCodeToGlyph(climateState.weatherCode);
-  $("userCurrentTemp").textContent = String(toUnit(climateState.curTempC)) + u;
-  $("userFeelsLike").textContent = climateState.apparentTempC === null ? "--" : String(toUnit(climateState.apparentTempC)) + u;
-  $("userSurfaceTemp").textContent = climateState.surfaceTempC === null ? "--" : String(toUnit(climateState.surfaceTempC)) + u;
-  $("userWetBulb").textContent = climateState.wetBulbC === null ? "--" : String(toUnit(climateState.wetBulbC)) + u;
+
+  $("userCurrentTemp").textContent = toUnit(climateState.curTempC) + u;
+  $("userFeelsLike").textContent = climateState.apparentTempC === null ? "--" : toUnit(climateState.apparentTempC) + u;
+  $("userSurfaceTemp").textContent = climateState.surfaceTempC === null ? "--" : toUnit(climateState.surfaceTempC) + u;
+  $("userWetBulb").textContent = climateState.wetBulbC === null ? "--" : toUnit(climateState.wetBulbC) + u;
   $("userWeatherDesc").textContent = glyph.text;
   $("userAnnualBounds").textContent = "Today: " + toUnit(climateState.todayMaxC) + u + " / " + toUnit(climateState.todayMinC) + u;
 
   const cmp = $("userFiveYearCompare");
-  const old = climateState.fiveYearsAgoC;
-  if (old !== null) {
-    const diffC = climateState.curTempC - old;
+  if (climateState.fiveYearsAgoC !== null) {
+    const diffC = Number(climateState.curTempC) - Number(climateState.fiveYearsAgoC);
     const shownDiff = climateUnit === "F" ? diffC * 1.8 : diffC;
+    const direction = shownDiff >= 0 ? "warmer" : "cooler";
     const sign = shownDiff >= 0 ? "+" : "";
-    cmp.innerHTML = "<strong>Same local hour, 5 years ago:</strong> " + toUnit(old) + u +
-      " · today is <strong>" + sign + shownDiff.toFixed(1) + u + "</strong> " +
-      (shownDiff >= 0 ? "warmer." : "cooler.");
+    cmp.innerHTML =
+      "<strong>Same local hour, 5 years ago:</strong> " + toUnit(climateState.fiveYearsAgoC) + u +
+      " · today is <strong>" + sign + shownDiff.toFixed(1) + u + "</strong> " + direction + ".";
   } else {
     cmp.textContent = "Five-year same-hour comparison is temporarily unavailable.";
   }
 
-  $("forecastStrip").innerHTML = climateState.forecastDaily.slice(0,3).map((f,i) => {
-    const dayName = i === 0 ? "Today" : new Date(f.date + "T12:00:00").toLocaleDateString("en-US", {weekday:"short"});
+  $("forecastStrip").innerHTML = climateState.forecastDaily.slice(0, 3).map(function(f, i) {
+    const dayName = i === 0 ? "Today" : new Date(f.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
     const g = weatherCodeToGlyph(f.code);
-    return "<div class=\"f-card\">" +
-      "<div class=\"f-day\">" + dayName + "</div>" +
-      "<div class=\"f-glyph\">" + g.icon + "</div>" +
-      "<div class=\"f-temp\">" + toUnit(f.maxC) + "°<span style=\"font-size:9px;color:var(--muted)\">/" + toUnit(f.minC) + "°</span></div>" +
-      "<div class=\"f-pop\">" + (f.pop ?? "--") + "% rain</div>" +
-      "</div>";
+    return '<div class="f-card">' +
+      '<div class="f-day">' + escapeHtml(dayName) + '</div>' +
+      '<div class="f-glyph">' + g.icon + '</div>' +
+      '<div class="f-temp">' + toUnit(f.maxC) + '°<span style="font-size:9px;color:var(--muted)">/' + toUnit(f.minC) + '°</span></div>' +
+      '<div class="f-pop">' + (f.pop === null || f.pop === undefined ? "--" : f.pop) + '% rain</div>' +
+      '</div>';
   }).join("");
 }
+
 async function initUserLocation() {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
