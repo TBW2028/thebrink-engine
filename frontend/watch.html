@@ -576,7 +576,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
           <div class="station-metric-value" id="userSurfaceTemp">--°</div>
         </div>
         <div class="station-metric">
-          <div class="station-metric-label">Wet bulb</div>
+          <div class="station-metric-label" title="Estimated wet-bulb temperature derived from current air temperature and relative humidity">Wet bulb*</div>
           <div class="station-metric-value" id="userWetBulb">--°</div>
         </div>
       </div>
@@ -589,6 +589,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
     <div class="station-forecast">
       <div class="forecast-title">Next 3 days</div>
       <div class="forecast-strip" id="forecastStrip"></div>
+      <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-top:6px;line-height:1.35;">* Surface/ground and wet-bulb values are modelled/derived, not on-site sensor measurements.</div>
     </div>
   </div>
 
