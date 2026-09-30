@@ -1064,9 +1064,15 @@ export default {
         }
 
         const verifiedAt = new Date().toISOString();
-        const patch = await fetch(`${sbUrl}/rest/v1/dossier_requests?order_code=eq.${encodeURIComponent(orderCode)}`, {
+
+        // Claim the order before dispatching. The status filter makes approval idempotent:
+        // only an order awaiting verification, or a previously failed dispatch, can be claimed.
+        const claimUrl = new URL(`${sbUrl}/rest/v1/dossier_requests`);
+        claimUrl.searchParams.set("order_code", `eq.${orderCode}`);
+        claimUrl.searchParams.set("status", "in.(awaiting_payment_verification,dispatch_failed)");
+        const patch = await fetch(claimUrl.toString(), {
           method: "PATCH",
-          headers: sbHeaders(sbKey, "return=minimal"),
+          headers: sbHeaders(sbKey, "return=representation"),
           body: JSON.stringify({
             payment_status: "verified",
             payment_verified_at: verifiedAt,
@@ -1074,6 +1080,13 @@ export default {
           })
         });
         if (!patch.ok) throw new Error(`Could not mark payment verified: ${await patch.text()}`);
+        const claimedRows = await patch.json();
+        if (!Array.isArray(claimedRows) || claimedRows.length === 0) {
+          return new Response(
+            "This order has already been approved or is already being generated.",
+            { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+          );
+        }
 
         if (!env.GITHUB_PAT || !env.GITHUB_REPO) {
           throw new Error("GitHub report-dispatch environment is incomplete.");
