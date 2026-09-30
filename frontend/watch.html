@@ -1635,163 +1635,351 @@ function rebuildPriorityLookout() {
   }).join("") : '<div style="color:var(--ok); padding:10px; font-weight:700;">✓ Planetary baseline nominal across all active vectors. No critical apex hazards currently detected.</div>';
 }
 
-// DIRECT NCS INDIA DESK
+// LIVE HAZARD FEEDS + INDIA SEISMIC DESK
+function renderIndiaSeismicDesk() {
+  EVENT_STORE.india.sort(function(a,b){ return new Date(b.time || 0) - new Date(a.time || 0); });
+  $("c-india").textContent = EVENT_STORE.india.length;
+
+  const visible = EVENT_STORE.india.slice(0, 12);
+  $("q-india").innerHTML = visible.length ? visible.map(function(q, idx) {
+    const t = formatTimeElapsed(q.time);
+    return '<div class="qrow" onclick="inspectEventDetail(\'india\',' + idx + ')">' +
+      '<div class="mag ' + q.level + '">' + q.magnitude.toFixed(1) + '</div>' +
+      '<div><div class="qtitle">' + escapeHtml(q.place || "India region earthquake") + ' ↗</div>' +
+      '<div class="qmeta">' +
+      '<span style="color:var(--gold)">🕒 ' + t.elapsed + ' · ' + t.fullDate + '</span>' +
+      '<span>Depth: ' + (q.depth_km === null ? "—" : q.depth_km + " km") + '</span>' +
+      '<span>NCS India</span>' +
+      '</div></div></div>';
+  }).join("") : '<div style="color:var(--muted);padding:10px">No recent NCS India earthquake could be resolved right now.</div>';
+}
+
 async function refreshIndiaSeismicDesk() {
   try {
-    const r = await fetch(DOSSIER_API + "/api/ncs/recent");
+    const r = await fetch(DOSSIER_API + "/api/ncs/recent", { cache: "no-store" });
     if (!r.ok) throw new Error("NCS proxy status " + r.status);
     const payload = await r.json();
     const events = Array.isArray(payload.events) ? payload.events : [];
 
-    EVENT_STORE.india = events.map(e => {
+    EVENT_STORE.india = events.map(function(e) {
       const mag = Number(e.magnitude) || 0;
       let level = "watch";
       if (mag >= 6) level = "escalate";
       else if (mag >= 5) level = "alert";
       return {
-        place:e.name || e.region || "India region earthquake",
-        magnitude:mag,
-        depth_km:Number.isFinite(Number(e.depth_km)) ? Number(e.depth_km) : null,
-        latitude:Number(e.latitude),
-        longitude:Number(e.longitude),
-        time:e.observed_at,
-        level,
-        source:"NCS India"
+        place: e.name || e.region || "India region earthquake",
+        magnitude: mag,
+        depth_km: Number.isFinite(Number(e.depth_km)) ? Number(e.depth_km) : null,
+        latitude: Number(e.latitude),
+        longitude: Number(e.longitude),
+        time: e.observed_at,
+        level: level,
+        source: "NCS India"
       };
-    }).filter(e => Number.isFinite(e.latitude) && Number.isFinite(e.longitude))
-      .sort((a,b) => new Date(b.time || 0) - new Date(a.time || 0));
+    }).filter(function(e) {
+      return Number.isFinite(e.latitude) && Number.isFinite(e.longitude);
+    });
 
+    renderIndiaSeismicDesk();
+  } catch (e) {
+    console.warn("NCS India desk refresh failed:", e);
+    renderIndiaSeismicDesk();
+  }
+}
+
+async function fetchLiveHazards() {
+  try {
+    try {
+      const resWeek = await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson");
+      if (resWeek.ok) {
+        const dataW = await resWeek.json();
+        ALL_RECENT_WEEK_EVENTS = (dataW.features || []).map(function(f) {
+          return {
+            lat: f.geometry.coordinates[1],
+            lon: f.geometry.coordinates[0],
+            mag: f.properties.mag || 0,
+            time: f.properties.time
+          };
+        });
+      }
+    } catch (_) {}
+
+    const res = await fetch(SUPABASE_URL + "/rest/v1/live_hazards?select=*",
+      { headers: { "apikey": SUPABASE_ANON, "Authorization": "Bearer " + SUPABASE_ANON } });
+    if (!res.ok) throw new Error("Database fetch failed");
+    const hazards = await res.json();
+
+    let escalateCount = 0;
+    let alertCount = 0;
+    let watchCount = 0;
+
+    EVENT_STORE.global = [];
+    EVENT_STORE.storms = [];
+    EVENT_STORE.volcanoes = [];
+    EVENT_STORE.lookout = [];
+    ALL_ACTIVE_EVENTS = [];
+    if (baseMarkerLayer) baseMarkerLayer.clearLayers();
+
+    hazards.forEach(function(h) {
+      const lat = Number(h.latitude);
+      const lon = Number(h.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+      const cat = String(h.category || "").toLowerCase();
+      ALL_ACTIVE_EVENTS.push({
+        lat: lat, lon: lon, time: h.observed_at, category: cat,
+        name: h.name || "Monitored signal", source: h.source || "Source",
+        severity_tier: h.severity_tier || "Monitor", signal_mode: h.signal_mode || "reported",
+        magnitude: Number(h.magnitude), depth_km: Number(h.depth_km)
+      });
+
+      if (cat.includes("quake") || cat === "eq") {
+        // NCS is rendered by the direct India desk to avoid duplicate cross-source rows.
+        if (String(h.source || "").toLowerCase() === "ncs india") return;
+
+        const mag = Number.isFinite(Number(h.magnitude))
+          ? Number(h.magnitude)
+          : (parseFloat(String(h.intensity || "").replace("Magnitude ", "")) || 0);
+
+        let level = "watch";
+        if (mag >= 6) { level = "escalate"; escalateCount++; }
+        else if (mag >= 5) { level = "alert"; alertCount++; }
+        else { watchCount++; }
+
+        EVENT_STORE.global.push({
+          place: h.name || "Earthquake",
+          magnitude: mag,
+          depth_km: Number.isFinite(Number(h.depth_km)) ? Number(h.depth_km) : null,
+          latitude: lat,
+          longitude: lon,
+          time: h.observed_at,
+          level: level,
+          source: h.source || "USGS"
+        });
+
+        if (baseMarkerLayer) {
+          const isPriority = mag >= 5;
+          let pinClass = mag >= 6 ? "custom-hazard-pin pin-quake-major pulse-priority" : "custom-hazard-pin pin-quake";
+          if (isPriority && mag < 6) pinClass += " pulse-priority";
+          const size = mag >= 6 ? 26 : (isPriority ? 22 : 16);
+          const icon = L.divIcon({ className: pinClass, html: "⚡", iconSize:[size,size], iconAnchor:[size/2,size/2] });
+          L.marker([lat,lon], { icon:icon, zIndexOffset:isPriority ? 1000 : 0 })
+            .bindPopup("<strong>Magnitude " + mag.toFixed(1) + "</strong> — " + escapeHtml(h.name || "Earthquake") +
+              "<br/>Depth: " + (h.depth_km ?? "—") + " km<br/>Source: " + escapeHtml(h.source || "Source"))
+            .addTo(baseMarkerLayer);
+        }
+      } else if (cat.includes("volcano") || cat === "vo") {
+        EVENT_STORE.volcanoes.push({
+          title: h.name || "Volcanic signal",
+          intensity: h.alert_level || h.severity_tier || "Monitored",
+          observatory: h.source || "Source",
+          summary: h.intensity || "",
+          time: h.observed_at,
+          lat: lat,
+          lon: lon
+        });
+        if (baseMarkerLayer) {
+          const icon = L.divIcon({ className:"custom-hazard-pin pin-volcano pulse-priority", html:"🌋", iconSize:[24,24], iconAnchor:[12,12] });
+          L.marker([lat,lon], { icon:icon, zIndexOffset:1500 }).bindPopup("<strong>🌋 " + escapeHtml(h.name || "Volcanic signal") + "</strong>").addTo(baseMarkerLayer);
+        }
+      } else if (cat.includes("cyclon") || cat.includes("storm") || cat === "tc" || cat.includes("hurricane")) {
+        EVENT_STORE.storms.push({
+          title: h.name || "Tropical cyclone",
+          severity: h.alert_level || h.severity_tier || "Monitored",
+          windSpeed: Number.isFinite(Number(h.wind_kts)) ? Math.round(Number(h.wind_kts)) + " kts" : "—",
+          barometricPressure: Number.isFinite(Number(h.pressure_mb)) ? Math.round(Number(h.pressure_mb)) + " mb" : "—",
+          summary: h.intensity || "",
+          time: h.observed_at,
+          lat: lat,
+          lon: lon,
+          source: h.source || "Source"
+        });
+        if (baseMarkerLayer) {
+          const icon = L.divIcon({ className:"custom-hazard-pin pin-storm pulse-priority", html:"🌀", iconSize:[26,26], iconAnchor:[13,13] });
+          L.marker([lat,lon], { icon:icon, zIndexOffset:2000 }).bindPopup("<strong>🌀 " + escapeHtml(h.name || "Storm") + "</strong>").addTo(baseMarkerLayer);
+        }
+      }
+    });
+
+    EVENT_STORE.global.sort(function(a,b){ return new Date(b.time || 0) - new Date(a.time || 0); });
+    EVENT_STORE.storms.sort(function(a,b){ return new Date(b.time || 0) - new Date(a.time || 0); });
+    EVENT_STORE.volcanoes.sort(function(a,b){ return new Date(b.time || 0) - new Date(a.time || 0); });
+
+    $("c-escalate").textContent = escalateCount;
+    $("c-alert").textContent = alertCount;
+    $("c-watch").textContent = watchCount;
+    $("c-volcanoes").textContent = EVENT_STORE.volcanoes.length;
+    $("c-storms").textContent = EVENT_STORE.storms.length;
     $("c-listed").textContent = EVENT_STORE.global.length;
-    await refreshIndiaSeismicDesk();
 
-    // UPDATE TRAY HTML
-    EVENT_STORE.global.sort((a,b) => new Date(b.time || 0) - new Date(a.time || 0));
-    EVENT_STORE.storms.sort((a,b) => new Date(b.time || 0) - new Date(a.time || 0));
-    EVENT_STORE.volcanoes.sort((a,b) => new Date(b.time || 0) - new Date(a.time || 0));
-
-    $("q-global").innerHTML = EVENT_STORE.global.length > 0 ? EVENT_STORE.global.map((q, idx) => {
+    $("q-global").innerHTML = EVENT_STORE.global.length ? EVENT_STORE.global.map(function(q, idx) {
       const t = formatTimeElapsed(q.time);
-      return `<div class="qrow" onclick="inspectEventDetail('global', ${idx})"><div class="mag ${q.level}">${q.magnitude.toFixed(1)}</div><div><div class="qtitle">${q.place} ↗</div><div class="qmeta"><span style="color:var(--gold)">🕒 ${t.elapsed} · ${t.fullDate}</span><span>Depth: ${q.depth_km ?? "—"} km</span><span>${escapeHtml(q.source || "Source")}</span></div></div></div>`;
-    }).join("") : '<div style="color:var(--muted); padding:10px;">No global shocks Magnitude 3.0+ in past 24h.</div>';
+      return '<div class="qrow" onclick="inspectEventDetail(\'global\',' + idx + ')">' +
+        '<div class="mag ' + q.level + '">' + q.magnitude.toFixed(1) + '</div>' +
+        '<div><div class="qtitle">' + escapeHtml(q.place) + ' ↗</div>' +
+        '<div class="qmeta"><span style="color:var(--gold)">🕒 ' + t.elapsed + ' · ' + t.fullDate + '</span>' +
+        '<span>Depth: ' + (q.depth_km === null ? "—" : q.depth_km + " km") + '</span>' +
+        '<span>' + escapeHtml(q.source) + '</span></div></div></div>';
+    }).join("") : '<div style="color:var(--muted);padding:10px">No global M3+ earthquake is currently resolved in the 24-hour stream.</div>';
 
-    $("stormContainer").innerHTML = EVENT_STORE.storms.length ? EVENT_STORE.storms.map((s) => {
+    $("stormContainer").innerHTML = EVENT_STORE.storms.length ? EVENT_STORE.storms.map(function(s) {
       const t = formatTimeElapsed(s.time);
-      const wind = s.windSpeed && !String(s.windSpeed).startsWith("--") ? s.windSpeed : "TC";
-      return `<div class="qrow">
-        <div class="mag alert" style="font-size:.78rem">${escapeHtml(wind)}</div>
-        <div>
-          <div class="qtitle">${escapeHtml(s.title || "Tropical cyclone")}</div>
-          <div class="qmeta">
-            <span style="color:var(--gold)">🕒 ${t.elapsed} · ${t.fullDate}</span>
-            <span>${escapeHtml(s.severity || "Monitored")}</span>
-            <button type="button" class="btn" style="padding:2px 7px;font-size:10px" onclick="focusMapOnEvent(${s.lat},${s.lon})">Map ↗</button>
-          </div>
-        </div>
-      </div>`;
+      return '<div class="qrow" onclick="focusMapOnEvent(' + s.lat + ',' + s.lon + ')">' +
+        '<div class="mag alert" style="font-size:.74rem">🌀</div>' +
+        '<div><div class="qtitle">' + escapeHtml(s.title) + ' ↗</div>' +
+        '<div class="qmeta"><span style="color:var(--gold)">🕒 ' + t.elapsed + ' · ' + t.fullDate + '</span>' +
+        '<span>' + escapeHtml(s.severity) + '</span>' +
+        '<span>Wind: ' + escapeHtml(s.windSpeed) + '</span>' +
+        '<span>' + escapeHtml(s.source || "Source") + '</span></div></div></div>';
     }).join("") : '<div style="color:var(--muted);padding:10px">No active tropical cyclone signal is currently resolved.</div>';
 
-    $("volcanoContainer").innerHTML = EVENT_STORE.volcanoes.length ? EVENT_STORE.volcanoes.map((v) => {
+    $("volcanoContainer").innerHTML = EVENT_STORE.volcanoes.length ? EVENT_STORE.volcanoes.map(function(v) {
       const t = formatTimeElapsed(v.time);
-      return `<div class="qrow">
-        <div class="mag alert" style="font-size:.78rem">VO</div>
-        <div>
-          <div class="qtitle">${escapeHtml(v.title || "Volcanic signal")}</div>
-          <div class="qmeta">
-            <span style="color:var(--gold)">🕒 ${t.elapsed} · ${t.fullDate}</span>
-            <span>${escapeHtml(v.intensity || "Monitored")}</span>
-            <span>${escapeHtml(v.observatory || "Source")}</span>
-            <button type="button" class="btn" style="padding:2px 7px;font-size:10px" onclick="focusMapOnEvent(${v.lat},${v.lon})">Map ↗</button>
-          </div>
-        </div>
-      </div>`;
+      return '<div class="qrow" onclick="focusMapOnEvent(' + v.lat + ',' + v.lon + ')">' +
+        '<div class="mag alert" style="font-size:.74rem">🌋</div>' +
+        '<div><div class="qtitle">' + escapeHtml(v.title) + ' ↗</div>' +
+        '<div class="qmeta"><span style="color:var(--gold)">🕒 ' + t.elapsed + ' · ' + t.fullDate + '</span>' +
+        '<span>' + escapeHtml(v.intensity) + '</span>' +
+        '<span>' + escapeHtml(v.observatory) + '</span></div></div></div>';
     }).join("") : '<div style="color:var(--muted);padding:10px">No active volcanic alert is currently resolved.</div>';
 
-    // Local and timeline intelligence refreshed above.
-evaluateLegacyWatch();
+    await refreshIndiaSeismicDesk();
+    rebuildPriorityLookout();
+    evaluateLegacyWatch();
   } catch (e) {
-    console.error("Failed to fetch live hazards from Supabase:", e);
+    console.error("Failed to fetch live hazards:", e);
+    await refreshIndiaSeismicDesk();
   }
 }
 
 function focusMapOnEvent(lat, lon) {
-  if (map && lat && lon) {
-    map.setView([lat, lon], 7, { animate: true });
-    L.popup().setLatLng([lat, lon]).setContent(`<strong>📍 Priority Lookout Focus Sector</strong>`).openOn(map);
+  if (map && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))) {
+    map.setView([Number(lat), Number(lon)], 7, { animate:true });
+    L.popup().setLatLng([Number(lat), Number(lon)]).setContent("<strong>📍 Monitored event</strong>").openOn(map);
   }
 }
 
-// REAL SCIENTIFIC SPACE WEATHER & SATELLITE SOLAR WIND TELEMETRY
-function moonPhaseEmoji(name) {
-  const n=String(name||"").toLowerCase();
-  if(n.includes("new")) return "🌑";
-  if(n.includes("waxing crescent")) return "🌒";
-  if(n.includes("first quarter")) return "🌓";
-  if(n.includes("waxing gibbous")) return "🌔";
-  if(n.includes("full")) return "🌕";
-  if(n.includes("waning gibbous")) return "🌖";
-  if(n.includes("last quarter") || n.includes("third quarter")) return "🌗";
-  if(n.includes("waning crescent")) return "🌘";
-  return "🌙";
+// SPACE WEATHER + MOON PHASE
+const ECLIPSE_CALENDAR = [
+  {date:"2027-02-06", type:"Solar", kind:"Annular"},
+  {date:"2027-02-20", type:"Lunar", kind:"Penumbral"},
+  {date:"2027-07-18", type:"Lunar", kind:"Penumbral"},
+  {date:"2027-08-02", type:"Solar", kind:"Total"},
+  {date:"2027-08-17", type:"Lunar", kind:"Penumbral"},
+  {date:"2028-01-12", type:"Lunar", kind:"Partial"},
+  {date:"2028-01-26", type:"Solar", kind:"Annular"},
+  {date:"2028-07-06", type:"Lunar", kind:"Partial"},
+  {date:"2028-07-22", type:"Solar", kind:"Total"},
+  {date:"2028-12-31", type:"Lunar", kind:"Total"},
+  {date:"2029-01-14", type:"Solar", kind:"Partial"},
+  {date:"2029-06-12", type:"Solar", kind:"Partial"},
+  {date:"2029-06-26", type:"Lunar", kind:"Total"},
+  {date:"2029-07-11", type:"Solar", kind:"Partial"},
+  {date:"2029-12-05", type:"Solar", kind:"Partial"},
+  {date:"2029-12-20", type:"Lunar", kind:"Total"},
+  {date:"2030-06-01", type:"Solar", kind:"Annular"},
+  {date:"2030-06-15", type:"Lunar", kind:"Partial"},
+  {date:"2030-11-25", type:"Solar", kind:"Total"},
+  {date:"2030-12-09", type:"Lunar", kind:"Penumbral"}
+];
+
+function moonPhaseData(date) {
+  const synodic = 29.53058867;
+  const ref = Date.UTC(2000,0,6,18,14,0);
+  let age = ((date.getTime() - ref) / 86400000) % synodic;
+  if (age < 0) age += synodic;
+  const phase = age / synodic;
+  const illumination = (1 - Math.cos(2 * Math.PI * phase)) / 2;
+  let name = "New Moon";
+  if (phase < 0.03 || phase >= 0.97) name = "New Moon";
+  else if (phase < 0.22) name = "Waxing Crescent";
+  else if (phase < 0.28) name = "First Quarter";
+  else if (phase < 0.47) name = "Waxing Gibbous";
+  else if (phase < 0.53) name = "Full Moon";
+  else if (phase < 0.72) name = "Waning Gibbous";
+  else if (phase < 0.78) name = "Last Quarter";
+  else name = "Waning Crescent";
+  return { age:age, phase:phase, illumination:illumination, name:name };
 }
 
-async function loadSpaceAstronomy() {
-  if (!Number.isFinite(Number(userLat)) || !Number.isFinite(Number(userLon))) return;
+function drawMoonPhase(phase) {
+  const canvas = $("moonCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height, r = Math.min(W,H) * 0.43;
+  const cx = W/2, cy = H/2;
+  ctx.clearRect(0,0,W,H);
 
-  try {
-    const moonUrl = "https://www.cyclecalcs.com/v2/moon?lat=" + encodeURIComponent(userLat) + "&lon=" + encodeURIComponent(userLon);
-    const eclipseUrl = "https://www.cyclecalcs.com/v2/eclipses?lat=" + encodeURIComponent(userLat) +
-      "&lon=" + encodeURIComponent(userLon) + "&visible_only=true&count=2&type=both";
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.fillStyle = "#11161d";
+  ctx.fill();
 
-    const results = await Promise.allSettled([fetch(moonUrl), fetch(eclipseUrl)]);
+  const p = phase.phase;
+  const illum = phase.illumination;
+  const waxing = p < 0.5;
+  const hemisphereFlip = Number(userLat) < 0;
+  const brightRight = hemisphereFlip ? !waxing : waxing;
 
-    if (results[0].status === "fulfilled" && results[0].value.ok) {
-      const moonBody = await results[0].value.json();
-      const phase = moonBody?.data?.phase || {};
-      const name = phase.name || "Moon phase";
-      const illumination = Number(phase.illumination_percent);
-      $("moonPhaseIcon").textContent = moonPhaseEmoji(name);
-      $("moonPhaseName").textContent = name;
-      $("moonPhaseMeta").textContent =
-        (Number.isFinite(illumination) ? illumination.toFixed(1) + "% illuminated" : "Illumination unavailable") +
-        " · local sky context for " + userCity;
-    }
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.clip();
 
-    const notice = $("eclipseNotice");
-    notice.className = "eclipse-notice";
-    notice.textContent = "";
+  // Bright half.
+  ctx.fillStyle = "#f3f0dd";
+  ctx.fillRect(brightRight ? cx : cx-r, cy-r, r, 2*r);
 
-    if (results[1].status === "fulfilled" && results[1].value.ok) {
-      const eclipseBody = await results[1].value.json();
-      const eclipses = eclipseBody?.data?.eclipses || [];
-      const now = Date.now();
-
-      const visible = eclipses
-        .filter(e => e?.local?.visible === true && e.peak)
-        .map(e => ({...e, peakMs:new Date(e.peak).getTime()}))
-        .filter(e => Number.isFinite(e.peakMs) && e.peakMs >= now)
-        .sort((a,b) => a.peakMs-b.peakMs);
-
-      const next = visible[0];
-      if (next) {
-        const hours = (next.peakMs-now)/3600000;
-        if (hours <= 36) {
-          const kind = String(next.kind || "").replace(/_/g," ");
-          const type = next.type === "solar" ? "Solar eclipse" : "Lunar eclipse";
-          const localVerdict = next.local?.verdict || "This eclipse is calculated to be visible from the selected location.";
-          notice.className = "eclipse-notice active" + (hours <= 12 ? " urgent" : "");
-          notice.innerHTML =
-            "<strong>" + (hours <= 12 ? "ECLIPSE TODAY" : "ECLIPSE WATCH — WITHIN 1 DAY") + ":</strong> " +
-            escapeHtml(type + (kind ? " (" + kind + ")" : "")) + " · peak " +
-            escapeHtml(new Date(next.peakMs).toLocaleString()) + ". " + escapeHtml(localVerdict);
-          $("moonDisc").style.boxShadow = next.type === "solar"
-            ? "0 0 30px rgba(245,158,11,.28)"
-            : "0 0 30px rgba(239,68,68,.22)";
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("Local astronomy refresh failed:", err);
+  // Terminator ellipse: narrows at quarter, broadens near new/full.
+  const k = Math.abs(Math.cos(2*Math.PI*p));
+  ctx.beginPath();
+  ctx.ellipse(cx,cy,r*k,r,0,0,Math.PI*2);
+  if (illum < 0.5) {
+    ctx.fillStyle = "#11161d";
+  } else {
+    ctx.fillStyle = "#f3f0dd";
   }
+  ctx.fill();
+
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.strokeStyle = "rgba(255,255,255,.18)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function renderMoonAndEclipse() {
+  const now = new Date();
+  const phase = moonPhaseData(now);
+  drawMoonPhase(phase);
+  $("moonPhaseName").textContent = phase.name;
+  $("moonPhaseMeta").textContent =
+    Math.round(phase.illumination * 100) + "% illuminated · " +
+    (Number(userLat) < 0 ? "southern" : "northern") + " hemisphere orientation";
+
+  const notice = $("eclipseNotice");
+  notice.style.display = "none";
+  notice.textContent = "";
+
+  // One-day global eclipse notice. Exact local visibility is deliberately not inferred
+  // from broad regional tables; the notice tells the user to check the NASA visibility map.
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  for (const e of ECLIPSE_CALENDAR) {
+    const parts = e.date.split("-").map(Number);
+    const eventUTC = Date.UTC(parts[0], parts[1]-1, parts[2]);
+    const days = Math.round((eventUTC - todayUTC) / 86400000);
+    if (days === 1 || days === 0) {
+      notice.style.display = "block";
+      notice.textContent = (days === 1 ? "ECLIPSE TOMORROW · " : "ECLIPSE TODAY · ") +
+        e.kind + " " + e.type.toLowerCase() +
+        ". Local visibility varies; verify against the NASA eclipse visibility map.";
+      break;
+    }
+  }
+
+  $("lunarTideSummary").textContent =
+    "Moon phase is calculated for the current date and oriented by the selected location hemisphere. Eclipse dates use NASA GSFC catalog data; local visibility is not assumed.";
 }
 
 async function fetchSpaceWeather() {
@@ -1801,11 +1989,11 @@ async function fetchSpaceWeather() {
     if (res.ok) {
       const data = await res.json();
       if (data && data.length) {
-        const latest = data[data.length-1];
-        kpVal = Number(latest.kp_index !== undefined ? latest.kp_index : latest.kp);
+        const latest = data[data.length - 1];
+        kpVal = latest.kp_index !== undefined ? Number(latest.kp_index) : Number(latest.kp);
       }
     }
-  } catch(e) {
+  } catch (e) {
     console.warn("NOAA SWPC Kp fetch failed:", e);
   }
 
@@ -1813,15 +2001,17 @@ async function fetchSpaceWeather() {
     $("c-space").textContent = "Kp " + Math.round(kpVal);
     $("spaceBadge").textContent = kpVal >= 5 ? "GEOMAGNETIC STORM" : (kpVal >= 4 ? "UNSETTLED" : "QUIET / NOMINAL");
     $("spaceBadge").style.color = kpVal >= 5 ? "var(--hot)" : (kpVal >= 4 ? "var(--warn)" : "var(--accent)");
-    $("spaceSummary").innerHTML =
-      "<strong>Geomagnetic condition:</strong> Kp " + kpVal.toFixed(1) +
-      " · " + (kpVal >= 5 ? "storm-level geomagnetic activity." : kpVal >= 4 ? "unsettled geomagnetic activity." : "quiet to nominal geomagnetic activity.");
   } else {
     $("c-space").textContent = "Kp --";
-    $("spaceSummary").textContent = "NOAA geomagnetic reading temporarily unavailable.";
+    $("spaceBadge").textContent = "DATA CHECK";
   }
 
-  loadSpaceAstronomy();
+  $("spaceSummary").innerHTML =
+    "<strong>Planetary K-index:</strong> " +
+    (Number.isFinite(kpVal) ? "Kp " + Math.round(kpVal) : "not currently resolved") +
+    " · <span style=\"color:var(--ok)\">NOAA Space Weather Prediction Center</span>";
+
+  renderMoonAndEclipse();
 }
 
 // HISTORICAL MEGATHRUSTS & CALDERAS (CONSTANT GEOGRAPHICAL BENCHMARKS)
