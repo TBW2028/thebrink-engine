@@ -819,7 +819,318 @@ export default {
       }
     }
 
-    // 8. Server-Side Supabase Auth Proxy
+
+    // 8. Paid Location Threat Dossier — manual payment verification
+    if (url.pathname === "/api/dossier/payment-submit" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const email = normalizeEmail(body.email);
+        const clientName = String(body.client_name || "").trim();
+        const organization = String(body.organization || "").trim();
+        const purpose = String(body.purpose || "").trim();
+        const concern = String(body.concern || "").trim();
+        const paymentMethod = String(body.payment_method || "").trim();
+        const paymentReference = String(body.payment_reference || "").trim();
+
+        if (!validEmail(email)) return jsonResponse({ error: "Enter a valid client email." }, 400, corsHeaders);
+        if (!clientName) return jsonResponse({ error: "Enter the client name." }, 400, corsHeaders);
+        if (!paymentReference) return jsonResponse({ error: "Enter the Razorpay reference or USDT transaction hash." }, 400, corsHeaders);
+
+        const priceBook = {
+          inr_razorpay: { currency: "INR", amount: 2499, label: "Razorpay INR" },
+          usd_razorpay: { currency: "USD", amount: 29, label: "Razorpay USD" },
+          usdt_trc20: { currency: "USDT", amount: 29, label: "USDT · TRON (TRC20)" }
+        };
+        const price = priceBook[paymentMethod];
+        if (!price) return jsonResponse({ error: "Choose a valid payment method." }, 400, corsHeaders);
+
+        const sbUrl = env.SUPABASE_URL;
+        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
+        if (!sbUrl || !sbKey) throw new Error("Dossier database environment is incomplete.");
+
+        const location = await geocodeRequestedLocation(body);
+        const net = networkContext(request);
+        const ipHash = await hmacHex(env.IP_HASH_SECRET, net.ip);
+
+        const uuid = crypto.randomUUID();
+        const orderCode = "BRK-LTD-" + uuid.replaceAll("-", "").slice(0, 8).toUpperCase();
+        const approvalToken = crypto.randomUUID() + crypto.randomUUID();
+        const approvalHash = await sha256Hex(
+          orderCode + ":" + approvalToken + ":" + (env.VERIFICATION_SECRET || "")
+        );
+        const now = new Date().toISOString();
+        const approvalExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+        const order = {
+          order_code: orderCode,
+          email,
+          request_type: "paid_full",
+          requested_location: location.label,
+          requested_lat: location.lat,
+          requested_lon: location.lon,
+          requested_country: location.country,
+          requested_country_code: location.countryCode,
+          client_name: clientName,
+          organization: organization || null,
+          purpose: purpose || "General location intelligence",
+          concern: concern || null,
+          payment_method: paymentMethod,
+          payment_reference: paymentReference,
+          payment_currency: price.currency,
+          payment_amount: price.amount,
+          payment_status: "submitted",
+          payment_submitted_at: now,
+          approval_token_hash: approvalHash,
+          approval_token_expires_at: approvalExpiry,
+          status: "awaiting_payment_verification",
+          ip_hash: ipHash,
+          ip_country: net.country,
+          ip_region: net.region,
+          ip_city: net.city,
+          created_at: now
+        };
+
+        const saveRes = await fetch(`${sbUrl}/rest/v1/dossier_requests`, {
+          method: "POST",
+          headers: sbHeaders(sbKey, "return=representation"),
+          body: JSON.stringify(order)
+        });
+        if (!saveRes.ok) throw new Error(`Order save failed: ${await saveRes.text()}`);
+        const savedRows = await saveRes.json();
+        const saved = savedRows[0];
+
+        if (!env.RESEND_API_KEY) throw new Error("Admin email service is not configured.");
+
+        const reviewUrl = new URL("/api/dossier/review", url.origin);
+        reviewUrl.searchParams.set("order", orderCode);
+        reviewUrl.searchParams.set("token", approvalToken);
+
+        const sender = env.DOSSIER_FROM_EMAIL || "The Brink World <intel@thebrinkworld.com>";
+        const adminMail = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            from: sender,
+            to: ["thebrink2028@gmail.com"],
+            reply_to: email,
+            subject: `[PAYMENT TO VERIFY] ${orderCode} · ${price.currency} ${price.amount} · ${clientName}`,
+            html: `
+              <div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#111">
+                <p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#555">The Brink World · Manual Payment Verification</p>
+                <h2 style="margin-bottom:8px">Payment submitted — verify before generating</h2>
+                <table style="border-collapse:collapse;width:100%">
+                  <tr><td style="padding:6px 0;color:#666">Order</td><td><strong>${orderCode}</strong></td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Client</td><td>${clientName}</td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Email</td><td>${email}</td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Organisation</td><td>${organization || "—"}</td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Location</td><td>${location.label}</td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Purpose</td><td>${purpose || "General location intelligence"}</td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Payment</td><td><strong>${price.label} · ${price.currency} ${price.amount}</strong></td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Reference / TxID</td><td style="word-break:break-all"><strong>${paymentReference}</strong></td></tr>
+                </table>
+                <p style="margin-top:18px">Check the payment independently in Razorpay or TRON before approving.</p>
+                <p><a href="${reviewUrl.toString()}" style="display:inline-block;background:#0b0d11;color:#fff;padding:12px 18px;text-decoration:none;border-radius:4px">REVIEW & APPROVE PAYMENT</a></p>
+                <p style="font-size:12px;color:#777">This link expires in 7 days. Opening it does not generate the report; final confirmation is required on the review page.</p>
+              </div>
+            `
+          })
+        });
+        if (!adminMail.ok) throw new Error(`Admin verification email failed: ${await adminMail.text()}`);
+
+        // Customer acknowledgement — no claim that payment is verified.
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            from: sender,
+            to: [email],
+            reply_to: env.DOSSIER_REPLY_TO || "thebrink2028@gmail.com",
+            subject: `Payment submitted for verification — ${orderCode}`,
+            html: `
+              <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111">
+                <p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#555">The Brink World · Location Threat Dossier</p>
+                <h2>We received your payment reference.</h2>
+                <p><strong>Order:</strong> ${orderCode}</p>
+                <p><strong>Location:</strong> ${location.label}</p>
+                <p><strong>Payment submitted:</strong> ${price.currency} ${price.amount} via ${price.label}</p>
+                <p>Your payment will be checked manually before the report is generated. Submission of a reference or transaction hash is not confirmation of payment.</p>
+              </div>
+            `
+          })
+        }).catch(() => {});
+
+        return jsonResponse({
+          ok: true,
+          order_code: orderCode,
+          status: "awaiting_payment_verification",
+          message: "Payment reference submitted. The Brink World will verify it before generating the dossier."
+        }, 200, corsHeaders);
+      } catch (err) {
+        return jsonResponse({ error: err.message }, 500, corsHeaders);
+      }
+    }
+
+    if (url.pathname === "/api/dossier/review" && request.method === "GET") {
+      const orderCode = String(url.searchParams.get("order") || "");
+      const token = String(url.searchParams.get("token") || "");
+      const sbUrl = env.SUPABASE_URL;
+      const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
+      if (!orderCode || !token || !sbUrl || !sbKey) {
+        return new Response("Invalid review link.", { status: 400, headers: { "Content-Type": "text/plain" } });
+      }
+
+      const lookupUrl = new URL(`${sbUrl}/rest/v1/dossier_requests`);
+      lookupUrl.searchParams.set("order_code", `eq.${orderCode}`);
+      lookupUrl.searchParams.set("select", "*");
+      lookupUrl.searchParams.set("limit", "1");
+      const lookup = await fetch(lookupUrl.toString(), { headers: sbHeaders(sbKey) });
+      const rows = lookup.ok ? await lookup.json() : [];
+      const order = rows[0];
+      const suppliedHash = await sha256Hex(orderCode + ":" + token + ":" + (env.VERIFICATION_SECRET || ""));
+      const expired = !order?.approval_token_expires_at || new Date(order.approval_token_expires_at).getTime() < Date.now();
+
+      if (!order || suppliedHash !== order.approval_token_hash || expired) {
+        return new Response("This review link is invalid or expired.", { status: 403, headers: { "Content-Type": "text/plain" } });
+      }
+
+      const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[ch]));
+
+      const already = ["verified", "generating", "delivered"].includes(order.payment_status) ||
+                      ["generating", "delivered"].includes(order.status);
+      const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Verify ${esc(orderCode)} · The Brink World</title>
+      <style>
+        body{font-family:Arial,sans-serif;background:#080b10;color:#eef2f7;margin:0;padding:28px}
+        .card{max-width:720px;margin:auto;background:#111722;border:1px solid #263242;border-radius:10px;padding:24px}
+        h1{font-size:24px;margin:0 0 18px}.muted{color:#9aa8b8}.row{padding:9px 0;border-bottom:1px solid #263242}
+        .k{display:inline-block;width:180px;color:#9aa8b8}.v{font-weight:600}.warn{background:#241b0d;border:1px solid #6d4b16;padding:12px;border-radius:6px;margin:16px 0}
+        button{background:#00f3ff;color:#061018;border:0;border-radius:5px;padding:12px 18px;font-weight:800;cursor:pointer}
+        button:disabled{opacity:.5}.ref{word-break:break-all}
+      </style></head><body><div class="card">
+        <div class="muted" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase">The Brink World · Payment Verification</div>
+        <h1>${esc(orderCode)}</h1>
+        <div class="row"><span class="k">Client</span><span class="v">${esc(order.client_name)}</span></div>
+        <div class="row"><span class="k">Email</span><span class="v">${esc(order.email)}</span></div>
+        <div class="row"><span class="k">Location</span><span class="v">${esc(order.requested_location)}</span></div>
+        <div class="row"><span class="k">Payment method</span><span class="v">${esc(order.payment_method)}</span></div>
+        <div class="row"><span class="k">Expected amount</span><span class="v">${esc(order.payment_currency)} ${esc(order.payment_amount)}</span></div>
+        <div class="row"><span class="k">Reference / TxID</span><span class="v ref">${esc(order.payment_reference)}</span></div>
+        <div class="warn"><strong>Manual check required.</strong><br>Confirm the payment independently in Razorpay or TRON. Do not approve based only on the reference supplied by the client.</div>
+        ${already ? '<p><strong>This order has already been approved or is being fulfilled.</strong></p>' : `
+        <form method="post" action="/api/dossier/approve">
+          <input type="hidden" name="order" value="${esc(orderCode)}">
+          <input type="hidden" name="token" value="${esc(token)}">
+          <label style="display:block;margin:12px 0"><input type="checkbox" name="confirmed" value="yes" required> I independently verified that the expected payment was received.</label>
+          <button type="submit">APPROVE PAYMENT & GENERATE DOSSIER</button>
+        </form>`}
+      </div></body></html>`;
+      return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    }
+
+    if (url.pathname === "/api/dossier/approve" && request.method === "POST") {
+      try {
+        const form = await request.formData();
+        const orderCode = String(form.get("order") || "");
+        const token = String(form.get("token") || "");
+        const confirmed = String(form.get("confirmed") || "") === "yes";
+        if (!orderCode || !token || !confirmed) throw new Error("Approval confirmation is incomplete.");
+
+        const sbUrl = env.SUPABASE_URL;
+        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
+        if (!sbUrl || !sbKey) throw new Error("Dossier database environment is incomplete.");
+
+        const lookupUrl = new URL(`${sbUrl}/rest/v1/dossier_requests`);
+        lookupUrl.searchParams.set("order_code", `eq.${orderCode}`);
+        lookupUrl.searchParams.set("select", "*");
+        lookupUrl.searchParams.set("limit", "1");
+        const lookup = await fetch(lookupUrl.toString(), { headers: sbHeaders(sbKey) });
+        if (!lookup.ok) throw new Error("Order lookup failed.");
+        const rows = await lookup.json();
+        const order = rows[0];
+        if (!order) throw new Error("Order not found.");
+
+        const suppliedHash = await sha256Hex(orderCode + ":" + token + ":" + (env.VERIFICATION_SECRET || ""));
+        if (suppliedHash !== order.approval_token_hash) throw new Error("Invalid approval token.");
+        if (!order.approval_token_expires_at || new Date(order.approval_token_expires_at).getTime() < Date.now()) {
+          throw new Error("Approval link expired.");
+        }
+        if (order.status === "delivered") {
+          return new Response("This dossier has already been delivered.", { status: 200, headers: { "Content-Type": "text/plain" } });
+        }
+
+        const verifiedAt = new Date().toISOString();
+        const patch = await fetch(`${sbUrl}/rest/v1/dossier_requests?order_code=eq.${encodeURIComponent(orderCode)}`, {
+          method: "PATCH",
+          headers: sbHeaders(sbKey, "return=minimal"),
+          body: JSON.stringify({
+            payment_status: "verified",
+            payment_verified_at: verifiedAt,
+            status: "generating"
+          })
+        });
+        if (!patch.ok) throw new Error(`Could not mark payment verified: ${await patch.text()}`);
+
+        if (!env.GITHUB_PAT || !env.GITHUB_REPO) {
+          throw new Error("GitHub report-dispatch environment is incomplete.");
+        }
+
+        const dispatch = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.GITHUB_PAT}`,
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "TheBrinkWorld-Dossier-Approval"
+          },
+          body: JSON.stringify({
+            event_type: "order_paid",
+            client_payload: {
+              order_code: orderCode,
+              order_id: order.id,
+              location: `${order.requested_lat},${order.requested_lon}`,
+              site_name: order.requested_location,
+              customer_email: order.email,
+              answers: {
+                customer_name: order.client_name,
+                organization: order.organization,
+                occupancy: order.purpose || "general",
+                concern: order.concern || "",
+                order_code: orderCode
+              }
+            }
+          })
+        });
+        if (!dispatch.ok) {
+          await fetch(`${sbUrl}/rest/v1/dossier_requests?order_code=eq.${encodeURIComponent(orderCode)}`, {
+            method: "PATCH",
+            headers: sbHeaders(sbKey, "return=minimal"),
+            body: JSON.stringify({ status: "dispatch_failed" })
+          });
+          throw new Error(`GitHub dispatch failed: ${await dispatch.text()}`);
+        }
+
+        return new Response(
+          `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#080b10;color:#eef2f7;padding:40px"><div style="max-width:650px;margin:auto"><h2>Payment approved.</h2><p>${orderCode} has been sent to the dossier engine for generation and delivery.</p><p>The client and thebrink2028@gmail.com will receive separate copies after generation.</p></div></body></html>`,
+          { headers: { "Content-Type": "text/html; charset=utf-8" } }
+        );
+      } catch (err) {
+        return new Response(
+          `Approval failed: ${err.message}`,
+          { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+        );
+      }
+    }
+
+    // 9. Server-Side Supabase Auth Proxy
+
 
     const sbUrl = env.SUPABASE_URL || "https://jxapuzsgyoetrpnmohct.supabase.co";
     const sbKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
