@@ -25,13 +25,13 @@ def produce(location, answers, site_name, customer_email, out_dir="reports"):
     coords_formatted = f"{abs(round(lat, 4))}°{lat_card}, {abs(round(lon, 4))}°{lon_card}"
 
     meta = {
-        "report_title": "Site Threat Dossier",
+        "report_title": "Location Threat Dossier",
         "product_name": "The Brink World",
-        "tier_label": "Site Report",
+        "tier_label": "Decision-Support Intelligence",
         "ref": ref_code,
         "site_name": site_name,
         "customer_name": answers.get("customer_name", "Operations Lead"),
-        "occupancy_label": answers.get("occupancy", "Warehouse").title(),
+        "occupancy_label": answers.get("occupancy", "General location intelligence").title(),
         "coords_str": coords_formatted
     }
 
