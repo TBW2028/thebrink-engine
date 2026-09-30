@@ -1001,8 +1001,7 @@ export default {
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
       }[ch]));
 
-      const already = ["verified", "generating", "delivered"].includes(order.payment_status) ||
-                      ["generating", "delivered"].includes(order.status);
+      const already = ["generating", "delivered"].includes(order.status);
       const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <title>Verify ${esc(orderCode)} · The Brink World</title>
       <style>
@@ -1107,12 +1106,19 @@ export default {
           })
         });
         if (!dispatch.ok) {
+          const dispatchText = await dispatch.text();
           await fetch(`${sbUrl}/rest/v1/dossier_requests?order_code=eq.${encodeURIComponent(orderCode)}`, {
             method: "PATCH",
             headers: sbHeaders(sbKey, "return=minimal"),
             body: JSON.stringify({ status: "dispatch_failed" })
           });
-          throw new Error(`GitHub dispatch failed: ${await dispatch.text()}`);
+          if (dispatch.status === 401) {
+            throw new Error("GitHub dispatch authentication failed. The Worker GITHUB_PAT is invalid, expired, revoked, or not the current token.");
+          }
+          if (dispatch.status === 403) {
+            throw new Error("GitHub dispatch was forbidden. The Worker token does not have permission to dispatch this repository.");
+          }
+          throw new Error(`GitHub dispatch failed (${dispatch.status}): ${dispatchText}`);
         }
 
         return new Response(
