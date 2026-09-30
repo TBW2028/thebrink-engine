@@ -366,6 +366,29 @@ async function buildThreatSnapshot(sbUrl, sbKey, location, sampleNumber, remaini
   };
 }
 
+async function triggerHazardIngestion(env, scheduledTime = null) {
+  if (!env.GITHUB_PAT || !env.GITHUB_REPO) {
+    throw new Error("GitHub ingestion trigger environment is incomplete.");
+  }
+  const response = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.GITHUB_PAT}`,
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "TheBrinkWorld-Hazard-Cron"
+    },
+    body: JSON.stringify({
+      event_type: "hazard_tick",
+      client_payload: {
+        source: "cloudflare_cron",
+        scheduled_time: scheduledTime || new Date().toISOString()
+      }
+    })
+  });
+  if (!response.ok) throw new Error(`Hazard ingestion dispatch failed (${response.status}): ${await response.text()}`);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -1268,5 +1291,14 @@ export default {
       status: 200, 
       headers: { ...corsHeaders, "Content-Type": "text/plain" } 
     });
+  },
+
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(
+      triggerHazardIngestion(
+        env,
+        new Date(controller.scheduledTime || Date.now()).toISOString()
+      ).catch(err => console.error("Scheduled hazard ingestion trigger failed:", err))
+    );
   }
 };
