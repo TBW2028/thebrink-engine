@@ -1038,7 +1038,7 @@ function renderLocationSnapshot(s, price) {
     <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px;">
       <div style="font-size:14px;color:#fff;font-weight:700;">Full Location Threat Dossier</div>
       <div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px;">Launch pricing: US$29 · ₹2,499 · 29 USDT</div>
-      <a class="btn btn-primary" href="/contact.html?service=location-threat-dossier" style="justify-content:center;">Commission the full dossier →</a>
+      <a class="btn btn-primary" href="/location-dossier.html?email=${encodeURIComponent(SAMPLE_STATE.email || "")}&location=${encodeURIComponent(s.location.label || "")}&lat=${encodeURIComponent(s.location.latitude)}&lon=${encodeURIComponent(s.location.longitude)}" style="justify-content:center;">Unlock the full dossier →</a>
       <div class="sample-note">${s.remaining_free > 0 ? `You have ${s.remaining_free} complimentary snapshot remaining.` : "Your complimentary snapshots are now used."}</div>
     </div>
   `;
@@ -1055,7 +1055,7 @@ function renderSamplePaywall(message, price) {
     <h3 style="font-size:1.25rem;color:#fff;margin:6px 0;">${escapeHtml(message)}</h3>
     <p style="color:var(--soft);font-size:13px;line-height:1.6;">Continue with the full Location Threat Dossier for deeper sourced analysis of one location.</p>
     <div style="font-family:var(--font-display);font-size:1.5rem;color:#fff;margin:12px 0;">US$29 <span style="font-family:var(--font-body);font-size:13px;color:var(--muted);">· ₹2,499 · 29 USDT</span></div>
-    <a class="btn btn-primary" href="/contact.html?service=location-threat-dossier">Get the full dossier →</a>
+    <a class="btn btn-primary" href="/location-dossier.html?email=${encodeURIComponent(SAMPLE_STATE.email || "")}">Get the full dossier →</a>
   `;
   result.style.display = "block";
   setSampleStatus("");
