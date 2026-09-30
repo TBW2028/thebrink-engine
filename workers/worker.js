@@ -829,6 +829,12 @@ export default {
         const organization = String(body.organization || "").trim();
         const purpose = String(body.purpose || "").trim();
         const concern = String(body.concern || "").trim();
+        const rawPurposeDetails = body.purpose_details && typeof body.purpose_details === "object" ? body.purpose_details : {};
+        const purposeDetails = {
+          crop: String(rawPurposeDetails.crop || "").trim() || null,
+          crop_stage: String(rawPurposeDetails.crop_stage || "").trim() || null,
+          sowing_date: String(rawPurposeDetails.sowing_date || "").trim() || null
+        };
         const paymentMethod = String(body.payment_method || "").trim();
         const paymentReference = String(body.payment_reference || "").trim();
 
@@ -872,6 +878,7 @@ export default {
           organization: organization || null,
           purpose: purpose || "General location intelligence",
           concern: concern || null,
+          purpose_details: purposeDetails,
           payment_method: paymentMethod,
           payment_reference: paymentReference || null,
           payment_currency: price.currency,
@@ -926,6 +933,10 @@ export default {
                   <tr><td style="padding:6px 0;color:#666">Organisation</td><td>${organization || "—"}</td></tr>
                   <tr><td style="padding:6px 0;color:#666">Location</td><td>${location.label}</td></tr>
                   <tr><td style="padding:6px 0;color:#666">Purpose</td><td>${purpose || "General location intelligence"}</td></tr>
+                  ${purpose === "Agriculture / land" ? `
+                  <tr><td style="padding:6px 0;color:#666">Crop</td><td>${purposeDetails.crop || "—"}</td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Crop stage</td><td>${purposeDetails.crop_stage || "—"}</td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Sowing date</td><td>${purposeDetails.sowing_date || "—"}</td></tr>` : ""}
                   <tr><td style="padding:6px 0;color:#666">Payment</td><td><strong>${price.label} · ${price.currency} ${price.amount}</strong></td></tr>
                   <tr><td style="padding:6px 0;color:#666">Reference / TxID</td><td style="word-break:break-all"><strong>${paymentReference || "Not supplied — verify by client/order details"}</strong></td></tr>
                 </table>
@@ -1113,6 +1124,7 @@ export default {
                 organization: order.organization,
                 occupancy: order.purpose || "general",
                 concern: order.concern || "",
+                purpose_details: order.purpose_details || {},
                 country: order.requested_country || null,
                 country_code: order.requested_country_code || null,
                 order_code: orderCode
