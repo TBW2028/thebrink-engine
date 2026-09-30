@@ -1,8 +1,10 @@
 name: Ingest Live Hazards
 
 on:
+  repository_dispatch:
+    types: [hazard_tick]
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '7 * * * *'
   workflow_dispatch:
 
 permissions:
