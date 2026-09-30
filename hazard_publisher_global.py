@@ -271,11 +271,39 @@ def geocode_warning_area(
 
     # First named CAP area is usually the most useful unit.
     first = re.split(r";|\||\n| / ", raw, maxsplit=1)[0].strip()
-    if first:
-        candidates.append(first)
 
-    # Preserve useful comma-qualified forms such as "Maricopa, AZ".
-    comma_first = raw.split(";", 1)[0].strip()
+    # CAP feeds often append prose after a colon:
+    # "Hail region - Al Hait : The entire governorate".
+    # Geocode the named administrative unit, never the descriptive tail.
+    first_named = first.split(":", 1)[0].strip() if first else ""
+
+    # Parent-child forms are common in Gulf CAP feeds. Prefer the child unit
+    # because it is the actual warning area; the parent alone would be too broad.
+    if " - " in first_named:
+        parent, child = [x.strip() for x in first_named.split(" - ", 1)]
+        child_clean = re.sub(
+            r"\b(region|province|governorate|district|municipality|prefecture|county)\b",
+            "",
+            child,
+            flags=re.I,
+        ).strip(" ,-")
+        parent_clean = re.sub(
+            r"\b(region|province|governorate|district|municipality|prefecture|county)\b",
+            "",
+            parent,
+            flags=re.I,
+        ).strip(" ,-")
+        if child_clean:
+            candidates.append(child_clean)
+            if parent_clean:
+                candidates.append(f"{child_clean}, {parent_clean}")
+
+    if first_named and first_named not in candidates:
+        candidates.append(first_named)
+
+    # Preserve useful comma-qualified forms such as "Maricopa, AZ", but strip
+    # descriptive tails after a colon.
+    comma_first = raw.split(";", 1)[0].split(":", 1)[0].strip()
     if comma_first and comma_first not in candidates:
         candidates.append(comma_first)
 
@@ -284,7 +312,7 @@ def geocode_warning_area(
         r"\b(city jurisdiction|administrative district|autonomous county|autonomous prefecture|"
         r"municipality|prefecture|county|district|province|region)\b",
         "",
-        first,
+        first_named,
         flags=re.I,
     ).strip(" ,-")
     if simplified and simplified not in candidates:
@@ -1093,6 +1121,7 @@ def fetch_wmo_cap_warnings() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]
         resolved_country = 0
         resolved_geometry = 0
         unresolved_samples: List[str] = []
+        unresolved_geometry_samples: List[str] = []
 
         for item in items:
             if not isinstance(item, dict):
@@ -1211,6 +1240,11 @@ def fetch_wmo_cap_warnings() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]
                     )
             if lat is not None and lon is not None:
                 resolved_geometry += 1
+            elif band in {"Critical", "Severe"} and len(unresolved_geometry_samples) < 10:
+                unresolved_geometry_samples.append(
+                    f"severity={band!r} country={country!r} cat={cat!r} "
+                    f"area={str(area_desc)[:120]!r}"
+                )
 
             rows.append(base_event(
                 id=record_id,
@@ -1251,6 +1285,10 @@ def fetch_wmo_cap_warnings() -> Tuple[bool, List[Dict[str, Any]], Optional[str]]
         if unresolved_samples:
             print("[WMO] unresolved country samples:")
             for sample in unresolved_samples:
+                print(f"  - {sample}")
+        if unresolved_geometry_samples:
+            print("[WMO] unresolved Severe/Critical geometry samples:")
+            for sample in unresolved_geometry_samples:
                 print(f"  - {sample}")
         return True, rows, None
     except Exception as e:
