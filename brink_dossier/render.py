@@ -17,7 +17,7 @@ def produce(location, answers, site_name, customer_email, out_dir="reports"):
 
     lat, lon = pin["lat"], pin["lon"]
     ref_code = f"BRK-{int(time.time()) % 100000:05d}"
-    data = fetch_telemetry(lat, lon)
+    data = fetch_telemetry(lat, lon, context=answers)
 
     # Correct cardinal signs for global assets
     lat_card = "N" if lat >= 0 else "S"
