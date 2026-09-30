@@ -1591,143 +1591,76 @@ function rebuildPriorityLookout() {
   }).join("") : '<div style="color:var(--ok); padding:10px; font-weight:700;">✓ Planetary baseline nominal across all active vectors. No critical apex hazards currently detected.</div>';
 }
 
-// UNIFIED SUPABASE INGESTION
-async function fetchLiveHazards() {
+// DIRECT NCS INDIA DESK
+async function refreshIndiaSeismicDesk() {
   try {
-    // Retain a light call to USGS to populate the 7-day legacy watch table safely
-    try {
-      const resWeek = await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson");
-      if (resWeek.ok) {
-        const dataW = await resWeek.json();
-        ALL_RECENT_WEEK_EVENTS = (dataW.features || []).map(f => ({
-          lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
-          mag: f.properties.mag || 0, time: f.properties.time
-        }));
-      }
-    } catch (e) {
-      console.warn("Legacy 7-day sync failed:", e);
-    }
+    const r = await fetch(DOSSIER_API + "/api/ncs/recent");
+    if (!r.ok) throw new Error("NCS proxy status " + r.status);
+    const payload = await r.json();
+    const events = Array.isArray(payload.events) ? payload.events : [];
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/live_hazards?select=*`, {
-      headers: {
-        "apikey": SUPABASE_ANON,
-        "Authorization": `Bearer ${SUPABASE_ANON}`
-      }
-    });
+    EVENT_STORE.india = events.map(e => {
+      const mag = Number(e.magnitude) || 0;
+      let level = "watch";
+      if (mag >= 6) level = "escalate";
+      else if (mag >= 5) level = "alert";
+      return {
+        place:e.name || e.region || "India region earthquake",
+        magnitude:mag,
+        depth_km:Number.isFinite(Number(e.depth_km)) ? Number(e.depth_km) : null,
+        latitude:Number(e.latitude),
+        longitude:Number(e.longitude),
+        time:e.observed_at,
+        level,
+        source:"NCS India"
+      };
+    }).filter(e => Number.isFinite(e.latitude) && Number.isFinite(e.longitude))
+      .sort((a,b) => new Date(b.time || 0) - new Date(a.time || 0));
 
-    if (!res.ok) throw new Error("Database fetch failed");
-    const hazards = await res.json();
-
-    let escalateCount = 0, alertCount = 0, watchCount = 0;
-    let totalSeismicEnergyJoules = 0;
-    let mostRecentMajorTime = 0;
-
-    EVENT_STORE.global = [];
-    EVENT_STORE.india = [];
-    EVENT_STORE.lookout = [];
-    EVENT_STORE.volcanoes = [];
-    EVENT_STORE.storms = [];
-    baseMarkerLayer.clearLayers();
-    ALL_ACTIVE_EVENTS = [];
-
-    hazards.forEach(h => {
-      const lat = h.latitude;
-      const lon = h.longitude;
-      const timeMs = new Date(h.observed_at).getTime();
-      
-      const cat = (h.category || '').toLowerCase();
-
-      ALL_ACTIVE_EVENTS.push({
-        lat:Number(lat), lon:Number(lon), time:h.observed_at, category:cat,
-        name:h.name || "Monitored signal", source:h.source || "Source",
-        severity_tier:h.severity_tier || "Monitor", signal_mode:h.signal_mode || "reported",
-        magnitude:Number(h.magnitude), depth_km:Number(h.depth_km)
-      });
-
-      // Catch any variation of earthquake
-      if (cat.includes('quake') || cat === 'eq') {
-        const mag = Number.isFinite(Number(h.magnitude)) ? Number(h.magnitude) : (parseFloat(String(h.intensity || "").replace("Magnitude ", "")) || 0);
-        const energyJ = 10 ** (1.5 * mag + 4.8);
-        totalSeismicEnergyJoules += energyJ;
-        if (mag >= 5.0 && timeMs > mostRecentMajorTime) mostRecentMajorTime = timeMs;
-
-        let level = "watch";
-        if (mag >= 6.0) { level = "escalate"; escalateCount++; }
-        else if (mag >= 5.0) { level = "alert"; alertCount++; }
-        else { watchCount++; }
-
-        const quakeRecord = {
-          place:h.name, magnitude:mag,
-          depth_km:Number.isFinite(Number(h.depth_km)) ? Number(h.depth_km) : null,
-          latitude:Number(lat), longitude:Number(lon), time:h.observed_at, level,
-          source:h.source || "Source"
-        };
-        if (String(h.source || "").toLowerCase() === "ncs india") EVENT_STORE.india.push(quakeRecord);
-        else EVENT_STORE.global.push(quakeRecord);
-
-        const isPriority = mag >= 5.0;
-        let pinClass = mag >= 6.0 ? "custom-hazard-pin pin-quake-major pulse-priority" : "custom-hazard-pin pin-quake";
-        if (isPriority && mag < 6.0) pinClass += " pulse-priority";
-        const size = mag >= 6.0 ? 26 : (isPriority ? 22 : 16);
-        
-        const icon = L.divIcon({ className: pinClass, html: `⚡`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
-        L.marker([lat, lon], { icon, zIndexOffset: isPriority ? 1000 : 0 })
-          .bindPopup(`<strong>Magnitude ${mag.toFixed(1)}</strong> — ${h.name}<br/>Time: ${new Date(h.observed_at).toLocaleString()}`)
-          .addTo(baseMarkerLayer);
-      } 
-      // Catch 'volcano', 'volcanoes', 'vo', etc.
-      else if (cat.includes('volcano') || cat === 'vo') {
-        EVENT_STORE.volcanoes.push({ title: h.name, intensity: h.alert_level, observatory: h.source, summary: h.intensity, time: h.observed_at, lat, lon });
-        const icon = L.divIcon({ className: "custom-hazard-pin pin-volcano pulse-priority", html: `🌋`, iconSize: [24, 24], iconAnchor: [12, 12] });
-        L.marker([lat, lon], { icon, zIndexOffset: 1500 }).bindPopup(`<strong>🌋 ${h.name}</strong><br/>Alert Level: ${h.alert_level}`).addTo(baseMarkerLayer);
-      } 
-      // Catch 'cyclone', 'tropical_cyclone', 'storm', 'tc', 'hurricane'
-      else if (cat.includes('cyclon') || cat.includes('storm') || cat === 'tc' || cat.includes('hurricane')) {
-        EVENT_STORE.storms.push({ title: h.name, severity: h.alert_level, windSpeed: `${h.wind_kts || '--'} kts`, barometricPressure: `${h.pressure_mb || '--'} mb`, summary: h.intensity, time: h.observed_at, lat, lon });
-        const icon = L.divIcon({ className: "custom-hazard-pin pin-storm pulse-priority", html: `🌀`, iconSize: [26, 26], iconAnchor: [13, 13] });
-        L.marker([lat, lon], { icon, zIndexOffset: 2000 }).bindPopup(`<strong>🌀 ${h.name}</strong><br/>Alert Level: ${h.alert_level}<br/>Winds: ${h.wind_kts || '--'} kts`).addTo(baseMarkerLayer);
-      }
-    });
-
-    rebuildPriorityLookout();
-// UPDATE UI TILES
-    $("c-escalate").textContent = escalateCount;
-    $("c-alert").textContent = alertCount;
-    $("c-watch").textContent = watchCount;
-    $("c-volcanoes").textContent = EVENT_STORE.volcanoes.length;
-    $("c-storms").textContent = EVENT_STORE.storms.length;
-    $("c-india").textContent = EVENT_STORE.india.length;
-    $("c-listed").textContent = EVENT_STORE.global.length + EVENT_STORE.india.length;
-
-    EVENT_STORE.india.sort((a,b) => new Date(b.time) - new Date(a.time));
-    const indiaVisible = EVENT_STORE.india.slice(0,12);
-    $("q-india").innerHTML = indiaVisible.length ? indiaVisible.map((q,idx) => {
-      const t = formatTimeElapsed(q.time);
-      return `<div class="india-post" onclick="inspectEventDetail('india', ${idx})">
-        <div class="india-post-head">
-          <div class="india-post-title">INDIA EARTHQUAKE WATCH · M${q.magnitude.toFixed(1)} · ${escapeHtml(q.place || "India region")}</div>
-          <span class="india-source">NCS INDIA</span>
-        </div>
-        <div class="india-post-meta">🕒 ${t.elapsed} · ${t.fullDate} · Depth ${q.depth_km ?? "—"} km</div>
-        <div class="india-post-note"><strong>Brink note:</strong> Observed seismic event. Magnitude, depth and distance should be interpreted together; this record alone does not establish local damage.</div>
-      </div>`;
-    }).join("") : '<div style="color:var(--muted);padding:8px">No NCS India events currently resolved in the live feed.</div>';
+    $("c-listed").textContent = EVENT_STORE.global.length;
+    await refreshIndiaSeismicDesk();
 
     // UPDATE TRAY HTML
+    EVENT_STORE.global.sort((a,b) => new Date(b.time || 0) - new Date(a.time || 0));
+    EVENT_STORE.storms.sort((a,b) => new Date(b.time || 0) - new Date(a.time || 0));
+    EVENT_STORE.volcanoes.sort((a,b) => new Date(b.time || 0) - new Date(a.time || 0));
+
     $("q-global").innerHTML = EVENT_STORE.global.length > 0 ? EVENT_STORE.global.map((q, idx) => {
       const t = formatTimeElapsed(q.time);
       return `<div class="qrow" onclick="inspectEventDetail('global', ${idx})"><div class="mag ${q.level}">${q.magnitude.toFixed(1)}</div><div><div class="qtitle">${q.place} ↗</div><div class="qmeta"><span style="color:var(--gold)">🕒 ${t.elapsed} · ${t.fullDate}</span><span>Depth: ${q.depth_km ?? "—"} km</span><span>${escapeHtml(q.source || "Source")}</span></div></div></div>`;
     }).join("") : '<div style="color:var(--muted); padding:10px;">No global shocks Magnitude 3.0+ in past 24h.</div>';
 
-    $("stormContainer").innerHTML = EVENT_STORE.storms.length > 0 ? EVENT_STORE.storms.map((s, idx) => {
+    $("stormContainer").innerHTML = EVENT_STORE.storms.length ? EVENT_STORE.storms.map((s) => {
       const t = formatTimeElapsed(s.time);
-      return `<div class="hazard-card-row" style="border-left:3px solid var(--accent);"><div style="display:flex; justify-content:space-between; align-items:flex-start;"><div style="font-weight:700; color:#fff;">${s.title}</div><span class="badge" style="color:var(--accent); border-color:var(--accent);">${s.windSpeed}</span></div><div style="font-size:0.88rem; color:var(--soft); margin-top:4px;">${s.summary}</div><div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px solid rgba(30,42,56,.6); padding-top:6px;"><span class="mono" style="font-size:11px; color:var(--gold);">🕒 ${t.elapsed} · ${t.fullDate}</span><button type="button" class="btn" style="padding:3px 8px; font-size:11px; background:rgba(0,243,255,0.1); border-color:var(--accent); color:var(--accent);" onclick="focusMapOnEvent(${s.lat}, ${s.lon})">Zoom Map ↗</button></div></div>`;
-    }).join("") : '<div style="color:var(--muted); padding:10px;">No active tropical cyclones or severe hurricanes detected globally.</div>';
+      const wind = s.windSpeed && !String(s.windSpeed).startsWith("--") ? s.windSpeed : "TC";
+      return `<div class="qrow">
+        <div class="mag alert" style="font-size:.78rem">${escapeHtml(wind)}</div>
+        <div>
+          <div class="qtitle">${escapeHtml(s.title || "Tropical cyclone")}</div>
+          <div class="qmeta">
+            <span style="color:var(--gold)">🕒 ${t.elapsed} · ${t.fullDate}</span>
+            <span>${escapeHtml(s.severity || "Monitored")}</span>
+            <button type="button" class="btn" style="padding:2px 7px;font-size:10px" onclick="focusMapOnEvent(${s.lat},${s.lon})">Map ↗</button>
+          </div>
+        </div>
+      </div>`;
+    }).join("") : '<div style="color:var(--muted);padding:10px">No active tropical cyclone signal is currently resolved.</div>';
 
-    $("volcanoContainer").innerHTML = EVENT_STORE.volcanoes.length > 0 ? EVENT_STORE.volcanoes.map((v) => {
+    $("volcanoContainer").innerHTML = EVENT_STORE.volcanoes.length ? EVENT_STORE.volcanoes.map((v) => {
       const t = formatTimeElapsed(v.time);
-      return `<div class="hazard-card-row" style="border-left:3px solid var(--hot); font-family:var(--font-mono); font-size:12px;"><div style="font-weight:800; font-size:1.05rem; color:#fff; margin-bottom:4px;">🌋 ${v.title}</div><div style="color:var(--warn); margin-bottom:4px;"><strong>Observatory Status:</strong> ${v.intensity} · ${v.observatory}</div><div style="color:var(--soft); line-height:1.45; margin-bottom:6px;">${v.summary}</div><div style="font-size:11px; color:var(--gold);">🕒 ${t.elapsed} · ${t.fullDate}</div></div>`;
-    }).join("") : '<div style="color:var(--ok); padding:10px; font-family:var(--font-mono); font-size:13px;">✓ Global volcanic arcs are in a state of background quiescence; no significant elevated eruptive phases or ash dispersion advisories are currently detected.</div>';
+      return `<div class="qrow">
+        <div class="mag alert" style="font-size:.78rem">VO</div>
+        <div>
+          <div class="qtitle">${escapeHtml(v.title || "Volcanic signal")}</div>
+          <div class="qmeta">
+            <span style="color:var(--gold)">🕒 ${t.elapsed} · ${t.fullDate}</span>
+            <span>${escapeHtml(v.intensity || "Monitored")}</span>
+            <span>${escapeHtml(v.observatory || "Source")}</span>
+            <button type="button" class="btn" style="padding:2px 7px;font-size:10px" onclick="focusMapOnEvent(${v.lat},${v.lon})">Map ↗</button>
+          </div>
+        </div>
+      </div>`;
+    }).join("") : '<div style="color:var(--muted);padding:10px">No active volcanic alert is currently resolved.</div>';
 
     // Local and timeline intelligence refreshed above.
 evaluateLegacyWatch();
