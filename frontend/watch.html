@@ -1195,9 +1195,10 @@ async function handleDirectUnsubscribe(e) {
 let userLat = null, userLon = null, userCity = "Detecting...";
 let climateUnit = "C";
 let climateState = {
-  curTempC: 25, apparentTempC: null, humidity: null, currentWindKmh: null,
-  weatherCode: 0, todayMaxC: 28, todayMinC: 20, histTempsC: [], forecastDaily: [],
-  hourly: [], microSamples: [], aqi: null, pm25: null
+  curTempC: null, apparentTempC: null, wetBulbC: null, surfaceTempC: null,
+  humidity: null, currentWindKmh: null, weatherCode: null,
+  todayMaxC: null, todayMinC: null, fiveYearsAgoC: null,
+  forecastDaily: []
 };
 
 let ALL_ACTIVE_EVENTS = [];
@@ -1237,7 +1238,7 @@ function switchUnit(u) {
   climateUnit = u;
   $("btnUnitC").className = u === "C" ? "active" : "";
   $("btnUnitF").className = u === "F" ? "active" : "";
-  renderClimateWidget();
+  renderClimateWidgetCompact();
 }
 
 function weatherCodeToGlyph(code) {
@@ -1289,8 +1290,6 @@ async function loadLocalOperationalLayers(lat, lon) {
     climateState.aqi = null;
     climateState.pm25 = null;
   }
-
-  renderLocalOperations();
 }
 
 function renderLocalOperations() {
@@ -1451,7 +1450,7 @@ function renderThermalChart() {
   $("thermalRangeMeta").textContent=`Forecast range ${Math.min(...vals).toFixed(0)}–${Math.max(...vals).toFixed(0)}°C · orange high / blue low`;
 }
 
-async function loadFullClimateEngine(lat, lon, label) {
+async function loadFullClimateEngineCompact(lat, lon, label) {
   userLat = lat; userLon = lon; userCity = label;
   $("userLocationBadge").textContent = `📍 ${label}`;
 
@@ -1517,9 +1516,7 @@ async function loadFullClimateEngine(lat, lon, label) {
     await loadLocalOperationalLayers(lat, lon);
   } catch(e) {
     console.warn("Local climate engine refresh failed:", e);
-    renderLocalOperations();
-  }
-  evaluateLocalPerimeter();
+}
 }
 
 function renderClimateWidget() {
@@ -1587,6 +1584,126 @@ function renderClimateWidget() {
   }
 }
 
+
+function wetBulbApproxC(tempC, rh) {
+  const T = Number(tempC), R = Number(rh);
+  if (!Number.isFinite(T) || !Number.isFinite(R)) return null;
+  return T * Math.atan(0.151977 * Math.sqrt(R + 8.313659))
+    + Math.atan(T + R)
+    - Math.atan(R - 1.676331)
+    + 0.00391838 * Math.pow(R, 1.5) * Math.atan(0.023101 * R)
+    - 4.686035;
+}
+
+async function loadFullClimateEngineCompact(lat, lon, label) {
+  userLat = lat; userLon = lon; userCity = label;
+  $("userLocationBadge").textContent = label;
+
+  try {
+    const forecastUrl =
+      "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon +
+      "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m" +
+      "&hourly=soil_temperature_0cm" +
+      "&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max" +
+      "&forecast_days=3&timezone=auto";
+
+    const forecastRes = await fetch(forecastUrl);
+    if (!forecastRes.ok) throw new Error("Forecast status " + forecastRes.status);
+    const fd = await forecastRes.json();
+
+    climateState.curTempC = Number.isFinite(Number(fd.current?.temperature_2m)) ? Number(fd.current.temperature_2m) : null;
+    climateState.apparentTempC = Number.isFinite(Number(fd.current?.apparent_temperature)) ? Number(fd.current.apparent_temperature) : null;
+    climateState.humidity = Number.isFinite(Number(fd.current?.relative_humidity_2m)) ? Number(fd.current.relative_humidity_2m) : null;
+    climateState.currentWindKmh = Number.isFinite(Number(fd.current?.wind_speed_10m)) ? Number(fd.current.wind_speed_10m) : null;
+    climateState.weatherCode = fd.current?.weather_code ?? null;
+    climateState.todayMaxC = Number.isFinite(Number(fd.daily?.temperature_2m_max?.[0])) ? Number(fd.daily.temperature_2m_max[0]) : null;
+    climateState.todayMinC = Number.isFinite(Number(fd.daily?.temperature_2m_min?.[0])) ? Number(fd.daily.temperature_2m_min[0]) : null;
+    climateState.wetBulbC = wetBulbApproxC(climateState.curTempC, climateState.humidity);
+
+    climateState.forecastDaily = (fd.daily?.time || []).slice(0,3).map((t, idx) => ({
+      date:t,
+      maxC:fd.daily.temperature_2m_max?.[idx] ?? null,
+      minC:fd.daily.temperature_2m_min?.[idx] ?? null,
+      code:fd.daily.weather_code?.[idx] ?? null,
+      pop:fd.daily.precipitation_probability_max?.[idx] ?? null
+    }));
+
+    const currentLocalIso = fd.current?.time || "";
+    const currentHour = currentLocalIso.match(/T(\d{2}):/)?.[1];
+    const hourlyTimes = fd.hourly?.time || [];
+    const currentHourIso = currentLocalIso.slice(0,13);
+    const surfaceIdx = hourlyTimes.findIndex(t => String(t).slice(0,13) === currentHourIso);
+    const surfaceVal = surfaceIdx >= 0 ? fd.hourly?.soil_temperature_0cm?.[surfaceIdx] : null;
+    climateState.surfaceTempC = Number.isFinite(Number(surfaceVal)) ? Number(surfaceVal) : null;
+
+    const datePart = currentLocalIso.slice(0,10);
+    const currentYear = Number(datePart.slice(0,4)) || new Date().getFullYear();
+    const fallbackMonth = String(new Date().getMonth()+1).padStart(2,"0");
+    const fallbackDay = String(new Date().getDate()).padStart(2,"0");
+    const mmdd = datePart.slice(5) || (fallbackMonth + "-" + fallbackDay);
+    const archiveDate = String(currentYear - 5) + "-" + mmdd;
+
+    try {
+      const ar = await fetch(
+        "https://archive-api.open-meteo.com/v1/archive?latitude=" + lat + "&longitude=" + lon +
+        "&start_date=" + archiveDate + "&end_date=" + archiveDate +
+        "&hourly=temperature_2m&timezone=auto"
+      );
+      if (ar.ok) {
+        const ad = await ar.json();
+        const hour = currentHour ?? String(new Date().getHours()).padStart(2,"0");
+        const idx = (ad.hourly?.time || []).findIndex(t => String(t).endsWith("T" + hour + ":00"));
+        const oldVal = idx >= 0 ? ad.hourly?.temperature_2m?.[idx] : null;
+        climateState.fiveYearsAgoC = Number.isFinite(Number(oldVal)) ? Number(oldVal) : null;
+      }
+    } catch (_) {
+      climateState.fiveYearsAgoC = null;
+    }
+
+    renderClimateWidgetCompact();
+    loadSpaceAstronomy();
+  } catch(e) {
+    console.warn("Local climate engine refresh failed:", e);
+  }
+}
+
+function renderClimateWidgetCompact() {
+  if (climateState.curTempC === null) return;
+  const u = "°" + climateUnit;
+  const glyph = weatherCodeToGlyph(climateState.weatherCode);
+
+  $("userCurrentTemp").textContent = String(toUnit(climateState.curTempC)) + u;
+  $("userFeelsLike").textContent = climateState.apparentTempC === null ? "--" : String(toUnit(climateState.apparentTempC)) + u;
+  $("userSurfaceTemp").textContent = climateState.surfaceTempC === null ? "--" : String(toUnit(climateState.surfaceTempC)) + u;
+  $("userWetBulb").textContent = climateState.wetBulbC === null ? "--" : String(toUnit(climateState.wetBulbC)) + u;
+  $("userWeatherDesc").textContent = glyph.text;
+  $("userAnnualBounds").textContent = "Today: " + toUnit(climateState.todayMaxC) + u + " / " + toUnit(climateState.todayMinC) + u;
+
+  const cmp = $("userFiveYearCompare");
+  const old = climateState.fiveYearsAgoC;
+  if (old !== null) {
+    const diffC = climateState.curTempC - old;
+    const shownDiff = climateUnit === "F" ? diffC * 1.8 : diffC;
+    const sign = shownDiff >= 0 ? "+" : "";
+    cmp.innerHTML = "<strong>Same local hour, 5 years ago:</strong> " + toUnit(old) + u +
+      " · today is <strong>" + sign + shownDiff.toFixed(1) + u + "</strong> " +
+      (shownDiff >= 0 ? "warmer." : "cooler.");
+  } else {
+    cmp.textContent = "Five-year same-hour comparison is temporarily unavailable.";
+  }
+
+  $("forecastStrip").innerHTML = climateState.forecastDaily.slice(0,3).map((f,i) => {
+    const dayName = i === 0 ? "Today" : new Date(f.date + "T12:00:00").toLocaleDateString("en-US",{weekday:"short"});
+    const g = weatherCodeToGlyph(f.code);
+    return "<div class=\"f-card\">" +
+      "<div class=\"f-day\">" + dayName + "</div>" +
+      "<div class=\"f-glyph\">" + g.icon + "</div>" +
+      "<div class=\"f-temp\">" + toUnit(f.maxC) + "°<span style=\"font-size:9px;color:var(--muted)\">/" + toUnit(f.minC) + "°</span></div>" +
+      "<div class=\"f-pop\">" + (f.pop ?? "--") + "% rain</div>" +
+      "</div>";
+  }).join("");
+}
+
 async function initUserLocation() {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
@@ -1596,8 +1713,8 @@ async function initUserLocation() {
           const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
           const d = await rev.json();
           const city = d.address?.city || d.address?.town || d.address?.suburb || d.address?.district || "Local Site";
-          loadFullClimateEngine(lat, lon, `${city}, ${d.address?.country || ''}`);
-        } catch(e) { loadFullClimateEngine(lat, lon, `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`); }
+          loadFullClimateEngineCompact(lat, lon, `${city}, ${d.address?.country || ''}`);
+        } catch(e) { loadFullClimateEngineCompact(lat, lon, `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`); }
       },
       () => fallbackIPLocation(),
       { timeout: 4000 }
@@ -1612,11 +1729,11 @@ async function fallbackIPLocation() {
     const res = await fetch("https://ipwho.is/");
     const d = await res.json();
     if (d.success && d.latitude && d.longitude) {
-      loadFullClimateEngine(d.latitude, d.longitude, `${d.city || 'Regional Hub'}, ${d.country || ''}`);
+      loadFullClimateEngineCompact(d.latitude, d.longitude, `${d.city || 'Regional Hub'}, ${d.country || ''}`);
       return;
     }
   } catch(e) {}
-  loadFullClimateEngine(18.5204, 73.8567, "Pune, Maharashtra");
+  loadFullClimateEngineCompact(18.5204, 73.8567, "Pune, Maharashtra");
 }
 
 $("btnChangeCity").addEventListener("click", () => {
@@ -1625,7 +1742,7 @@ $("btnChangeCity").addEventListener("click", () => {
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(manual.trim())}&limit=1`)
     .then(r => r.json())
     .then(p => {
-      if (p && p[0]) loadFullClimateEngine(parseFloat(p[0].lat), parseFloat(p[0].lon), p[0].display_name.split(",").slice(0, 2).join(","));
+      if (p && p[0]) loadFullClimateEngineCompact(parseFloat(p[0].lat), parseFloat(p[0].lon), p[0].display_name.split(",").slice(0, 2).join(","));
     });
 });
 
@@ -1889,10 +2006,7 @@ async function fetchLiveHazards() {
     });
 
     rebuildPriorityLookout();
-    renderOperationalTimeline(hazards);
-    renderLocalOperations();
-
-    // UPDATE UI TILES
+// UPDATE UI TILES
     $("c-escalate").textContent = escalateCount;
     $("c-alert").textContent = alertCount;
     $("c-watch").textContent = watchCount;
@@ -1932,8 +2046,7 @@ async function fetchLiveHazards() {
     }).join("") : '<div style="color:var(--ok); padding:10px; font-family:var(--font-mono); font-size:13px;">✓ Global volcanic arcs are in a state of background quiescence; no significant elevated eruptive phases or ash dispersion advisories are currently detected.</div>';
 
     // Local and timeline intelligence refreshed above.
-    evaluateLocalPerimeter();
-    evaluateLegacyWatch();
+evaluateLegacyWatch();
   } catch (e) {
     console.error("Failed to fetch live hazards from Supabase:", e);
   }
@@ -2033,7 +2146,6 @@ function evaluateLegacyWatch() {
 }
 
 function evaluateLocalPerimeter() {
-  renderLocalOperations();
 }
 
 function inspectEventDetail(type, idx) {
@@ -2068,7 +2180,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setInterval(fetchSpaceWeather, 3 * 60 * 1000);
   setInterval(loadRainViewerRadar, 10 * 60 * 1000);
   setInterval(() => {
-    if (userLat && userLon) loadFullClimateEngine(userLat, userLon, userCity);
+    if (userLat && userLon) loadFullClimateEngineCompact(userLat, userLon, userCity);
   }, 5 * 60 * 1000);
 });
 </script>
