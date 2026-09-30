@@ -382,7 +382,7 @@ def fetch_telemetry(lat, lon, context=None):
         "nearest_aerodrome": osm.get("nearest_aerodrome"),
         "emergency_contacts": emergency_contacts(context.get("country_code")),
         "agriculture_context": agri,
-        "sources": [
+        "sources": [s for s in [
             {
                 "name": "The Brink World operational hazard layer",
                 "type": "Observed / official-warning aggregation",
@@ -413,5 +413,5 @@ def fetch_telemetry(lat, lon, context=None):
                 "type": "Official agricultural weather service",
                 "note": "For Indian agricultural reports, IMD provides district/state agromet advisories and dynamic crop-weather information; crop-specific local advice should defer to the relevant bulletin."
             } if agri and str(context.get("country_code") or "").upper() == "IN" else None,
-        ]
+        ] if s is not None]
     }
