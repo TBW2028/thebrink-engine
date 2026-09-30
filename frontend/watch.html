@@ -93,148 +93,94 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .btn-primary{ background:var(--accent); color:#071018; border-color:var(--accent); font-weight:700; }
 .btn-primary:hover { filter: brightness(1.1); color: #071018; text-decoration: none; }
 
-/* CLIMATE STATION */
+/* COMPACT LOCAL WEATHER */
 .climate-station-card {
-  background: linear-gradient(135deg, #0c131d, #111b27);
-  border: 1px solid var(--line); border-radius: 10px;
-  padding: 18px 20px; margin-bottom: 20px;
-  display: grid; grid-template-columns: 1.2fr 1.8fr; gap: 20px;
-}
-@media(max-width: 900px){ .climate-station-card { grid-template-columns: 1fr; } }
-.station-main { display: flex; flex-direction: column; justify-content: center; }
-.station-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.station-name { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
-.station-temp { font-family: var(--font-display); font-size: 2.6rem; color: #fff; line-height: 1.1; margin: 4px 0; }
-.station-meta { font-size: 0.92rem; color: var(--soft); }
-.station-anomaly { font-size: 0.88rem; font-weight: 700; margin-top: 8px; font-family: var(--font-mono); }
-.unit-toggle { background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; display: flex; }
-.unit-toggle button {
-  background: transparent; border: none; color: var(--muted); padding: 3px 8px;
-  font-family: var(--font-mono); font-size: 11px; font-weight: 700; cursor: pointer;
-}
-.unit-toggle button.active { background: var(--accent); color: #071018; border-radius: 3px; }
-
-.station-chart-box { display: flex; flex-direction: column; justify-content: center; }
-.chart-hdr { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-bottom: 8px; }
-.chart-bars-wrap { display: flex; align-items: flex-end; gap: 8px; height: 85px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
-.c-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
-.c-bar-val { font-family: var(--font-mono); font-size: 11px; color: #fff; font-weight: 700; margin-bottom: 4px; }
-.c-bar-fill { width: 100%; max-width: 24px; border-radius: 3px 3px 0 0; background: var(--line); transition: height 0.3s; }
-.c-bar-fill.active { background: linear-gradient(180deg, var(--accent), #007a82); }
-.c-bar-fill.hot { background: linear-gradient(180deg, var(--hot), #991b1b); }
-.c-bar-fill.cold { background: linear-gradient(180deg, var(--warn), #b45309); }
-.c-bar-lbl { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); margin-top: 5px; }
-
-.forecast-strip {
-  display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 4px;
-  margin-top: 14px; border-top: 1px solid rgba(30,42,56,.6);
-}
-.f-card {
-  flex: 0 0 74px; background: var(--panel2); border: 1px solid var(--line);
-  border-radius: 6px; padding: 8px 6px; text-align: center;
-}
-.f-day { font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
-.f-glyph { font-size: 1.1rem; margin: 4px 0; }
-.f-temp { font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: #fff; }
-.f-pop { font-family: var(--font-mono); font-size: 9.5px; color: var(--accent); }
-
-/* LOCAL BUSINESS CONTINUITY + OPERATIONAL SIGNALS */
-.local-ops {
-  background:linear-gradient(135deg,rgba(0,243,255,.035),rgba(17,26,38,.98));
-  border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:18px;
+  background:linear-gradient(135deg,#0c131d,#111b27);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:14px 16px;
+  margin-bottom:18px;
+  display:grid;
+  grid-template-columns:minmax(0,1.05fr) minmax(320px,.95fr);
+  gap:16px;
   box-shadow:var(--shadow);
 }
-.local-ops-head {
-  display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap;
-  margin-bottom:14px;
+.station-main { min-width:0; }
+.station-top {
+  display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:7px;
 }
-.local-ops-kicker {
-  font-family:var(--font-mono); font-size:10.5px; font-weight:800; color:var(--accent);
-  text-transform:uppercase; letter-spacing:.1em; margin-bottom:4px;
+.station-name {
+  min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-family:var(--font-mono); font-size:12px; font-weight:800; color:var(--accent);
+  letter-spacing:.055em; text-transform:uppercase;
 }
-.local-ops-title { color:#fff; font-size:1.08rem; font-weight:800; line-height:1.3; }
-.local-ops-sub { color:var(--muted); font-size:.78rem; margin-top:4px; line-height:1.4; }
-.local-status {
-  font-family:var(--font-mono); font-size:10px; font-weight:800; text-transform:uppercase;
-  color:var(--ok); border:1px solid rgba(61,204,156,.42); background:rgba(61,204,156,.06);
-  padding:6px 9px; border-radius:999px; white-space:nowrap;
+.station-current-row { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; }
+.station-temp-wrap { display:flex; align-items:flex-end; gap:7px; }
+.station-temp {
+  font-family:var(--font-display); font-size:2.35rem; color:#fff; line-height:1; margin:2px 0;
 }
-.local-status.watch { color:var(--warn); border-color:rgba(245,158,11,.45); background:rgba(245,158,11,.07); }
-.local-status.alert { color:#fff; border-color:rgba(239,68,68,.6); background:rgba(239,68,68,.11); }
-.local-ops-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:9px; }
-.local-op-card {
-  min-width:0; background:rgba(6,9,14,.5); border:1px solid var(--line); border-radius:7px; padding:11px;
+.station-temp-label {
+  font-family:var(--font-mono); font-size:9px; line-height:1.2; color:var(--muted);
+  text-transform:uppercase; margin-bottom:4px;
 }
-.local-op-lbl {
-  font-family:var(--font-mono); font-size:9.5px; line-height:1.3; font-weight:800;
-  text-transform:uppercase; color:var(--muted); letter-spacing:.035em;
+.station-meta { font-size:.83rem; color:var(--soft); line-height:1.4; }
+.station-metrics {
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; margin-top:10px;
 }
-.local-op-val {
-  color:#fff; font-family:var(--font-display); font-weight:800; font-size:1.28rem; line-height:1.15;
-  margin:6px 0 4px; overflow-wrap:anywhere;
+.station-metric {
+  min-width:0; background:rgba(6,9,14,.46); border:1px solid var(--line); border-radius:6px; padding:8px 9px;
 }
-.local-op-note { color:var(--soft); font-size:.7rem; line-height:1.38; }
-.local-ops-read {
-  margin-top:12px; padding-top:11px; border-top:1px solid rgba(30,42,56,.72);
-  color:var(--soft); font-size:.86rem; line-height:1.58;
+.station-metric-label {
+  font-family:var(--font-mono); font-size:8.5px; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.035em; line-height:1.2;
 }
-.local-ops-read strong { color:#fff; }
-.local-sample-note {
-  font-family:var(--font-mono); color:var(--muted); font-size:9.5px; line-height:1.45; margin-top:8px;
+.station-metric-value {
+  font-family:var(--font-mono); font-size:13px; color:#fff; font-weight:800; margin-top:3px;
 }
-@media(max-width:1100px){ .local-ops-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
-@media(max-width:680px){
-  .local-ops{padding:14px;}
-  .local-ops-grid{grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px;}
-  .local-op-card{padding:10px;}
+.station-history-compare {
+  margin-top:9px; padding:8px 10px; border:1px solid rgba(30,42,56,.75); border-radius:6px;
+  background:rgba(255,255,255,.018); font-family:var(--font-mono); font-size:10px; color:var(--soft); line-height:1.45;
 }
-@media(max-width:390px){ .local-ops-grid{grid-template-columns:1fr;} }
+.station-history-compare strong { color:#fff; }
+.unit-toggle { background:var(--panel2); border:1px solid var(--line); border-radius:4px; display:flex; }
+.unit-toggle button {
+  background:transparent; border:none; color:var(--muted); padding:3px 8px;
+  font-family:var(--font-mono); font-size:11px; font-weight:700; cursor:pointer;
+}
+.unit-toggle button.active { background:var(--accent); color:#071018; border-radius:3px; }
 
-.ops-timeline {
-  background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px;
-  margin-bottom:20px; box-shadow:var(--shadow);
+.station-forecast { min-width:0; border-left:1px solid rgba(30,42,56,.75); padding-left:16px; }
+.forecast-title {
+  font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.065em; font-weight:800; margin-bottom:8px;
 }
-.ops-timeline-head {
-  display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px;
+.forecast-strip {
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; padding:0; margin:0;
 }
-.ops-timeline-title { font-family:var(--font-mono); color:#fff; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
-.ops-timeline-sub { color:var(--muted); font-size:.78rem; line-height:1.4; margin-top:4px; max-width:55rem; }
-.ops-legend { display:flex; flex-wrap:wrap; gap:7px 12px; margin:10px 0; font-family:var(--font-mono); font-size:9.5px; color:var(--soft); }
-.ops-legend span { display:inline-flex; align-items:center; gap:5px; }
-.ops-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
-.ops-chart-wrap {
-  width:100%; overflow:hidden; border:1px solid rgba(30,42,56,.65); border-radius:7px;
-  background:linear-gradient(180deg,rgba(255,255,255,.014),rgba(0,0,0,.12)); padding:5px;
+.f-card {
+  min-width:0; background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+  padding:9px 6px; text-align:center;
 }
-.ops-chart { width:100%; height:250px; display:block; }
-.ops-grid-line { stroke:#213041; stroke-width:1; opacity:.7; }
-.ops-axis-text { fill:#738296; font:9px var(--font-mono); }
-.ops-path {
-  fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round;
-  stroke-dasharray:1800; stroke-dashoffset:1800; animation:drawSignal 1.25s ease forwards;
-}
-@keyframes drawSignal { to { stroke-dashoffset:0; } }
-.ops-path.q { stroke:#6b9eff; }
-.ops-path.s { stroke:#00f3ff; }
-.ops-path.v { stroke:#f59e0b; }
-.ops-path.w { stroke:#efefef; stroke-dasharray:5 4; animation:none; }
-.ops-latest { animation:latestPulse 1.8s ease 2; }
-@keyframes latestPulse { 50%{opacity:.25;} }
+.f-day { font-family:var(--font-mono); font-size:9px; color:var(--muted); text-transform:uppercase; font-weight:800; }
+.f-glyph { font-size:1.05rem; margin:4px 0; }
+.f-temp { font-family:var(--font-mono); font-size:11px; font-weight:800; color:#fff; white-space:nowrap; }
+.f-pop { font-family:var(--font-mono); font-size:8.5px; color:var(--accent); margin-top:2px; }
 
-.thermal-strip { margin-top:14px; border-top:1px solid rgba(30,42,56,.7); padding-top:12px; }
-.thermal-head { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:5px; }
-.thermal-title { font-family:var(--font-mono); font-size:10.5px; font-weight:800; color:#fff; text-transform:uppercase; }
-.thermal-meta { font-family:var(--font-mono); font-size:9.5px; color:var(--muted); }
-.thermal-svg { width:100%; height:105px; display:block; }
-.thermal-band { fill:rgba(245,158,11,.07); }
-.thermal-max { fill:none; stroke:#f59e0b; stroke-width:2; }
-.thermal-min { fill:none; stroke:#6b9eff; stroke-width:2; }
-.thermal-label { fill:#738296; font:8.5px var(--font-mono); }
-@media(max-width:620px){
-  .ops-timeline{padding:13px;}
-  .ops-chart{height:210px;}
-  .ops-legend{gap:6px 9px;}
-  .thermal-svg{height:92px;}
+@media(max-width:860px){
+  .climate-station-card{grid-template-columns:1fr; gap:12px;}
+  .station-forecast{border-left:none; border-top:1px solid rgba(30,42,56,.75); padding-left:0; padding-top:11px;}
+}
+@media(max-width:520px){
+  .climate-station-card{padding:12px;}
+  .station-top{align-items:flex-start;}
+  .station-name{font-size:10.5px; max-width:58vw;}
+  .station-temp{font-size:2rem;}
+  .station-metrics{grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px;}
+  .station-metric{padding:7px 6px;}
+  .station-metric-label{font-size:7.5px;}
+  .station-metric-value{font-size:11px;}
+  .forecast-strip{gap:5px;}
+  .f-card{padding:8px 4px;}
 }
 
 /* TILES */
@@ -566,105 +512,52 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
   <div class="climate-station-card">
     <div class="station-main">
       <div class="station-top">
-        <span class="station-name" id="userLocationBadge">📍 Locating Station...</span>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <button type="button" class="btn" style="padding:2px 6px; font-size:11px;" id="btnChangeCity">Change</button>
+        <span class="station-name" id="userLocationBadge">📍 Locating station…</span>
+        <div style="display:flex;align-items:center;gap:7px;flex:0 0 auto;">
+          <button type="button" class="btn" style="padding:2px 6px;font-size:10px;" id="btnChangeCity">Change</button>
           <div class="unit-toggle">
             <button type="button" class="active" id="btnUnitC" onclick="switchUnit('C')">°C</button>
             <button type="button" id="btnUnitF" onclick="switchUnit('F')">°F</button>
           </div>
         </div>
       </div>
-      <div class="station-temp" id="userCurrentTemp">--°</div>
-      <div class="station-meta">
-        <span id="userWeatherDesc">Reading atmospheric baseline...</span> · 
-        <span id="userAnnualBounds">Today: --° to --°</span>
+
+      <div class="station-current-row">
+        <div class="station-temp-wrap">
+          <div class="station-temp" id="userCurrentTemp">--°</div>
+          <div class="station-temp-label">Air<br/>temperature</div>
+        </div>
+        <div class="station-meta">
+          <span id="userWeatherDesc">Reading current conditions…</span><br/>
+          <span id="userAnnualBounds">Today: --° / --°</span>
+        </div>
       </div>
-      <div class="station-anomaly" id="userAnomalyNotice">Connecting to Open-Meteo High-Res API...</div>
+
+      <div class="station-metrics">
+        <div class="station-metric">
+          <div class="station-metric-label">Feels like</div>
+          <div class="station-metric-value" id="userFeelsLike">--°</div>
+        </div>
+        <div class="station-metric">
+          <div class="station-metric-label">Surface temp</div>
+          <div class="station-metric-value" id="userSurfaceTemp">--°</div>
+        </div>
+        <div class="station-metric">
+          <div class="station-metric-label">Wet bulb</div>
+          <div class="station-metric-value" id="userWetBulb">--°</div>
+        </div>
+      </div>
+
+      <div class="station-history-compare" id="userFiveYearCompare">
+        Comparing this hour with the same local hour five years ago…
+      </div>
+    </div>
+
+    <div class="station-forecast">
+      <div class="forecast-title">Next 3 days</div>
       <div class="forecast-strip" id="forecastStrip"></div>
     </div>
-
-    <div class="station-chart-box">
-      <div class="chart-hdr">
-        <span>TODAY VS 5-YEAR BASELINE</span>
-        <span id="historicalYearsLabel">SAME CALENDAR DAY (2021–2026)</span>
-      </div>
-      <div class="chart-bars-wrap" id="historyBars"></div>
-    </div>
   </div>
-
-  <section class="local-ops" aria-label="Local business continuity">
-    <div class="local-ops-head">
-      <div>
-        <div class="local-ops-kicker">// LOCAL BUSINESS CONTINUITY DESK</div>
-        <div class="local-ops-title" id="localOpsTitle">Analysing the selected location…</div>
-        <div class="local-ops-sub">Free-source operational context. Modelled weather and air-quality data are planning signals, not site instrumentation.</div>
-      </div>
-      <div class="local-status" id="localOpsStatus">SCANNING</div>
-    </div>
-
-    <div class="local-ops-grid">
-      <div class="local-op-card">
-        <div class="local-op-lbl">Microclimate spread</div>
-        <div class="local-op-val" id="localMicroSpread">--</div>
-        <div class="local-op-note" id="localMicroNote">Sampling the selected point and nearby sectors.</div>
-      </div>
-      <div class="local-op-card">
-        <div class="local-op-lbl">Heat / workability</div>
-        <div class="local-op-val" id="localHeatPressure">--</div>
-        <div class="local-op-note" id="localHeatNote">Apparent temperature and humidity context.</div>
-      </div>
-      <div class="local-op-card">
-        <div class="local-op-lbl">Rain interruption</div>
-        <div class="local-op-val" id="localRainPressure">--</div>
-        <div class="local-op-note" id="localRainNote">Highest hourly precipitation probability in next 12h.</div>
-      </div>
-      <div class="local-op-card">
-        <div class="local-op-lbl">Wind / exposed work</div>
-        <div class="local-op-val" id="localWindPressure">--</div>
-        <div class="local-op-note" id="localWindNote">Peak forecast gust in next 12h.</div>
-      </div>
-      <div class="local-op-card">
-        <div class="local-op-lbl">Outdoor air</div>
-        <div class="local-op-val" id="localAqi">--</div>
-        <div class="local-op-note" id="localAqiNote">Open-Meteo/CAMS modelled US AQI and PM2.5.</div>
-      </div>
-      <div class="local-op-card">
-        <div class="local-op-lbl">Live signals ≤300 km</div>
-        <div class="local-op-val" id="localHazards300">--</div>
-        <div class="local-op-note" id="localHazardsNote">Hazard events and warnings resolved near the selected point.</div>
-      </div>
-    </div>
-
-    <div class="local-ops-read" id="localOpsRead"><strong>Brink local read:</strong> Building the operational picture…</div>
-    <div class="local-sample-note" id="localMicroMethod">Microclimate spread samples centre + N/E/S/W points roughly 12 km from the selected coordinate. It describes modelled local variation, not measured neighbourhood thermometers.</div>
-  </section>
-
-  <section class="ops-timeline" aria-label="Operational signal timeline">
-    <div class="ops-timeline-head">
-      <div>
-        <div class="ops-timeline-title">Operational Signal Timeline</div>
-        <div class="ops-timeline-sub">Cumulative new signals over the rolling 24-hour window. A rising line means new events were added; it is not a prediction of future hazard.</div>
-      </div>
-      <span class="badge">ROLLING 24H</span>
-    </div>
-    <div class="ops-legend">
-      <span><i class="ops-dot" style="background:#6b9eff"></i>Earthquakes</span>
-      <span><i class="ops-dot" style="background:#00f3ff"></i>Storms</span>
-      <span><i class="ops-dot" style="background:#f59e0b"></i>Volcanoes</span>
-      <span><i class="ops-dot" style="background:#efefef"></i>Official warnings</span>
-    </div>
-    <div class="ops-chart-wrap">
-      <svg id="opsSignalChart" class="ops-chart" viewBox="0 0 1000 250" preserveAspectRatio="none" role="img" aria-label="Cumulative hazard events in the last 24 hours"></svg>
-    </div>
-    <div class="thermal-strip">
-      <div class="thermal-head">
-        <div class="thermal-title">Local Thermal Window · 7-day high / low</div>
-        <div class="thermal-meta" id="thermalRangeMeta">Waiting for local forecast…</div>
-      </div>
-      <svg id="thermalChart" class="thermal-svg" viewBox="0 0 1000 105" preserveAspectRatio="none" role="img" aria-label="Seven-day forecast high and low temperature band"></svg>
-    </div>
-  </section>
 
   <div class="tiles">
     <div class="tile escalate" onclick="openTrayAndScroll('tray-storms')"><div class="lbl">Escalate ↗</div><div class="num" id="c-escalate">0</div></div>
@@ -681,7 +574,6 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
     <div class="panel">
       <div class="panel-h">
         <span>Global Sensor Matrix &amp; Precipitation Radar</span>
-        <span class="badge">Esri &amp; RainViewer</span>
       </div>
       <div id="map"></div>
       <div class="radar-controls">
