@@ -239,7 +239,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 
 /* TILES */
 
-.tiles{ display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:20px; width:100%; }
+.tiles{ display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:20px; width:100%; }
 @media(max-width:1024px){.tiles{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:480px){.tiles{grid-template-columns:repeat(2,1fr);gap:8px}}
 .tile{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; cursor:pointer; }
@@ -313,6 +313,21 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .tray-content { padding: 0 16px 16px; display: none; }
 .tray-accordion.open .tray-content { display: block; }
 .tray-accordion.open .tray-toggle-btn { transform: rotate(45deg); color: var(--hot); }
+
+.india-post {
+  background:var(--panel2); border:1px solid var(--line); border-left:3px solid #ff9933;
+  border-radius:7px; padding:12px 13px; margin-top:9px; cursor:pointer;
+}
+.india-post:hover { border-color:#ff9933; }
+.india-post-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.india-post-title { color:#fff; font-weight:800; font-size:.92rem; line-height:1.35; }
+.india-source {
+  flex:0 0 auto; font-family:var(--font-mono); font-size:8.5px; font-weight:800;
+  color:#ffb066; border:1px solid rgba(255,153,51,.4); border-radius:4px; padding:2px 5px;
+}
+.india-post-meta { font-family:var(--font-mono); font-size:10px; color:var(--muted); margin-top:5px; }
+.india-post-note { color:var(--soft); font-size:.78rem; line-height:1.4; margin-top:6px; }
+@media(max-width:480px){ .india-post-head{display:block;} .india-source{display:inline-block;margin-top:6px;} }
 
 .hazard-card-row {
   background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
@@ -657,6 +672,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
     <div class="tile" style="border-top:2px solid var(--accent)" onclick="openTrayAndScroll('tray-storms')"><div class="lbl" style="color:var(--accent)">Storms 🌀</div><div class="num" id="c-storms">0</div></div>
     <div class="tile" style="border-top:2px solid var(--hot)" onclick="openTrayAndScroll('tray-volcanoes')"><div class="lbl" style="color:var(--hot)">Volcanoes 🌋</div><div class="num" id="c-volcanoes">0</div></div>
     <div class="tile watch" onclick="openTrayAndScroll('tray-quakes')"><div class="lbl">Watch ↗</div><div class="num" id="c-watch">0</div></div>
+    <div class="tile" style="border-top:2px solid #ff9933" onclick="openTrayAndScroll('tray-india')"><div class="lbl" style="color:#ffb066">India NCS ↗</div><div class="num" id="c-india">0</div></div>
     <div class="tile listed" onclick="openTrayAndScroll('tray-quakes')"><div class="lbl">Tremors 24h ↗</div><div class="num" id="c-listed">0</div></div>
     <div class="tile space" style="border-top:2px solid var(--accent-blue)" onclick="openTrayAndScroll('tray-space')"><div class="lbl" style="color:var(--accent-blue)">Space Kp ↗</div><div class="num" id="c-space">--</div></div>
   </div>
@@ -681,6 +697,19 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
         <span class="badge">Strict Apex Threshold</span>
       </div>
       <div id="lookout" class="region-scroll" style="max-height:430px;"><div style="color:var(--muted);padding:8px">Synchronizing live streams…</div></div>
+    </div>
+  </div>
+
+  <div class="tray-accordion" id="tray-india">
+    <div class="tray-header" onclick="toggleTray('tray-india')">
+      <div class="tray-title"><span style="color:#ff9933">⚡</span> India Seismic Desk — NCS</div>
+      <div class="tray-toggle-btn">+</div>
+    </div>
+    <div class="tray-content">
+      <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;">
+        Latest India-facing earthquakes reported by the National Centre for Seismology. The newest 12 are shown here; all resolved events remain visible on the map.
+      </div>
+      <div id="q-india"><div style="color:var(--muted);padding:8px">Waiting for NCS India feed…</div></div>
     </div>
   </div>
 
@@ -1281,7 +1310,7 @@ let climateState = {
 
 let ALL_ACTIVE_EVENTS = [];
 let ALL_RECENT_WEEK_EVENTS = [];
-let EVENT_STORE = { global: [], lookout: [], storms: [], volcanoes: [] };
+let EVENT_STORE = { global: [], india: [], lookout: [], storms: [], volcanoes: [] };
 
 function formatTimeElapsed(isoStr) {
   if (!isoStr) return { elapsed: "Recent", fullDate: "Undated" };
@@ -1778,7 +1807,7 @@ function rebuildPriorityLookout() {
   const candidatePool = [];
 
   // 1. Ingest existing earthquakes
-  (EVENT_STORE.global || []).forEach(q => {
+  ([...(EVENT_STORE.global || []), ...(EVENT_STORE.india || [])]).forEach(q => {
     let score = 0;
     let badgeText = "SEISMIC";
     if (q.magnitude >= 7.0) { score = 100; badgeText = "CATASTROPHIC SLIP"; }
@@ -1901,6 +1930,7 @@ async function fetchLiveHazards() {
     let mostRecentMajorTime = 0;
 
     EVENT_STORE.global = [];
+    EVENT_STORE.india = [];
     EVENT_STORE.lookout = [];
     EVENT_STORE.volcanoes = [];
     EVENT_STORE.storms = [];
@@ -1933,12 +1963,14 @@ async function fetchLiveHazards() {
         else if (mag >= 5.0) { level = "alert"; alertCount++; }
         else { watchCount++; }
 
-        EVENT_STORE.global.push({
+        const quakeRecord = {
           place:h.name, magnitude:mag,
           depth_km:Number.isFinite(Number(h.depth_km)) ? Number(h.depth_km) : null,
           latitude:Number(lat), longitude:Number(lon), time:h.observed_at, level,
           source:h.source || "Source"
-        });
+        };
+        if (String(h.source || "").toLowerCase() === "ncs india") EVENT_STORE.india.push(quakeRecord);
+        else EVENT_STORE.global.push(quakeRecord);
 
         const isPriority = mag >= 5.0;
         let pinClass = mag >= 6.0 ? "custom-hazard-pin pin-quake-major pulse-priority" : "custom-hazard-pin pin-quake";
@@ -1974,7 +2006,22 @@ async function fetchLiveHazards() {
     $("c-watch").textContent = watchCount;
     $("c-volcanoes").textContent = EVENT_STORE.volcanoes.length;
     $("c-storms").textContent = EVENT_STORE.storms.length;
-    $("c-listed").textContent = EVENT_STORE.global.length;
+    $("c-india").textContent = EVENT_STORE.india.length;
+    $("c-listed").textContent = EVENT_STORE.global.length + EVENT_STORE.india.length;
+
+    EVENT_STORE.india.sort((a,b) => new Date(b.time) - new Date(a.time));
+    const indiaVisible = EVENT_STORE.india.slice(0,12);
+    $("q-india").innerHTML = indiaVisible.length ? indiaVisible.map((q,idx) => {
+      const t = formatTimeElapsed(q.time);
+      return `<div class="india-post" onclick="inspectEventDetail('india', ${idx})">
+        <div class="india-post-head">
+          <div class="india-post-title">INDIA EARTHQUAKE WATCH · M${q.magnitude.toFixed(1)} · ${escapeHtml(q.place || "India region")}</div>
+          <span class="india-source">NCS INDIA</span>
+        </div>
+        <div class="india-post-meta">🕒 ${t.elapsed} · ${t.fullDate} · Depth ${q.depth_km ?? "—"} km</div>
+        <div class="india-post-note"><strong>Brink note:</strong> Observed seismic event. Magnitude, depth and distance should be interpreted together; this record alone does not establish local damage.</div>
+      </div>`;
+    }).join("") : '<div style="color:var(--muted);padding:8px">No NCS India events currently resolved in the live feed.</div>';
 
     // UPDATE TRAY HTML
     $("q-global").innerHTML = EVENT_STORE.global.length > 0 ? EVENT_STORE.global.map((q, idx) => {
@@ -2105,11 +2152,11 @@ function inspectEventDetail(type, idx) {
   $("sciMagnitudeBadge").className = `mag ${q.level}`;
   $("sciEventHeadline").textContent = q.place;
   $("sciTimestamp").textContent = `🕒 ${formatTimeElapsed(q.time).fullDate}`;
-  $("sciCoords").textContent = `${q.latitude.toFixed(3)}°N, ${q.longitude.toFixed(3)}°E`;
-  $("sciSource").textContent = "USGS Global Seismographic Network";
-  $("sciMetric1").textContent = `Depth: ${q.depth_km} km`;
+  $("sciCoords").textContent = `${Math.abs(q.latitude).toFixed(3)}°${q.latitude >= 0 ? "N" : "S"}, ${Math.abs(q.longitude).toFixed(3)}°${q.longitude >= 0 ? "E" : "W"}`;
+  $("sciSource").textContent = q.source || "Earthquake monitoring source";
+  $("sciMetric1").textContent = `Depth: ${q.depth_km ?? "Not resolved"} km`;
   $("sciMetric2").textContent = `Magnitude ${q.magnitude.toFixed(1)}`;
-  $("sciExplanationText").textContent = `A Magnitude ${q.magnitude.toFixed(1)} slip occurred at ${q.depth_km}km depth. Infrastructure within 150km should verify backup generators and inspect unreinforced structural joints.`;
+  $("sciExplanationText").textContent = `An observed M${q.magnitude.toFixed(1)} earthquake was reported at ${q.depth_km ?? "unresolved"} km depth. Magnitude and depth describe the earthquake itself; they do not by themselves establish shaking intensity or damage at a particular location.`;
   openModal('modalScientistBrief');
 }
 
