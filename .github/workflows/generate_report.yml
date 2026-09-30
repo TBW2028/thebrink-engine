@@ -41,18 +41,14 @@ jobs:
           payload = json.loads(os.environ.get("PAYLOAD", "{}"))
           print(f"[*] Fulfilling incoming order: {payload}")
 
-          pdf_path, ref = produce(
-              location=payload.get("location", "18.516958, 73.666824"),
-              answers=payload.get("answers", {}),
-              site_name=payload.get("site_name", "Monitored Location"),
-              customer_email=payload.get("customer_email", "thebrink2028@gmail.com")
-          )
-
           order_code = payload.get("order_code")
-          if order_code and os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_KEY"):
-              import requests, datetime
-              sb_url = os.environ["SUPABASE_URL"].rstrip("/")
-              sb_key = os.environ["SUPABASE_SERVICE_KEY"]
+          sb_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+          sb_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+          def update_order(values):
+              if not order_code or not sb_url or not sb_key:
+                  return
+              import requests
               r = requests.patch(
                   f"{sb_url}/rest/v1/dossier_requests?order_code=eq.{order_code}",
                   headers={
@@ -61,13 +57,27 @@ jobs:
                       "Content-Type": "application/json",
                       "Prefer": "return=minimal"
                   },
-                  json={
-                      "status": "delivered",
-                      "payment_status": "verified",
-                      "report_ref": ref,
-                      "fulfilled_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-                  },
+                  json=values,
                   timeout=15
               )
               print(f"[*] Order status update: {r.status_code}")
+
+          try:
+              pdf_path, ref = produce(
+                  location=payload.get("location", "18.516958, 73.666824"),
+                  answers=payload.get("answers", {}),
+                  site_name=payload.get("site_name", "Monitored Location"),
+                  customer_email=payload.get("customer_email", "thebrink2028@gmail.com")
+              )
+
+              import datetime
+              update_order({
+                  "status": "delivered",
+                  "payment_status": "verified",
+                  "report_ref": ref,
+                  "fulfilled_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+              })
+          except Exception:
+              update_order({"status": "delivery_failed"})
+              raise
           '
