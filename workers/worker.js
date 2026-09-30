@@ -834,8 +834,6 @@ export default {
 
         if (!validEmail(email)) return jsonResponse({ error: "Enter a valid client email." }, 400, corsHeaders);
         if (!clientName) return jsonResponse({ error: "Enter the client name." }, 400, corsHeaders);
-        if (!paymentReference) return jsonResponse({ error: "Enter the Razorpay reference or USDT transaction hash." }, 400, corsHeaders);
-
         const priceBook = {
           inr_razorpay: { currency: "INR", amount: 2499, label: "Razorpay INR" },
           usd_razorpay: { currency: "USD", amount: 29, label: "Razorpay USD" },
@@ -875,7 +873,7 @@ export default {
           purpose: purpose || "General location intelligence",
           concern: concern || null,
           payment_method: paymentMethod,
-          payment_reference: paymentReference,
+          payment_reference: paymentReference || null,
           payment_currency: price.currency,
           payment_amount: price.amount,
           payment_status: "submitted",
@@ -929,7 +927,7 @@ export default {
                   <tr><td style="padding:6px 0;color:#666">Location</td><td>${location.label}</td></tr>
                   <tr><td style="padding:6px 0;color:#666">Purpose</td><td>${purpose || "General location intelligence"}</td></tr>
                   <tr><td style="padding:6px 0;color:#666">Payment</td><td><strong>${price.label} · ${price.currency} ${price.amount}</strong></td></tr>
-                  <tr><td style="padding:6px 0;color:#666">Reference / TxID</td><td style="word-break:break-all"><strong>${paymentReference}</strong></td></tr>
+                  <tr><td style="padding:6px 0;color:#666">Reference / TxID</td><td style="word-break:break-all"><strong>${paymentReference || "Not supplied — verify by client/order details"}</strong></td></tr>
                 </table>
                 <p style="margin-top:18px">Check the payment independently in Razorpay or TRON before approving.</p>
                 <p><a href="${reviewUrl.toString()}" style="display:inline-block;background:#0b0d11;color:#fff;padding:12px 18px;text-decoration:none;border-radius:4px">REVIEW & APPROVE PAYMENT</a></p>
@@ -1022,7 +1020,7 @@ export default {
         <div class="row"><span class="k">Location</span><span class="v">${esc(order.requested_location)}</span></div>
         <div class="row"><span class="k">Payment method</span><span class="v">${esc(order.payment_method)}</span></div>
         <div class="row"><span class="k">Expected amount</span><span class="v">${esc(order.payment_currency)} ${esc(order.payment_amount)}</span></div>
-        <div class="row"><span class="k">Reference / TxID</span><span class="v ref">${esc(order.payment_reference)}</span></div>
+        <div class="row"><span class="k">Reference / TxID</span><span class="v ref">${esc(order.payment_reference || "Not supplied")}</span></div>
         <div class="warn"><strong>Manual check required.</strong><br>Confirm the payment independently in Razorpay or TRON. Do not approve based only on the reference supplied by the client.</div>
         ${already ? '<p><strong>This order has already been approved or is being fulfilled.</strong></p>' : `
         <form method="post" action="/api/dossier/approve">
