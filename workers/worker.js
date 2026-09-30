@@ -1113,6 +1113,8 @@ export default {
                 organization: order.organization,
                 occupancy: order.purpose || "general",
                 concern: order.concern || "",
+                country: order.requested_country || null,
+                country_code: order.requested_country_code || null,
                 order_code: orderCode
               }
             }
