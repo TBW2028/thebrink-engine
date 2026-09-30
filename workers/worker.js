@@ -425,6 +425,87 @@ export default {
       }
     }
 
+    // 1b. NCS India Recent Earthquakes Proxy
+    if (url.pathname === "/api/ncs/recent" && request.method === "GET") {
+      try {
+        const upstream = await fetch("https://riseq.seismo.gov.in/riseq/earthquake/recent_earthquake", {
+          headers: {
+            "User-Agent": "TheBrinkEngine/1.0 (+https://thebrinkworld.com)",
+            "Accept": "text/html,application/xhtml+xml"
+          },
+          cf: { cacheTtl: 180, cacheEverything: true }
+        });
+        if (!upstream.ok) throw new Error(`NCS upstream status ${upstream.status}`);
+        const html = await upstream.text();
+
+        const decode = value => String(value || "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/&nbsp;/gi, " ")
+          .replace(/&amp;/gi, "&")
+          .replace(/&#39;/g, "'")
+          .replace(/&quot;/g, '"')
+          .replace(/\s+/g, " ")
+          .trim();
+
+        const rows = [];
+        const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+        let tr;
+        while ((tr = trRegex.exec(html)) !== null) {
+          const cells = [];
+          const tdRegex = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+          let td;
+          while ((td = tdRegex.exec(tr[1])) !== null) cells.push(decode(td[1]));
+          if (cells.length < 7) continue;
+
+          const origin = cells[0];
+          const lat = Number(cells[1]);
+          const lon = Number(cells[2]);
+          const depth = Number(cells[3]);
+          const magnitude = Number(cells[4]);
+          const region = cells[5];
+          const location = cells[6];
+
+          if (!origin.match(/^\d{4}-\d{2}-\d{2}/) || !Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(magnitude)) continue;
+
+          const indiaFacing =
+            /india/i.test(location) ||
+            /india/i.test(region) ||
+            (lat >= 6 && lat <= 38.5 && lon >= 68 && lon <= 98.5);
+
+          if (!indiaFacing) continue;
+
+          const m = origin.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/);
+          let observedAt = null;
+          if (m) {
+            const utcMs = Date.parse(`${m[1]}T${m[2]}+05:30`);
+            if (Number.isFinite(utcMs)) observedAt = new Date(utcMs).toISOString();
+          }
+
+          rows.push({
+            observed_at: observedAt,
+            latitude: lat,
+            longitude: lon,
+            depth_km: Number.isFinite(depth) ? depth : null,
+            magnitude,
+            region,
+            name: location || region || "India region earthquake",
+            source: "NCS India"
+          });
+        }
+
+        rows.sort((a,b) => new Date(b.observed_at || 0) - new Date(a.observed_at || 0));
+
+        return new Response(JSON.stringify({ events: rows.slice(0, 30), source: "National Centre for Seismology, India" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, events: [] }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
     // 2. GDACS Global Tropical Cyclones Proxy (Worldwide Multi-Basin)
     if (url.pathname === "/api/storms/gdacs" && request.method === "GET") {
       try {
