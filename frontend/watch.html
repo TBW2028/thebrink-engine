@@ -138,48 +138,107 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .f-temp { font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: #fff; }
 .f-pop { font-family: var(--font-mono); font-size: 9.5px; color: var(--accent); }
 
-/* BUFFER PILL */
-.compact-local-box {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-  padding: 12px 16px; margin-bottom: 18px; display: flex; justify-content: space-between;
-  align-items: center; flex-wrap: wrap; gap: 12px;
+/* LOCAL BUSINESS CONTINUITY + OPERATIONAL SIGNALS */
+.local-ops {
+  background:linear-gradient(135deg,rgba(0,243,255,.035),rgba(17,26,38,.98));
+  border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:18px;
+  box-shadow:var(--shadow);
 }
-.compact-perimeter-pill {
-  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 6px;
-  font-family: var(--font-mono); font-size: 12px; font-weight: 700; cursor: pointer;
-  background: rgba(16, 185, 129, 0.1); border: 1px solid var(--ok); color: var(--ok); transition: all 0.2s ease;
+.local-ops-head {
+  display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap;
+  margin-bottom:14px;
 }
-.compact-perimeter-pill.active-threat {
-  background: rgba(239, 68, 68, 0.18); border-color: var(--hot); color: #fff; animation: blinkThreat 1.4s infinite;
+.local-ops-kicker {
+  font-family:var(--font-mono); font-size:10.5px; font-weight:800; color:var(--accent);
+  text-transform:uppercase; letter-spacing:.1em; margin-bottom:4px;
 }
-@keyframes blinkThreat {
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
-  70% { box-shadow: 0 0 0 10px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
+.local-ops-title { color:#fff; font-size:1.08rem; font-weight:800; line-height:1.3; }
+.local-ops-sub { color:var(--muted); font-size:.78rem; margin-top:4px; line-height:1.4; }
+.local-status {
+  font-family:var(--font-mono); font-size:10px; font-weight:800; text-transform:uppercase;
+  color:var(--ok); border:1px solid rgba(61,204,156,.42); background:rgba(61,204,156,.06);
+  padding:6px 9px; border-radius:999px; white-space:nowrap;
 }
+.local-status.watch { color:var(--warn); border-color:rgba(245,158,11,.45); background:rgba(245,158,11,.07); }
+.local-status.alert { color:#fff; border-color:rgba(239,68,68,.6); background:rgba(239,68,68,.11); }
+.local-ops-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:9px; }
+.local-op-card {
+  min-width:0; background:rgba(6,9,14,.5); border:1px solid var(--line); border-radius:7px; padding:11px;
+}
+.local-op-lbl {
+  font-family:var(--font-mono); font-size:9.5px; line-height:1.3; font-weight:800;
+  text-transform:uppercase; color:var(--muted); letter-spacing:.035em;
+}
+.local-op-val {
+  color:#fff; font-family:var(--font-display); font-weight:800; font-size:1.28rem; line-height:1.15;
+  margin:6px 0 4px; overflow-wrap:anywhere;
+}
+.local-op-note { color:var(--soft); font-size:.7rem; line-height:1.38; }
+.local-ops-read {
+  margin-top:12px; padding-top:11px; border-top:1px solid rgba(30,42,56,.72);
+  color:var(--soft); font-size:.86rem; line-height:1.58;
+}
+.local-ops-read strong { color:#fff; }
+.local-sample-note {
+  font-family:var(--font-mono); color:var(--muted); font-size:9.5px; line-height:1.45; margin-top:8px;
+}
+@media(max-width:1100px){ .local-ops-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
+@media(max-width:680px){
+  .local-ops{padding:14px;}
+  .local-ops-grid{grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px;}
+  .local-op-card{padding:10px;}
+}
+@media(max-width:390px){ .local-ops-grid{grid-template-columns:1fr;} }
 
-/* SIGNATURE INSTRUMENTS */
-.signature-instruments-grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 22px;
+.ops-timeline {
+  background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px;
+  margin-bottom:20px; box-shadow:var(--shadow);
 }
-@media(max-width: 1100px){ .signature-instruments-grid { grid-template-columns: repeat(3, 1fr); } }
-@media(max-width: 768px){ .signature-instruments-grid { grid-template-columns: repeat(2, 1fr); } }
-@media(max-width: 480px){ .signature-instruments-grid { grid-template-columns: 1fr; } }
+.ops-timeline-head {
+  display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px;
+}
+.ops-timeline-title { font-family:var(--font-mono); color:#fff; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+.ops-timeline-sub { color:var(--muted); font-size:.78rem; line-height:1.4; margin-top:4px; max-width:55rem; }
+.ops-legend { display:flex; flex-wrap:wrap; gap:7px 12px; margin:10px 0; font-family:var(--font-mono); font-size:9.5px; color:var(--soft); }
+.ops-legend span { display:inline-flex; align-items:center; gap:5px; }
+.ops-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.ops-chart-wrap {
+  width:100%; overflow:hidden; border:1px solid rgba(30,42,56,.65); border-radius:7px;
+  background:linear-gradient(180deg,rgba(255,255,255,.014),rgba(0,0,0,.12)); padding:5px;
+}
+.ops-chart { width:100%; height:250px; display:block; }
+.ops-grid-line { stroke:#213041; stroke-width:1; opacity:.7; }
+.ops-axis-text { fill:#738296; font:9px var(--font-mono); }
+.ops-path {
+  fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:1800; stroke-dashoffset:1800; animation:drawSignal 1.25s ease forwards;
+}
+@keyframes drawSignal { to { stroke-dashoffset:0; } }
+.ops-path.q { stroke:#6b9eff; }
+.ops-path.s { stroke:#00f3ff; }
+.ops-path.v { stroke:#f59e0b; }
+.ops-path.w { stroke:#efefef; stroke-dasharray:5 4; animation:none; }
+.ops-latest { animation:latestPulse 1.8s ease 2; }
+@keyframes latestPulse { 50%{opacity:.25;} }
 
-.sig-card {
-  background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
-  padding: 14px; display: flex; flex-direction: column; justify-content: space-between;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.35); cursor: pointer; transition: border-color 0.2s ease, transform 0.15s ease;
+.thermal-strip { margin-top:14px; border-top:1px solid rgba(30,42,56,.7); padding-top:12px; }
+.thermal-head { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:5px; }
+.thermal-title { font-family:var(--font-mono); font-size:10.5px; font-weight:800; color:#fff; text-transform:uppercase; }
+.thermal-meta { font-family:var(--font-mono); font-size:9.5px; color:var(--muted); }
+.thermal-svg { width:100%; height:105px; display:block; }
+.thermal-band { fill:rgba(245,158,11,.07); }
+.thermal-max { fill:none; stroke:#f59e0b; stroke-width:2; }
+.thermal-min { fill:none; stroke:#6b9eff; stroke-width:2; }
+.thermal-label { fill:#738296; font:8.5px var(--font-mono); }
+@media(max-width:620px){
+  .ops-timeline{padding:13px;}
+  .ops-chart{height:210px;}
+  .ops-legend{gap:6px 9px;}
+  .thermal-svg{height:92px;}
 }
-.sig-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-.sig-lbl {
-  font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-transform: uppercase;
-  font-weight: 700; display: flex; justify-content: space-between; align-items: center;
-}
-.sig-val { font-family: var(--font-mono); font-size: 1.45rem; font-weight: 800; margin: 6px 0 2px; letter-spacing: -0.02em; }
-.sig-sub { font-size: 0.82rem; color: var(--soft); line-height: 1.35; }
 
 /* TILES */
+
 .tiles{ display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:20px; width:100%; }
 @media(max-width:1024px){.tiles{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:480px){.tiles{grid-template-columns:repeat(2,1fr);gap:8px}}
@@ -519,54 +578,78 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
     </div>
   </div>
 
-  <div class="compact-local-box">
-    <div>
-      <div style="font-weight:700; color:#fff;" id="localSiteTitle">📍 300 KM MULTI-HAZARD BUFFER ACTIVE</div>
-      <div style="font-size:12px; color:var(--muted); margin-top:2px;">Real-time continuous boundary intersection for active lithospheric &amp; cyclonic threats.</div>
+  <section class="local-ops" aria-label="Local business continuity">
+    <div class="local-ops-head">
+      <div>
+        <div class="local-ops-kicker">// LOCAL BUSINESS CONTINUITY DESK</div>
+        <div class="local-ops-title" id="localOpsTitle">Analysing the selected location…</div>
+        <div class="local-ops-sub">Free-source operational context. Modelled weather and air-quality data are planning signals, not site instrumentation.</div>
+      </div>
+      <div class="local-status" id="localOpsStatus">SCANNING</div>
     </div>
-    <div id="perimeterSentinelPill" class="compact-perimeter-pill" onclick="handlePerimeterClick()">
-      <span class="live-dot" style="width:7px; height:7px; background:var(--ok); border-radius:50%;"></span>
-      <span id="perimeterStatusText">SCANNING 300 KM PERIMETER...</span>
-    </div>
-  </div>
 
-  <div class="signature-instruments-grid">
-    <div class="sig-card" onclick="inspectMetricInfo('ghl')">
-      <div>
-        <div class="sig-lbl"><span>Seismic Activity Score</span> <span class="badge">ENERGY-NORMALIZED</span></div>
-        <div class="sig-val" id="sigGhl" style="color:var(--hot);">--</div>
+    <div class="local-ops-grid">
+      <div class="local-op-card">
+        <div class="local-op-lbl">Microclimate spread</div>
+        <div class="local-op-val" id="localMicroSpread">--</div>
+        <div class="local-op-note" id="localMicroNote">Sampling the selected point and nearby sectors.</div>
       </div>
-      <div class="sig-sub">Cumulative scalar moment energy ($10^{1.5M+4.8}\text{ J}$) scaled against baseline lithospheric strain.</div>
-    </div>
-    <div class="sig-card" onclick="inspectMetricInfo('velocity')">
-      <div>
-        <div class="sig-lbl"><span>Disruption Velocity</span> <span class="badge">RATE DERIVATIVE</span></div>
-        <div class="sig-val" id="sigVelocity" style="color:var(--warn);">--</div>
+      <div class="local-op-card">
+        <div class="local-op-lbl">Heat / workability</div>
+        <div class="local-op-val" id="localHeatPressure">--</div>
+        <div class="local-op-note" id="localHeatNote">Apparent temperature and humidity context.</div>
       </div>
-      <div class="sig-sub">Rate of change in event incidence comparing trailing 6-hour shock rates against the rolling 24-hour mean.</div>
-    </div>
-    <div class="sig-card" onclick="inspectMetricInfo('convergence')">
-      <div>
-        <div class="sig-lbl"><span>Proximity Clusters</span> <span class="badge">SPATIAL SCAN</span></div>
-        <div class="sig-val" id="sigConvergence" style="color:var(--hot);">--</div>
+      <div class="local-op-card">
+        <div class="local-op-lbl">Rain interruption</div>
+        <div class="local-op-val" id="localRainPressure">--</div>
+        <div class="local-op-note" id="localRainNote">Highest hourly precipitation probability in next 12h.</div>
       </div>
-      <div class="sig-sub">Identified pairs of seismic dislocations co-located within 350 km of one another in the past 24 hours.</div>
-    </div>
-    <div class="sig-card" onclick="inspectMetricInfo('escape')">
-      <div>
-        <div class="sig-lbl"><span>Major Shock Recency</span> <span id="sigEscapeBadge" class="badge">LIVE TIMER</span></div>
-        <div class="sig-val" id="sigEscapeWindow" style="color:var(--gold);">--</div>
+      <div class="local-op-card">
+        <div class="local-op-lbl">Wind / exposed work</div>
+        <div class="local-op-val" id="localWindPressure">--</div>
+        <div class="local-op-note" id="localWindNote">Peak forecast gust in next 12h.</div>
       </div>
-      <div class="sig-sub">Elapsed duration since the last severe planetary dislocation ($M \ge 5.0$) across monitored fault zones.</div>
-    </div>
-    <div class="sig-card" onclick="inspectMetricInfo('population')">
-      <div>
-        <div class="sig-lbl"><span>Monitored Epicenters</span> <span class="badge">DISCRETE RADIALS</span></div>
-        <div class="sig-val" id="sigExposedPop" style="color:var(--accent); font-size:1.35rem;">--</div>
+      <div class="local-op-card">
+        <div class="local-op-lbl">Outdoor air</div>
+        <div class="local-op-val" id="localAqi">--</div>
+        <div class="local-op-note" id="localAqiNote">Open-Meteo/CAMS modelled US AQI and PM2.5.</div>
       </div>
-      <div class="sig-sub"><strong style="color:var(--hot);" id="sigMultiExposed">--</strong> discrete regional fault sectors undergoing active displacement.</div>
+      <div class="local-op-card">
+        <div class="local-op-lbl">Live signals ≤300 km</div>
+        <div class="local-op-val" id="localHazards300">--</div>
+        <div class="local-op-note" id="localHazardsNote">Hazard events and warnings resolved near the selected point.</div>
+      </div>
     </div>
-  </div>
+
+    <div class="local-ops-read" id="localOpsRead"><strong>Brink local read:</strong> Building the operational picture…</div>
+    <div class="local-sample-note" id="localMicroMethod">Microclimate spread samples centre + N/E/S/W points roughly 12 km from the selected coordinate. It describes modelled local variation, not measured neighbourhood thermometers.</div>
+  </section>
+
+  <section class="ops-timeline" aria-label="Operational signal timeline">
+    <div class="ops-timeline-head">
+      <div>
+        <div class="ops-timeline-title">Operational Signal Timeline</div>
+        <div class="ops-timeline-sub">Cumulative new signals over the rolling 24-hour window. A rising line means new events were added; it is not a prediction of future hazard.</div>
+      </div>
+      <span class="badge">ROLLING 24H</span>
+    </div>
+    <div class="ops-legend">
+      <span><i class="ops-dot" style="background:#6b9eff"></i>Earthquakes</span>
+      <span><i class="ops-dot" style="background:#00f3ff"></i>Storms</span>
+      <span><i class="ops-dot" style="background:#f59e0b"></i>Volcanoes</span>
+      <span><i class="ops-dot" style="background:#efefef"></i>Official warnings</span>
+    </div>
+    <div class="ops-chart-wrap">
+      <svg id="opsSignalChart" class="ops-chart" viewBox="0 0 1000 250" preserveAspectRatio="none" role="img" aria-label="Cumulative hazard events in the last 24 hours"></svg>
+    </div>
+    <div class="thermal-strip">
+      <div class="thermal-head">
+        <div class="thermal-title">Local Thermal Window · 7-day high / low</div>
+        <div class="thermal-meta" id="thermalRangeMeta">Waiting for local forecast…</div>
+      </div>
+      <svg id="thermalChart" class="thermal-svg" viewBox="0 0 1000 105" preserveAspectRatio="none" role="img" aria-label="Seven-day forecast high and low temperature band"></svg>
+    </div>
+  </section>
 
   <div class="tiles">
     <div class="tile escalate" onclick="openTrayAndScroll('tray-storms')"><div class="lbl">Escalate ↗</div><div class="num" id="c-escalate">0</div></div>
@@ -1190,7 +1273,11 @@ async function handleDirectUnsubscribe(e) {
 
 let userLat = null, userLon = null, userCity = "Detecting...";
 let climateUnit = "C";
-let climateState = { curTempC: 25, weatherCode: 0, todayMaxC: 28, todayMinC: 20, histTempsC: [], forecastDaily: [] };
+let climateState = {
+  curTempC: 25, apparentTempC: null, humidity: null, currentWindKmh: null,
+  weatherCode: 0, todayMaxC: 28, todayMinC: 20, histTempsC: [], forecastDaily: [],
+  hourly: [], microSamples: [], aqi: null, pm25: null
+};
 
 let ALL_ACTIVE_EVENTS = [];
 let ALL_RECENT_WEEK_EVENTS = [];
@@ -1243,17 +1330,220 @@ function weatherCodeToGlyph(code) {
   return { icon: "⛈️", text: "Convective Storm Cell" };
 }
 
+async function loadLocalOperationalLayers(lat, lon) {
+  const offsetLat = 12 / 111;
+  const offsetLon = 12 / (111 * Math.max(0.25, Math.cos(lat * Math.PI / 180)));
+  const samples = [
+    {name:"Centre", lat, lon},
+    {name:"North", lat:lat + offsetLat, lon},
+    {name:"East", lat, lon:lon + offsetLon},
+    {name:"South", lat:lat - offsetLat, lon},
+    {name:"West", lat, lon:lon - offsetLon}
+  ];
+
+  try {
+    const results = await Promise.all(samples.map(async s => {
+      const u = `https://api.open-meteo.com/v1/forecast?latitude=${s.lat}&longitude=${s.lon}&current=temperature_2m&forecast_days=1&timezone=auto`;
+      const r = await fetch(u);
+      if (!r.ok) return null;
+      const d = await r.json();
+      const temp = d.current?.temperature_2m;
+      return Number.isFinite(Number(temp)) ? {...s, tempC:Number(temp)} : null;
+    }));
+    climateState.microSamples = results.filter(Boolean);
+  } catch (_) {
+    climateState.microSamples = [];
+  }
+
+  try {
+    const aq = await fetch(
+      `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5&timezone=auto`
+    );
+    if (aq.ok) {
+      const d = await aq.json();
+      climateState.aqi = Number.isFinite(Number(d.current?.us_aqi)) ? Number(d.current.us_aqi) : null;
+      climateState.pm25 = Number.isFinite(Number(d.current?.pm2_5)) ? Number(d.current.pm2_5) : null;
+    }
+  } catch (_) {
+    climateState.aqi = null;
+    climateState.pm25 = null;
+  }
+
+  renderLocalOperations();
+}
+
+function renderLocalOperations() {
+  if (!Number.isFinite(Number(userLat)) || !Number.isFinite(Number(userLon))) return;
+  $("localOpsTitle").textContent = `📍 ${userCity}`;
+
+  const samples = climateState.microSamples || [];
+  if (samples.length) {
+    const sorted = [...samples].sort((a,b) => a.tempC - b.tempC);
+    const cool = sorted[0], hot = sorted[sorted.length - 1];
+    const spread = hot.tempC - cool.tempC;
+    $("localMicroSpread").textContent = `${spread.toFixed(1)}°C`;
+    $("localMicroNote").textContent = `${cool.name} ${cool.tempC.toFixed(1)}° · ${hot.name} ${hot.tempC.toFixed(1)}°`;
+  } else {
+    $("localMicroSpread").textContent = "—";
+    $("localMicroNote").textContent = "Local model samples unavailable.";
+  }
+
+  const apparent = Number(climateState.apparentTempC);
+  const humidity = Number(climateState.humidity);
+  let heatLabel = "Normal";
+  if (Number.isFinite(apparent) && apparent >= 38) heatLabel = "High";
+  else if (Number.isFinite(apparent) && apparent >= 32) heatLabel = "Elevated";
+  $("localHeatPressure").textContent = Number.isFinite(apparent) ? `${apparent.toFixed(1)}°C` : "—";
+  $("localHeatNote").textContent = Number.isFinite(humidity) ? `${heatLabel} heat pressure · RH ${Math.round(humidity)}%` : `${heatLabel} heat pressure`;
+
+  const now = Date.now();
+  const next12 = (climateState.hourly || []).filter(h => {
+    const ts = new Date(h.time).getTime();
+    return ts >= now - 60*60*1000 && ts <= now + 12*60*60*1000;
+  });
+  const pops = next12.map(h => Number(h.pop)).filter(Number.isFinite);
+  const gusts = next12.map(h => Number(h.gustKmh)).filter(Number.isFinite);
+  const maxPop = pops.length ? Math.max(...pops) : null;
+  const maxGust = gusts.length ? Math.max(...gusts) : null;
+
+  $("localRainPressure").textContent = maxPop === null ? "—" : `${Math.round(maxPop)}%`;
+  $("localRainNote").textContent = maxPop === null ? "Forecast probability unavailable." :
+    (maxPop >= 70 ? "High interruption potential in next 12h." : maxPop >= 40 ? "Some interruption potential in next 12h." : "Low rain-interruption signal in next 12h.");
+
+  $("localWindPressure").textContent = maxGust === null ? "—" : `${Math.round(maxGust)} km/h`;
+  $("localWindNote").textContent = maxGust === null ? "Forecast gust unavailable." :
+    (maxGust >= 50 ? "Strong gusts may constrain exposed work." : maxGust >= 35 ? "Moderate gust signal for exposed operations." : "No strong-gust signal in the next 12h.");
+
+  const aqi = climateState.aqi;
+  $("localAqi").textContent = aqi === null ? "—" : `AQI ${Math.round(aqi)}`;
+  $("localAqiNote").textContent = aqi === null ? "Air-quality model unavailable." :
+    `PM2.5 ${climateState.pm25 !== null ? climateState.pm25.toFixed(1) + " µg/m³" : "—"} · ${aqi >= 151 ? "Poor air-quality constraint" : aqi >= 101 ? "Sensitive-group constraint" : aqi >= 51 ? "Moderate air quality" : "Low AQI"}.`;
+
+  let nearby = [];
+  if (ALL_ACTIVE_EVENTS.length) {
+    nearby = ALL_ACTIVE_EVENTS
+      .map(e => ({...e, d:haversine(userLat,userLon,e.lat,e.lon)}))
+      .filter(e => Number.isFinite(e.d) && e.d <= 300);
+  }
+  $("localHazards300").textContent = nearby.length;
+  $("localHazardsNote").textContent = nearby.length ? "Current resolved events/warnings within 300 km." : "No current resolved signal within 300 km.";
+
+  const constraints = [];
+  if (Number.isFinite(apparent) && apparent >= 32) constraints.push("afternoon heat");
+  if (maxPop !== null && maxPop >= 60) constraints.push("rain interruption");
+  if (maxGust !== null && maxGust >= 35) constraints.push("gust exposure");
+  if (aqi !== null && aqi >= 101) constraints.push("outdoor-air quality");
+  if (nearby.length) constraints.push("nearby live hazard activity");
+
+  const status = $("localOpsStatus");
+  if (constraints.length >= 3) {
+    status.className = "local-status alert";
+    status.textContent = "MULTIPLE CONSTRAINTS";
+  } else if (constraints.length) {
+    status.className = "local-status watch";
+    status.textContent = "WATCH CONDITIONS";
+  } else {
+    status.className = "local-status";
+    status.textContent = "NO MAJOR CONSTRAINT";
+  }
+
+  const micro = samples.length ? (() => {
+    const vals = samples.map(s=>s.tempC);
+    return Math.max(...vals)-Math.min(...vals);
+  })() : null;
+  let read = constraints.length
+    ? `The main operational signals currently are ${constraints.join(", ")}.`
+    : "No major weather/air-quality constraint is resolved from the current free-source inputs.";
+  if (micro !== null && micro >= 2.5) {
+    read += ` Modelled temperatures vary by about ${micro.toFixed(1)}°C across the nearby 12 km sectors, so local working and cooling conditions may differ materially across the same metro area.`;
+  }
+  read += " Use official alerts and site-specific operating limits for decisions that affect safety.";
+  $("localOpsRead").innerHTML = `<strong>Brink local read:</strong> ${escapeHtml(read)}`;
+
+  renderThermalChart();
+}
+
+function renderOperationalTimeline(hazards) {
+  const svg = $("opsSignalChart");
+  if (!svg) return;
+  const now = Date.now();
+  const start = now - 24*3600*1000;
+  const W=1000,H=250,L=48,R=18,T=18,B=30;
+
+  const seriesDefs = [
+    {cls:"q", test:h => String(h.category||"").toLowerCase().includes("quake")},
+    {cls:"s", test:h => { const x=String(h.category||"").toLowerCase(); return x.includes("cyclon")||x.includes("storm")||x==="tc"; }},
+    {cls:"v", test:h => String(h.category||"").toLowerCase().includes("volcano")},
+    {cls:"w", test:h => String(h.signal_mode||"").toLowerCase()==="official_warning"}
+  ];
+
+  const series = seriesDefs.map(def => {
+    const times = hazards.filter(def.test).map(h=>new Date(h.observed_at).getTime()).filter(t=>Number.isFinite(t)&&t>=start&&t<=now).sort((a,b)=>a-b);
+    return {...def,times};
+  });
+  const maxY = Math.max(1,...series.map(s=>s.times.length));
+  const x = ts => L + ((ts-start)/(now-start))*(W-L-R);
+  const y = v => H-B-(v/maxY)*(H-T-B);
+
+  const grid = [];
+  for(let i=0;i<=4;i++){
+    const yy=y(maxY*i/4);
+    grid.push(`<line class="ops-grid-line" x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}"/>`);
+    grid.push(`<text class="ops-axis-text" x="4" y="${yy+3}">${Math.round(maxY*i/4)}</text>`);
+  }
+  for(let i=0;i<=4;i++){
+    const xx=L+(i/4)*(W-L-R);
+    const hoursAgo=24-i*6;
+    grid.push(`<text class="ops-axis-text" x="${xx-10}" y="${H-8}">${hoursAgo===0?"now":"-"+hoursAgo+"h"}</text>`);
+  }
+
+  const paths = series.map(s=>{
+    let d=`M ${L} ${y(0)}`;
+    let count=0;
+    s.times.forEach(ts=>{
+      const xx=x(ts);
+      d += ` H ${xx} V ${y(++count)}`;
+    });
+    d += ` H ${W-R}`;
+    return `<path class="ops-path ${s.cls}" d="${d}"/>`;
+  }).join("");
+
+  svg.innerHTML = grid.join("") + paths;
+}
+
+function renderThermalChart() {
+  const svg = $("thermalChart");
+  if (!svg) return;
+  const days=(climateState.forecastDaily||[]).slice(0,7).filter(d=>Number.isFinite(Number(d.maxC))&&Number.isFinite(Number(d.minC)));
+  if (!days.length) { svg.innerHTML=""; return; }
+  const W=1000,H=105,L=22,R=16,T=8,B=22;
+  const vals=days.flatMap(d=>[Number(d.maxC),Number(d.minC)]);
+  const lo=Math.floor(Math.min(...vals)-1), hi=Math.ceil(Math.max(...vals)+1);
+  const x=i=>L+(i/(Math.max(1,days.length-1)))*(W-L-R);
+  const y=v=>H-B-((v-lo)/(Math.max(1,hi-lo)))*(H-T-B);
+  const maxPts=days.map((d,i)=>[x(i),y(Number(d.maxC))]);
+  const minPts=days.map((d,i)=>[x(i),y(Number(d.minC))]);
+  const line=pts=>pts.map((p,i)=>(i?"L":"M")+" "+p[0]+" "+p[1]).join(" ");
+  const band=line(maxPts)+" "+minPts.slice().reverse().map(p=>"L "+p[0]+" "+p[1]).join(" ")+" Z";
+  const labels=days.map((d,i)=>`<text class="thermal-label" x="${x(i)-12}" y="${H-6}">${i===0?"Today":new Date(d.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short"})}</text>`).join("");
+  svg.innerHTML=`<path class="thermal-band" d="${band}"/><path class="thermal-max" d="${line(maxPts)}"/><path class="thermal-min" d="${line(minPts)}"/>${labels}`;
+  $("thermalRangeMeta").textContent=`Forecast range ${Math.min(...vals).toFixed(0)}–${Math.max(...vals).toFixed(0)}°C · orange high / blue low`;
+}
+
 async function loadFullClimateEngine(lat, lon, label) {
   userLat = lat; userLon = lon; userCity = label;
   $("userLocationBadge").textContent = `📍 ${label}`;
 
   try {
     const forecastRes = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max&forecast_days=14&timezone=auto`
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,wind_gusts_10m,relative_humidity_2m&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max&forecast_days=14&timezone=auto`
     );
     if (forecastRes.ok) {
       const fd = await forecastRes.json();
       climateState.curTempC = fd.current?.temperature_2m ?? null;
+      climateState.apparentTempC = fd.current?.apparent_temperature ?? null;
+      climateState.humidity = fd.current?.relative_humidity_2m ?? null;
+      climateState.currentWindKmh = fd.current?.wind_speed_10m ?? null;
       climateState.weatherCode = fd.current?.weather_code ?? null;
       climateState.todayMaxC = fd.daily?.temperature_2m_max?.[0] ?? null;
       climateState.todayMinC = fd.daily?.temperature_2m_min?.[0] ?? null;
@@ -1264,6 +1554,16 @@ async function loadFullClimateEngine(lat, lon, label) {
         minC: fd.daily.temperature_2m_min[idx],
         code: fd.daily.weather_code[idx],
         pop: fd.daily.precipitation_probability_max[idx]
+      }));
+
+      climateState.hourly = (fd.hourly?.time || []).map((t, idx) => ({
+        time: t,
+        tempC: fd.hourly.temperature_2m?.[idx] ?? null,
+        apparentC: fd.hourly.apparent_temperature?.[idx] ?? null,
+        pop: fd.hourly.precipitation_probability?.[idx] ?? null,
+        precipMm: fd.hourly.precipitation?.[idx] ?? null,
+        gustKmh: fd.hourly.wind_gusts_10m?.[idx] ?? null,
+        humidity: fd.hourly.relative_humidity_2m?.[idx] ?? null
       }));
     }
 
@@ -1293,7 +1593,11 @@ async function loadFullClimateEngine(lat, lon, label) {
     climateState.histTempsC = resolvedArchive;
 
     renderClimateWidget();
-  } catch(e) {}
+    await loadLocalOperationalLayers(lat, lon);
+  } catch(e) {
+    console.warn("Local climate engine refresh failed:", e);
+    renderLocalOperations();
+  }
   evaluateLocalPerimeter();
 }
 
@@ -1358,6 +1662,7 @@ function renderClimateWidget() {
         </div>
       `;
     }).join("");
+    renderThermalChart();
   }
 }
 
@@ -1609,11 +1914,16 @@ async function fetchLiveHazards() {
       
       const cat = (h.category || '').toLowerCase();
 
-      ALL_ACTIVE_EVENTS.push({ lat, lon, time: timeMs });
+      ALL_ACTIVE_EVENTS.push({
+        lat:Number(lat), lon:Number(lon), time:h.observed_at, category:cat,
+        name:h.name || "Monitored signal", source:h.source || "Source",
+        severity_tier:h.severity_tier || "Monitor", signal_mode:h.signal_mode || "reported",
+        magnitude:Number(h.magnitude), depth_km:Number(h.depth_km)
+      });
 
       // Catch any variation of earthquake
       if (cat.includes('quake') || cat === 'eq') {
-        const mag = parseFloat(h.intensity.replace('Magnitude ', '')) || 0;
+        const mag = Number.isFinite(Number(h.magnitude)) ? Number(h.magnitude) : (parseFloat(String(h.intensity || "").replace("Magnitude ", "")) || 0);
         const energyJ = 10 ** (1.5 * mag + 4.8);
         totalSeismicEnergyJoules += energyJ;
         if (mag >= 5.0 && timeMs > mostRecentMajorTime) mostRecentMajorTime = timeMs;
@@ -1623,7 +1933,12 @@ async function fetchLiveHazards() {
         else if (mag >= 5.0) { level = "alert"; alertCount++; }
         else { watchCount++; }
 
-        EVENT_STORE.global.push({ place: h.name, magnitude: mag, depth_km: 10, latitude: lat, longitude: lon, time: h.observed_at, level });
+        EVENT_STORE.global.push({
+          place:h.name, magnitude:mag,
+          depth_km:Number.isFinite(Number(h.depth_km)) ? Number(h.depth_km) : null,
+          latitude:Number(lat), longitude:Number(lon), time:h.observed_at, level,
+          source:h.source || "Source"
+        });
 
         const isPriority = mag >= 5.0;
         let pinClass = mag >= 6.0 ? "custom-hazard-pin pin-quake-major pulse-priority" : "custom-hazard-pin pin-quake";
@@ -1650,6 +1965,8 @@ async function fetchLiveHazards() {
     });
 
     rebuildPriorityLookout();
+    renderOperationalTimeline(hazards);
+    renderLocalOperations();
 
     // UPDATE UI TILES
     $("c-escalate").textContent = escalateCount;
@@ -1662,7 +1979,7 @@ async function fetchLiveHazards() {
     // UPDATE TRAY HTML
     $("q-global").innerHTML = EVENT_STORE.global.length > 0 ? EVENT_STORE.global.map((q, idx) => {
       const t = formatTimeElapsed(q.time);
-      return `<div class="qrow" onclick="inspectEventDetail('global', ${idx})"><div class="mag ${q.level}">${q.magnitude.toFixed(1)}</div><div><div class="qtitle">${q.place} ↗</div><div class="qmeta"><span style="color:var(--gold)">🕒 ${t.elapsed} · ${t.fullDate}</span><span>Depth: ${q.depth_km}km</span></div></div></div>`;
+      return `<div class="qrow" onclick="inspectEventDetail('global', ${idx})"><div class="mag ${q.level}">${q.magnitude.toFixed(1)}</div><div><div class="qtitle">${q.place} ↗</div><div class="qmeta"><span style="color:var(--gold)">🕒 ${t.elapsed} · ${t.fullDate}</span><span>Depth: ${q.depth_km ?? "—"} km</span><span>${escapeHtml(q.source || "Source")}</span></div></div></div>`;
     }).join("") : '<div style="color:var(--muted); padding:10px;">No global shocks Magnitude 3.0+ in past 24h.</div>';
 
     $("stormContainer").innerHTML = EVENT_STORE.storms.length > 0 ? EVENT_STORE.storms.map((s, idx) => {
@@ -1675,45 +1992,7 @@ async function fetchLiveHazards() {
       return `<div class="hazard-card-row" style="border-left:3px solid var(--hot); font-family:var(--font-mono); font-size:12px;"><div style="font-weight:800; font-size:1.05rem; color:#fff; margin-bottom:4px;">🌋 ${v.title}</div><div style="color:var(--warn); margin-bottom:4px;"><strong>Observatory Status:</strong> ${v.intensity} · ${v.observatory}</div><div style="color:var(--soft); line-height:1.45; margin-bottom:6px;">${v.summary}</div><div style="font-size:11px; color:var(--gold);">🕒 ${t.elapsed} · ${t.fullDate}</div></div>`;
     }).join("") : '<div style="color:var(--ok); padding:10px; font-family:var(--font-mono); font-size:13px;">✓ Global volcanic arcs are in a state of background quiescence; no significant elevated eruptive phases or ash dispersion advisories are currently detected.</div>';
 
-    // UPDATE SIGNATURE METRICS
-    const logEnergy = Math.log10(totalSeismicEnergyJoules || 1e9);
-    const seismicScore = Math.min(100, Math.max(8, Math.round(((logEnergy - 10) / 6) * 100)));
-    $("sigGhl").textContent = `${seismicScore} / 100`;
-
-    // Disruption Velocity (trailing 6h vs rolling 24h)
-    const sixHoursAgo = Date.now() - (6 * 3600 * 1000);
-    const countLast6h = EVENT_STORE.global.filter(e => new Date(e.time).getTime() >= sixHoursAgo).length;
-    const countPrior18h = Math.max(0, EVENT_STORE.global.length - countLast6h);
-    const rate6h = countLast6h / 6;
-    const rate18h = countPrior18h / 18 || 0.1;
-    const velocityPct = Math.round(((rate6h - rate18h) / rate18h) * 100);
-    $("sigVelocity").textContent = `${velocityPct >= 0 ? '+' : ''}${velocityPct}%`;
-
-    // Proximity Clusters (co-located within 350km)
-    let clusterPairs = 0;
-    for (let i = 0; i < EVENT_STORE.global.length; i++) {
-      for (let j = i + 1; j < EVENT_STORE.global.length; j++) {
-        const dist = haversine(EVENT_STORE.global[i].latitude, EVENT_STORE.global[i].longitude,
-                               EVENT_STORE.global[j].latitude, EVENT_STORE.global[j].longitude);
-        if (dist <= 350) clusterPairs++;
-      }
-    }
-    $("sigConvergence").textContent = `${clusterPairs} Pairs`;
-
-    if (mostRecentMajorTime > 0) {
-      const elapsedMajorSec = Math.floor((Date.now() - mostRecentMajorTime) / 1000);
-      $("sigEscapeWindow").textContent = `${Math.floor(elapsedMajorSec / 3600)}h ${Math.floor((elapsedMajorSec % 3600) / 60)}m Ago (M5+)`;
-      $("sigEscapeBadge").textContent = "ELEVATED";
-      $("sigEscapeBadge").style.color = "var(--hot)";
-    } else {
-      $("sigEscapeWindow").textContent = "STABLE BASELINE";
-      $("sigEscapeBadge").textContent = "NOMINAL";
-      $("sigEscapeBadge").style.color = "var(--ok)";
-    }
-
-    $("sigExposedPop").textContent = `${EVENT_STORE.global.length} Zones`;
-    $("sigMultiExposed").textContent = `${EVENT_STORE.global.length}`;
-
+    // Local and timeline intelligence refreshed above.
     evaluateLocalPerimeter();
     evaluateLegacyWatch();
   } catch (e) {
@@ -1815,47 +2094,7 @@ function evaluateLegacyWatch() {
 }
 
 function evaluateLocalPerimeter() {
-  const pill = $("perimeterSentinelPill");
-  const txt = $("perimeterStatusText");
-  if (!pill || !txt) return;
-
-  if (ALL_ACTIVE_EVENTS.length === 0) return;
-  const nearby = ALL_ACTIVE_EVENTS.filter(e => haversine(userLat, userLon, e.lat, e.lon) <= 300);
-  if (nearby.length > 0) {
-    pill.className = "compact-perimeter-pill active-threat";
-    txt.textContent = `ALERT: ${nearby.length} ACTIVE EVENT(S) WITHIN 300 KM`;
-  } else {
-    pill.className = "compact-perimeter-pill";
-    txt.textContent = `PERIMETER CLEAR: NO SEVERE VECTORS WITHIN 300 KM`;
-  }
-}
-
-function handlePerimeterClick() {
-  const nearby = ALL_ACTIVE_EVENTS.filter(e => haversine(userLat, userLon, e.lat, e.lon) <= 300);
-  alert(`300km Multi-Hazard Perimeter active around ${userCity}.\nActive events inside perimeter: ${nearby.length}`);
-}
-
-function inspectMetricInfo(type) {
-  let title = "", body = "";
-  if (type === 'ghl') {
-    title = "Seismic Activity Score";
-    body = "Empirical kinetic index measuring cumulative scalar seismic energy release (Joules) normalized against planetary fault strain norms.";
-  } else if (type === 'velocity') {
-    title = "Disruption Velocity Index";
-    body = "Calculates the mathematical rate of change in event incidence, comparing trailing 6-hour shock rates against the rolling 24-hour mean.";
-  } else if (type === 'convergence') {
-    title = "Proximity Clusters";
-    body = "Spatial algorithm tracking pairs of seismic dislocations co-located within 350 km of each other over rolling 24-hour envelopes.";
-  } else if (type === 'escape') {
-    title = "Major Shock Recency Timer";
-    body = "Deterministic timer logging the exact elapsed duration since the last severe crustal rupture (Magnitude 5.0+) on monitored fault blocks.";
-  } else if (type === 'population') {
-    title = "Monitored Epicenters";
-    body = "Exact count of discrete geographic fault blocks and epicenters currently undergoing recorded tectonic displacement.";
-  }
-  $("metricInfoTitle").textContent = title;
-  $("metricInfoBody").textContent = body;
-  openModal('modalMetricInfo');
+  renderLocalOperations();
 }
 
 function inspectEventDetail(type, idx) {
