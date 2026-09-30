@@ -41,10 +41,33 @@ jobs:
           payload = json.loads(os.environ.get("PAYLOAD", "{}"))
           print(f"[*] Fulfilling incoming order: {payload}")
 
-          produce(
+          pdf_path, ref = produce(
               location=payload.get("location", "18.516958, 73.666824"),
               answers=payload.get("answers", {}),
-              site_name=payload.get("site_name", "Monitored Asset"),
+              site_name=payload.get("site_name", "Monitored Location"),
               customer_email=payload.get("customer_email", "thebrink2028@gmail.com")
           )
+
+          order_code = payload.get("order_code")
+          if order_code and os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_KEY"):
+              import requests, datetime
+              sb_url = os.environ["SUPABASE_URL"].rstrip("/")
+              sb_key = os.environ["SUPABASE_SERVICE_KEY"]
+              r = requests.patch(
+                  f"{sb_url}/rest/v1/dossier_requests?order_code=eq.{order_code}",
+                  headers={
+                      "apikey": sb_key,
+                      "Authorization": f"Bearer {sb_key}",
+                      "Content-Type": "application/json",
+                      "Prefer": "return=minimal"
+                  },
+                  json={
+                      "status": "delivered",
+                      "payment_status": "verified",
+                      "report_ref": ref,
+                      "fulfilled_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                  },
+                  timeout=15
+              )
+              print(f"[*] Order status update: {r.status_code}")
           '
