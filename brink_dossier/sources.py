@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 import cdsapi
 import xarray as xr
+import numpy as np
 import rasterio
 from rasterio.windows import Window
 from rasterio.warp import transform as rio_transform
@@ -20,6 +21,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABAS
 CDS_API_KEY = os.environ.get("CDS_API_KEY")
 JRC_FLOOD_BASE = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/flood_hazard"
 WRI_AQUEDUCT_ZIP = "https://files.wri.org/aqueduct/aqueduct-4-0-water-risk-data.zip"
+COPERNICUS_DEM_30M_BASE = "https://copernicus-dem-30m.s3.amazonaws.com"
 
 
 def _cached_get(url, params=None, ttl_seconds=1800, headers=None):
@@ -1139,6 +1141,129 @@ def fetch_aqueduct_water_risk_context(lat, lon):
     }
 
 
+def _copernicus_dem_tile_name(lat, lon):
+    """Resolve the public Copernicus DEM GLO-30 1° tile containing a coordinate."""
+    south = math.floor(lat)
+    west = math.floor(lon)
+
+    ns = "N" if south >= 0 else "S"
+    ew = "E" if west >= 0 else "W"
+    lat_label = f"{ns}{abs(int(south)):02d}_00"
+    lon_label = f"{ew}{abs(int(west)):03d}_00"
+    return f"Copernicus_DSM_COG_10_{lat_label}_{lon_label}_DEM"
+
+
+def _terrain_window_metrics(src, x, y, radius_px, lat):
+    row, col = src.index(x, y)
+    full = Window(0, 0, src.width, src.height)
+    requested = Window(
+        col - radius_px,
+        row - radius_px,
+        radius_px * 2 + 1,
+        radius_px * 2 + 1,
+    )
+    try:
+        window = requested.intersection(full)
+    except Exception:
+        window = full.intersection(requested)
+
+    arr = src.read(1, window=window, masked=True).astype("float64")
+    if arr.count() < 9:
+        return None
+
+    data = arr.filled(np.nan)
+    finite = np.isfinite(data)
+    if finite.sum() < 9:
+        return None
+
+    # Copernicus GLO-30 is geographic. Derive local metre spacing from transform.
+    transform = src.window_transform(window)
+    dx_deg = abs(transform.a)
+    dy_deg = abs(transform.e)
+    dy_m = max(1.0, dy_deg * 111320.0)
+    dx_m = max(1.0, dx_deg * 111320.0 * math.cos(math.radians(lat)))
+
+    # Fill isolated nodata with local median only for stable gradient calculation.
+    median = float(np.nanmedian(data))
+    work = np.where(finite, data, median)
+    dz_dy, dz_dx = np.gradient(work, dy_m, dx_m)
+    slope = np.degrees(np.arctan(np.sqrt(dz_dx ** 2 + dz_dy ** 2)))
+
+    return {
+        "elevation_mean_m": round(float(np.nanmean(data)), 1),
+        "elevation_min_m": round(float(np.nanmin(data)), 1),
+        "elevation_max_m": round(float(np.nanmax(data)), 1),
+        "elevation_std_m": round(float(np.nanstd(data)), 1),
+        "relief_m": round(float(np.nanmax(data) - np.nanmin(data)), 1),
+        "slope_mean_deg": round(float(np.nanmean(slope)), 1),
+        "slope_p95_deg": round(float(np.nanpercentile(slope, 95)), 1),
+        "slope_max_deg": round(float(np.nanmax(slope)), 1),
+        "valid_pixels": int(finite.sum()),
+    }
+
+
+def fetch_terrain_context(lat, lon):
+    """Terrain/elevation screening from Copernicus DEM GLO-30 public COG tiles."""
+    tile = _copernicus_dem_tile_name(lat, lon)
+    url = f"{COPERNICUS_DEM_30M_BASE}/{tile}/{tile}.tif"
+
+    env_opts = {
+        "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
+        "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif",
+        "GDAL_HTTP_TIMEOUT": "30",
+    }
+
+    try:
+        with rasterio.Env(**env_opts):
+            with rasterio.open(url) as src:
+                x, y = lon, lat
+                if src.crs and str(src.crs).upper() not in ("EPSG:4326", "OGC:CRS84"):
+                    xs, ys = rio_transform("EPSG:4326", src.crs, [lon], [lat])
+                    x, y = xs[0], ys[0]
+
+                point = next(src.sample([(x, y)], indexes=1, masked=True))
+                point_elevation = None
+                try:
+                    if not bool(point.mask[0]):
+                        raw = float(point[0])
+                        if math.isfinite(raw):
+                            point_elevation = raw
+                except Exception:
+                    point_elevation = None
+
+                # ~250 m and ~1 km radius neighbourhoods at ~30 m pixels.
+                metrics_250m = _terrain_window_metrics(src, x, y, 9, lat)
+                metrics_1km = _terrain_window_metrics(src, x, y, 34, lat)
+
+                return {
+                    "status": "ok",
+                    "dataset": "Copernicus DEM GLO-30 Public",
+                    "publisher": "Copernicus Programme / AWS Open Data",
+                    "release": "2021",
+                    "tile": tile,
+                    "url": url,
+                    "point_elevation_m": round(point_elevation, 1) if point_elevation is not None else None,
+                    "metrics_250m": metrics_250m,
+                    "metrics_1km": metrics_1km,
+                    "resolution": "1 arc-second (~30 m)",
+                    "surface_model_note": "Digital Surface Model including terrain plus above-ground features such as vegetation and buildings.",
+                    "limitations": (
+                        "Copernicus DEM GLO-30 is a digital surface model, not a survey-grade bare-earth terrain model. "
+                        "Slope and relief are screening metrics derived by The Brink World from the DEM neighbourhood. "
+                        "Buildings, vegetation, voids and local artefacts can influence values. These metrics do not by themselves "
+                        "establish landslide susceptibility, geotechnical stability or access-route failure."
+                    ),
+                }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "reason": f"Copernicus DEM terrain retrieval failed: {str(exc)[:260]}",
+            "dataset": "Copernicus DEM GLO-30 Public",
+            "tile": tile,
+            "url": url,
+        }
+
+
 def agriculture_context(now, country_code, purpose_details, wx_summary):
     details = purpose_details or {}
     crop = str(details.get("crop") or "").strip() or None
@@ -1261,6 +1386,7 @@ def fetch_telemetry(lat, lon, context=None):
     historical_rainfall = fetch_historical_rainfall_context(lat, lon)
     river_flood = fetch_jrc_river_flood_context(lat, lon)
     water_risk = fetch_aqueduct_water_risk_context(lat, lon)
+    terrain = fetch_terrain_context(lat, lon)
     wx_summary = forecast_summary(days)
     purpose_details = context.get("purpose_details") or {}
     purpose = str(context.get("occupancy") or context.get("purpose") or "").lower()
@@ -1291,6 +1417,7 @@ def fetch_telemetry(lat, lon, context=None):
         "historical_rainfall": historical_rainfall,
         "river_flood": river_flood,
         "water_risk": water_risk,
+        "terrain": terrain,
         "recent_quakes": recent_events,
         "quake_count_30d_350km": len(quakes_data.get("features", [])),
         "live_hazards_300km": local_300,
@@ -1344,6 +1471,11 @@ def fetch_telemetry(lat, lon, context=None):
                 "type": "Basin-level baseline and future water-risk screening",
                 "note": "Baseline water stress, depletion, variability and drought-risk indicators plus CMIP6-based future water-stress projections for 2030, 2050 and 2080. CC BY 4.0; use as a prioritization tool with local verification."
             } if water_risk.get("status") == "ok" else None,
+            {
+                "name": "Copernicus DEM GLO-30 Public",
+                "type": "Digital surface model / terrain screening",
+                "note": "Public ~30 m Copernicus DEM 2021 COG used to derive point elevation, local slope and relief metrics. DSM values may include buildings and vegetation; not a geotechnical assessment."
+            } if terrain.get("status") == "ok" else None,
             {
                 "name": "OpenStreetMap / Overpass",
                 "type": "Mapped infrastructure",
