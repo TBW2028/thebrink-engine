@@ -116,6 +116,91 @@ def _purpose_blocks(data, answers):
     return None
 
 
+
+def _commercial_product_section(meta, data, answers):
+    product_type = str(meta.get("product_type") or "location_dossier")
+    if product_type == "location_dossier":
+        return None
+
+    official = data.get("official_warnings_300km") or []
+    local = data.get("live_hazards_300km") or []
+    summary = data.get("forecast_summary") or {}
+    quake_count = data.get("quake_count_30d_350km", 0)
+
+    if product_type == "facility_risk_passport":
+        rows = [
+            ["Official warnings ≤300 km", str(len(official)), "Current authoritative-warning environment resolved by the configured feeds."],
+            ["Resolved live signals ≤300 km", str(len(local)), "Current geolocated monitored events/warnings around the facility."],
+            ["Regional earthquakes · 30d / 350 km", str(quake_count), "Observed seismic context, not a structural-damage estimate."],
+            ["7-day forecast rainfall", _fmt(summary.get("rain_total_7d_mm"), " mm"), "Near-term interruption and drainage context."],
+            ["Peak forecast wind", _fmt(summary.get("max_wind_7d_kmh"), " km/h"), "Near-term exposed-operations context."],
+            ["Mapped major roads ≤5 km", str(len(data.get("mapped_primary_roads_5km") or [])), "Access-context indicator; does not confirm current route passability."],
+        ]
+        return {
+            "title": "Facility Monitoring Record",
+            "subtitle": "Current external-risk evidence maintained for this facility.",
+            "blocks": [
+                {"kind": "table", "title": "Facility Risk Register Snapshot", "headers": ["MONITORED DOMAIN", "CURRENT EVIDENCE", "USE"], "rows": rows},
+                {"kind": "flag", "title": "MATERIAL-CHANGE RULE", "severe": False, "text": "A recurring Facility Risk Passport should be regenerated when a new official warning, significant nearby hazard signal, or other defined monitoring trigger materially changes the facility's external operating environment."},
+            ],
+        }
+
+    if product_type == "physical_risk_evidence_pack":
+        rows = [
+            ["Acute official-warning evidence", str(len(official)), "Current official-warning count within the analysis radius."],
+            ["Current hazard-event evidence", str(len(local)), "Current resolved operational signals within the analysis radius."],
+            ["Seismic observation window", f"{quake_count} events", "30-day observed USGS context within 350 km at M2.5+."],
+            ["Near-term precipitation", _fmt(summary.get("rain_total_7d_mm"), " mm"), "Short-horizon modelled weather evidence."],
+            ["Temperature range", f"{_fmt(summary.get('min_temp_7d_c'), '°C')} to {_fmt(summary.get('max_temp_7d_c'), '°C')}", "Near-term modelled temperature envelope."],
+            ["Evidence timestamp", _when(data.get("retrieved_at")), "Evidence should be refreshed for reporting periods and material changes."],
+        ]
+        return {
+            "title": "Physical Risk Evidence Register",
+            "subtitle": "Structured evidence that can support climate-risk, sustainability and enterprise-risk assessment workflows.",
+            "blocks": [
+                {"kind": "table", "title": "Evidence Register", "headers": ["EVIDENCE DOMAIN", "CURRENT EVIDENCE", "REPORTING USE"], "rows": rows},
+                {"kind": "flag", "title": "REPORTING BOUNDARY", "severe": False, "text": "This pack supplies external physical-risk evidence. Materiality, financial effects, transition risk, governance, strategy, scenario analysis and framework-specific disclosures remain the reporting entity's responsibility unless separately commissioned."},
+            ],
+        }
+
+    if product_type == "pre_underwriting_site_intelligence":
+        rows = [
+            ["Current official warnings ≤300 km", str(len(official)), "Current authority-issued warning environment."],
+            ["Current hazard signals ≤300 km", str(len(local)), "Observed/reported event context around the site."],
+            ["Regional seismic activity", f"{quake_count} M2.5+ events / 30d / 350 km", "Seismic context only; does not estimate damage probability or loss."],
+            ["Elevation", _fmt(data.get("elevation_m"), " m"), "Terrain context; not a survey elevation."],
+            ["Nearest mapped fire station", _service_value(data.get("nearest_fire_station"), data.get("service_search_radius_km") or 80, "fire station"), "Mapped proximity only; not response time."],
+            ["Mapped major roads ≤5 km", str(len(data.get("mapped_primary_roads_5km") or [])), "Access redundancy context only."],
+        ]
+        return {
+            "title": "Pre-Underwriting Evidence",
+            "subtitle": "External-site evidence for broker, risk-survey and commercial-property review.",
+            "blocks": [
+                {"kind": "table", "title": "Site Evidence Register", "headers": ["UNDERWRITING QUESTION", "CURRENT EVIDENCE", "BOUNDARY"], "rows": rows},
+                {"kind": "flag", "title": "UNDERWRITING BOUNDARY", "severe": False, "text": "No premium, insurability, probable maximum loss, policy term or claims decision is inferred. The report supplies external evidence for a qualified underwriting or risk-survey process."},
+            ],
+        }
+
+    if product_type == "business_continuity_threat_register":
+        rows = [
+            ["Severe weather / official warning", str(len(official)), "Trigger: new authority warning intersecting the monitoring radius.", "Operations / access / workforce"],
+            ["Nearby hazard event", str(len(local)), "Trigger: new Significant/Severe/Critical event within the defined radius.", "Site continuity / transport / utilities"],
+            ["Heavy rain / flood pressure", _fmt(summary.get("rain_total_7d_mm"), " mm forecast"), "Trigger: site-defined precipitation threshold or official flood warning.", "Access / drainage / logistics"],
+            ["Wind exposure", _fmt(summary.get("max_wind_7d_kmh"), " km/h"), "Trigger: site-defined wind limit or authority warning.", "Outdoor work / loading / temporary structures"],
+            ["Regional seismicity", f"{quake_count} M2.5+ events / 30d", "Trigger: significant regional event or sequence requiring facility review.", "Facility / utilities / access"],
+        ]
+        return {
+            "title": "External Threat Register",
+            "subtitle": "A structured external-threat input for business-continuity and operational-resilience review.",
+            "blocks": [
+                {"kind": "table", "title": "Threat Register", "headers": ["THREAT", "CURRENT EVIDENCE", "MONITORING TRIGGER", "DEPENDENCY"], "rows": rows},
+                {"kind": "flag", "title": "BCMS BOUNDARY", "severe": False, "text": "The organisation should set its own impact tolerances, recovery objectives, escalation thresholds, owners and continuity actions. This register supplies external threat evidence; it is not a business-impact analysis or certification."},
+            ],
+        }
+
+    return None
+
+
 def build_report_blocks(meta, data, answers):
     strongest = data.get("strongest_local_signal")
     local = data.get("live_hazards_300km") or []
@@ -283,6 +368,10 @@ def build_report_blocks(meta, data, answers):
     purpose_section = _purpose_blocks(data, answers)
     if purpose_section:
         sections.append(purpose_section)
+
+    commercial_section = _commercial_product_section(meta, data, answers)
+    if commercial_section:
+        sections.append(commercial_section)
 
     sections.extend([
         {"title": "Operational Context", "subtitle": "Mapped access, emergency-service and helpline context around the selected point.", "blocks": access_blocks},
