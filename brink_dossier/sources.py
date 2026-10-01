@@ -1,9 +1,12 @@
-import os, math, json, time, requests, tempfile, zipfile
+import os, math, json, time, requests, tempfile, zipfile, re
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
 import cdsapi
 import xarray as xr
+import rasterio
+from rasterio.windows import Window
+from rasterio.warp import transform as rio_transform
 
 CACHE_DIR = Path(".brink_cache")
 CACHE_DIR.mkdir(exist_ok=True)
@@ -11,6 +14,7 @@ CACHE_DIR.mkdir(exist_ok=True)
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 CDS_API_KEY = os.environ.get("CDS_API_KEY")
+JRC_FLOOD_BASE = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/flood_hazard"
 
 
 def _cached_get(url, params=None, ttl_seconds=1800, headers=None):
@@ -717,6 +721,167 @@ def fetch_historical_rainfall_context(lat, lon):
     }
 
 
+def _jrc_tile_label(lat, lon):
+    """Return the JRC 10-degree tile label used in the flood-hazard filenames."""
+    if lat > 0:
+        lat_label = f"N{int(math.ceil(lat / 10.0) * 10)}"
+    elif lat < 0:
+        lat_label = f"S{int(math.ceil(abs(lat) / 10.0) * 10)}"
+    else:
+        lat_label = "N0"
+
+    if lon > 0:
+        lon_band = int(math.floor(lon / 10.0) * 10)
+        lon_label = f"E{lon_band}" if lon_band > 0 else "W0"
+    elif lon < 0:
+        lon_label = f"W{int(math.ceil(abs(lon) / 10.0) * 10)}"
+    else:
+        lon_label = "W0"
+
+    return f"{lat_label}_{lon_label}"
+
+
+def _jrc_tile_prefix(lat, lon):
+    """Resolve the tile ID from the public RP100 directory index."""
+    tile_label = _jrc_tile_label(lat, lon)
+    index_url = f"{JRC_FLOOD_BASE}/RP100/"
+    r = requests.get(index_url, timeout=25)
+    r.raise_for_status()
+    pattern = re.compile(
+        rf"(ID\d+_{re.escape(tile_label)})_RP100_depth\.tif",
+        re.IGNORECASE,
+    )
+    match = pattern.search(r.text)
+    return match.group(1) if match else None
+
+
+def _jrc_sample_remote_depth(url, lat, lon):
+    """Sample point depth and a small neighbourhood from a public JRC GeoTIFF."""
+    env_opts = {
+        "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
+        "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif",
+        "GDAL_HTTP_TIMEOUT": "25",
+    }
+    with rasterio.Env(**env_opts):
+        with rasterio.open(url) as src:
+            x, y = lon, lat
+            if src.crs and str(src.crs).upper() not in ("EPSG:4326", "OGC:CRS84"):
+                xs, ys = rio_transform("EPSG:4326", src.crs, [lon], [lat])
+                x, y = xs[0], ys[0]
+
+            point = next(src.sample([(x, y)], indexes=1, masked=True))
+            point_value = None
+            try:
+                if not bool(point.mask[0]):
+                    raw = float(point[0])
+                    if not math.isnan(raw) and raw >= 0:
+                        point_value = raw
+            except Exception:
+                point_value = None
+
+            try:
+                row, col = src.index(x, y)
+                radius_px = 3
+                window = Window(
+                    col - radius_px,
+                    row - radius_px,
+                    radius_px * 2 + 1,
+                    radius_px * 2 + 1,
+                ).intersection(Window(0, 0, src.width, src.height))
+                arr = src.read(1, window=window, masked=True)
+                vals = arr.compressed()
+                nearby_max = float(vals.max()) if vals.size else None
+                if nearby_max is not None and (math.isnan(nearby_max) or nearby_max < 0):
+                    nearby_max = None
+            except Exception:
+                nearby_max = None
+
+            return {
+                "point_depth_m": round(point_value, 2) if point_value is not None else None,
+                "nearby_max_depth_m": round(nearby_max, 2) if nearby_max is not None else None,
+                "crs": str(src.crs) if src.crs else None,
+                "pixel_size": [abs(src.transform.a), abs(src.transform.e)],
+            }
+
+
+def fetch_jrc_river_flood_context(lat, lon):
+    """Screen modelled riverine inundation depth using JRC/CEMS GloFAS v2.1.2."""
+    tile_prefix = None
+    try:
+        tile_prefix = _jrc_tile_prefix(lat, lon)
+    except Exception as exc:
+        return {
+            "status": "error",
+            "reason": f"JRC flood tile lookup failed: {str(exc)[:220]}",
+            "dataset": "Global river flood hazard maps v2.1.2",
+        }
+
+    if not tile_prefix:
+        return {
+            "status": "not_covered",
+            "reason": "No JRC/CEMS flood-hazard tile was resolved for the assessed coordinate.",
+            "dataset": "Global river flood hazard maps v2.1.2",
+        }
+
+    depths = {}
+    errors = {}
+    for rp in (10, 20, 50, 75, 100, 200, 500):
+        url = f"{JRC_FLOOD_BASE}/RP{rp}/{tile_prefix}_RP{rp}_depth.tif"
+        try:
+            depths[str(rp)] = {
+                **_jrc_sample_remote_depth(url, lat, lon),
+                "url": url,
+            }
+        except Exception as exc:
+            errors[str(rp)] = str(exc)[:220]
+
+    if not depths:
+        return {
+            "status": "error",
+            "reason": "JRC/CEMS river-flood rasters could not be sampled for this coordinate.",
+            "dataset": "Global river flood hazard maps v2.1.2",
+            "errors": errors,
+        }
+
+    point_exposed_rps = [
+        int(rp) for rp, rec in depths.items()
+        if (rec.get("point_depth_m") or 0) >= 0.1
+    ]
+    nearby_exposed_rps = [
+        int(rp) for rp, rec in depths.items()
+        if (rec.get("nearby_max_depth_m") or 0) >= 0.1
+    ]
+
+    all_values = [
+        value
+        for rec in depths.values()
+        for value in (rec.get("point_depth_m"), rec.get("nearby_max_depth_m"))
+        if value is not None
+    ]
+
+    return {
+        "status": "ok",
+        "dataset": "Global river flood hazard maps v2.1.2",
+        "publisher": "Copernicus Emergency Management Service / European Commission Joint Research Centre",
+        "tile": tile_prefix,
+        "resolution": "3 arc-seconds (~90 m)",
+        "return_periods_years": sorted(int(rp) for rp in depths),
+        "depths": depths,
+        "lowest_point_exposure_rp_years": min(point_exposed_rps) if point_exposed_rps else None,
+        "lowest_nearby_exposure_rp_years": min(nearby_exposed_rps) if nearby_exposed_rps else None,
+        "artifact_caution": bool(all_values and max(all_values) > 10.0),
+        "errors": errors,
+        "licence": "Free and open Copernicus product / CC BY 4.0 catalogue terms",
+        "limitations": (
+            "Global modelled riverine flood screening, not an official local flood map. "
+            "Point depth is the modelled grid-cell value at the assessed coordinate; the nearby value is a small "
+            "approximately 250-300 m neighbourhood screen and must not be treated as on-site inundation. "
+            "The dataset does not represent pluvial drainage flooding or parcel/building finished-floor conditions. "
+            "Coverage/model artefacts can occur, especially very high depths and areas outside represented river basins."
+        ),
+    }
+
+
 def agriculture_context(now, country_code, purpose_details, wx_summary):
     details = purpose_details or {}
     crop = str(details.get("crop") or "").strip() or None
@@ -837,6 +1002,7 @@ def fetch_telemetry(lat, lon, context=None):
     osm = fetch_osm_operational_context(lat, lon)
     historical_heat = fetch_historical_heat_context(lat, lon)
     historical_rainfall = fetch_historical_rainfall_context(lat, lon)
+    river_flood = fetch_jrc_river_flood_context(lat, lon)
     wx_summary = forecast_summary(days)
     purpose_details = context.get("purpose_details") or {}
     purpose = str(context.get("occupancy") or context.get("purpose") or "").lower()
@@ -865,6 +1031,7 @@ def fetch_telemetry(lat, lon, context=None):
         "forecast_summary": wx_summary,
         "historical_heat": historical_heat,
         "historical_rainfall": historical_rainfall,
+        "river_flood": river_flood,
         "recent_quakes": recent_events,
         "quake_count_30d_350km": len(quakes_data.get("features", [])),
         "live_hazards_300km": local_300,
@@ -908,6 +1075,11 @@ def fetch_telemetry(lat, lon, context=None):
                 "type": "Reanalysis / historical precipitation",
                 "note": "Historical rainfall baseline derived from ERA5-Land hourly point time-series; CC-BY-4.0; DOI 10.24381/ee82e357. This is rainfall evidence, not a flood-depth map."
             } if historical_rainfall.get("status") == "ok" else None,
+            {
+                "name": "JRC/CEMS GloFAS Global river flood hazard maps v2.1.2",
+                "type": "Modelled riverine flood inundation",
+                "note": "Global riverine flood water-depth screening at approximately 90 m for multiple return periods. Not an official local flood map; does not represent pluvial drainage flooding."
+            } if river_flood.get("status") == "ok" else None,
             {
                 "name": "OpenStreetMap / Overpass",
                 "type": "Mapped infrastructure",
