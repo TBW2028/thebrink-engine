@@ -619,9 +619,10 @@ def main(argv=None) -> int:
     if args.dry_run:
         store = DryStore()
     else:
-        url, key = os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY")
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         if not (url and key):
-            ap.error("set SUPABASE_URL and SUPABASE_SERVICE_KEY (or use --dry-run)")
+            ap.error("set SUPABASE_URL and SUPABASE_SERVICE_KEY/SUPABASE_SERVICE_ROLE_KEY (or use --dry-run)")
         store = Store(url, key)
     results = [run_source(n, store, args.dry_run) for n in names]
     return 0 if all(results) else 1
