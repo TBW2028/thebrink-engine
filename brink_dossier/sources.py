@@ -1,4 +1,4 @@
-import os, math, json, time, requests, tempfile
+import os, math, json, time, requests, tempfile, zipfile
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
@@ -240,14 +240,15 @@ def _percentile(values, q):
 
 
 def _cds_daily_temperature(lat, lon, statistic):
-    """Download ERA5-Land daily 2 m temperature statistics for one grid-cell area."""
+    """Download ERA5-Land daily 2 m temperature statistics for one small area."""
     if not CDS_API_KEY:
         raise RuntimeError("CDS_API_KEY is not configured.")
 
-    cache_key = f"era5land_{statistic}_{round(lat, 2)}_{round(lon, 2)}_1991_2025.nc"
-    cache_file = CACHE_DIR / cache_key
+    cache_stem = f"era5land_{statistic}_{round(lat, 2)}_{round(lon, 2)}_1991_2025"
+    zip_path = CACHE_DIR / f"{cache_stem}.zip"
+    extract_dir = CACHE_DIR / cache_stem
 
-    if not cache_file.exists():
+    if not zip_path.exists():
         client = cdsapi.Client(
             url="https://cds.climate.copernicus.eu/api",
             key=CDS_API_KEY,
@@ -272,53 +273,82 @@ def _cds_daily_temperature(lat, lon, statistic):
         client.retrieve(
             "derived-era5-land-daily-statistics",
             request,
-            str(cache_file),
+            str(zip_path),
         )
 
-    ds = xr.open_dataset(cache_file)
-    try:
-        if not ds.data_vars:
-            raise RuntimeError("ERA5-Land response contained no data variables.")
-        da = ds[next(iter(ds.data_vars))]
+    extract_dir.mkdir(exist_ok=True)
 
-        time_dim = next(
-            (d for d in da.dims if d in ("valid_time", "time", "date")),
-            None,
-        )
-        if not time_dim:
-            time_dim = next((d for d in da.dims if "time" in d.lower()), None)
-        if not time_dim:
-            raise RuntimeError("Could not identify the time dimension in ERA5-Land data.")
+    # CDS daily-statistics downloads are normally ZIP archives containing NetCDF.
+    nc_files = sorted(extract_dir.glob("*.nc"))
+    if not nc_files:
+        if zipfile.is_zipfile(zip_path):
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                safe_members = [
+                    name for name in zf.namelist()
+                    if name.lower().endswith(".nc")
+                    and ".." not in Path(name).parts
+                    and not Path(name).is_absolute()
+                ]
+                if not safe_members:
+                    raise RuntimeError("CDS ERA5-Land ZIP contained no NetCDF file.")
+                for name in safe_members:
+                    target = extract_dir / Path(name).name
+                    with zf.open(name) as source, open(target, "wb") as dest:
+                        dest.write(source.read())
+            nc_files = sorted(extract_dir.glob("*.nc"))
+        else:
+            # Defensive fallback in case CDS returns a direct NetCDF payload.
+            direct_nc = extract_dir / f"{cache_stem}.nc"
+            direct_nc.write_bytes(zip_path.read_bytes())
+            nc_files = [direct_nc]
 
-        for dim in list(da.dims):
-            if dim != time_dim:
-                da = da.isel({dim: 0})
+    if not nc_files:
+        raise RuntimeError("Could not resolve an ERA5-Land NetCDF payload.")
 
-        values = da.values.tolist()
-        if not isinstance(values, list):
-            values = [values]
-        times = da[time_dim].values.tolist()
-        if not isinstance(times, list):
-            times = [times]
-
-        rows = []
-        for t, value in zip(times, values):
-            try:
-                temp = float(value)
-                if math.isnan(temp):
-                    continue
-                # ERA5 temperatures are normally Kelvin.
-                if temp > 150:
-                    temp -= 273.15
-                day = str(t)[:10]
-                if len(day) < 10:
-                    continue
-                rows.append((day, temp))
-            except (TypeError, ValueError):
+    rows = []
+    for nc_file in nc_files:
+        ds = xr.open_dataset(nc_file)
+        try:
+            if not ds.data_vars:
                 continue
-        return rows
-    finally:
-        ds.close()
+            da = ds[next(iter(ds.data_vars))]
+
+            time_dim = next(
+                (d for d in da.dims if d in ("valid_time", "time", "date")),
+                None,
+            )
+            if not time_dim:
+                time_dim = next((d for d in da.dims if "time" in d.lower()), None)
+            if not time_dim:
+                raise RuntimeError("Could not identify the time dimension in ERA5-Land data.")
+
+            for dim in list(da.dims):
+                if dim != time_dim:
+                    da = da.isel({dim: 0})
+
+            values = list(da.values)
+            times = list(da[time_dim].values)
+
+            for t, value in zip(times, values):
+                try:
+                    temp = float(value)
+                    if math.isnan(temp):
+                        continue
+                    if temp > 150:
+                        temp -= 273.15
+                    day = str(t)[:10]
+                    if len(day) != 10 or day[4] != "-" or day[7] != "-":
+                        continue
+                    rows.append((day, temp))
+                except (TypeError, ValueError):
+                    continue
+        finally:
+            ds.close()
+
+    rows.sort(key=lambda x: x[0])
+    if not rows:
+        raise RuntimeError("ERA5-Land NetCDF contained no usable daily temperature values.")
+    return rows
 
 
 def fetch_historical_heat_context(lat, lon):
