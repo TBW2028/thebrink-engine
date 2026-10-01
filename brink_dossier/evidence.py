@@ -88,7 +88,8 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
     signals = telemetry.get("live_hazards_300km") or []
     quakes = telemetry.get("recent_quakes") or []
     current = telemetry.get("weather_current") or {}
-    strongest = telemetry.get("strongest_local_signal")\n    historical_heat = telemetry.get("historical_heat") or {}
+    strongest = telemetry.get("strongest_local_signal")
+    historical_heat = telemetry.get("historical_heat") or {}
 
     items.append(_evidence(
         report_run_id, facility_id, "multi_hazard_operational",
