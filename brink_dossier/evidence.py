@@ -92,6 +92,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
     historical_heat = telemetry.get("historical_heat") or {}
     historical_rainfall = telemetry.get("historical_rainfall") or {}
     river_flood = telemetry.get("river_flood") or {}
+    water_risk = telemetry.get("water_risk") or {}
 
     items.append(_evidence(
         report_run_id, facility_id, "multi_hazard_operational",
@@ -372,6 +373,95 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             confidence="unresolved",
             confidence_reason=river_flood.get("reason") or "Mapped riverine flood evidence was not available.",
             limitations="Flood materiality must remain unresolved without an appropriate mapped hazard layer.",
+        ))
+
+    if water_risk.get("status") == "ok":
+        baseline = water_risk.get("baseline") or {}
+        water_specs = [
+            ("aqueduct_baseline_water_stress_raw", "Baseline water stress ratio / raw value", baseline.get("water_stress_raw"), None),
+            ("aqueduct_baseline_water_stress_score", "Baseline water stress score", baseline.get("water_stress_score"), None),
+            ("aqueduct_baseline_water_depletion_raw", "Baseline water depletion raw value", baseline.get("water_depletion_raw"), None),
+            ("aqueduct_baseline_water_depletion_score", "Baseline water depletion score", baseline.get("water_depletion_score"), None),
+            ("aqueduct_baseline_interannual_variability_raw", "Baseline interannual variability raw value", baseline.get("interannual_variability_raw"), None),
+            ("aqueduct_baseline_seasonal_variability_raw", "Baseline seasonal variability raw value", baseline.get("seasonal_variability_raw"), None),
+            ("aqueduct_baseline_drought_risk_raw", "Baseline drought risk raw value", baseline.get("drought_risk_raw"), None),
+            ("aqueduct_baseline_drought_risk_score", "Baseline drought risk score", baseline.get("drought_risk_score"), None),
+        ]
+        for code, name, value, unit in water_specs:
+            if value is None:
+                continue
+            items.append(_evidence(
+                report_run_id, facility_id, "water_stress",
+                code, name,
+                "World Resources Institute — Aqueduct 4.0", "modelled",
+                value_numeric=value if isinstance(value, (int, float)) else None,
+                value_text=None if isinstance(value, (int, float)) else str(value),
+                unit=unit,
+                source_dataset="Aqueduct 4.0 Current and Future Global Maps Data",
+                source_reference="https://www.wri.org/research/aqueduct-40-updated-decision-relevant-global-water-risk-indicators",
+                retrieved_at=retrieved,
+                spatial_resolution="Hydrological basin / Aqueduct spatial unit",
+                confidence="medium",
+                confidence_reason="Established global water-risk screening dataset; basin-level and not a local utility or hydrogeological study.",
+                limitations=water_risk.get("limitations"),
+            ))
+
+        for code, name, value in [
+            ("aqueduct_baseline_water_stress_label", "Baseline water stress category", baseline.get("water_stress_label")),
+            ("aqueduct_baseline_water_depletion_label", "Baseline water depletion category", baseline.get("water_depletion_label")),
+            ("aqueduct_baseline_interannual_variability_label", "Baseline interannual variability category", baseline.get("interannual_variability_label")),
+            ("aqueduct_baseline_seasonal_variability_label", "Baseline seasonal variability category", baseline.get("seasonal_variability_label")),
+            ("aqueduct_baseline_drought_risk_label", "Baseline drought risk category", baseline.get("drought_risk_label")),
+        ]:
+            if value is None:
+                continue
+            items.append(_evidence(
+                report_run_id, facility_id, "water_stress",
+                code, name,
+                "World Resources Institute — Aqueduct 4.0", "modelled",
+                value_text=str(value),
+                source_dataset="Aqueduct 4.0 Current and Future Global Maps Data",
+                source_reference="https://www.wri.org/research/aqueduct-40-updated-decision-relevant-global-water-risk-indicators",
+                retrieved_at=retrieved,
+                confidence="medium",
+                confidence_reason="Aqueduct category assigned at basin level.",
+                limitations=water_risk.get("limitations"),
+            ))
+
+        future = water_risk.get("future_water_stress") or {}
+        for scenario, years in future.items():
+            scenario_label = (water_risk.get("future_scenarios") or {}).get(scenario)
+            for year, rec in (years or {}).items():
+                if not isinstance(rec, dict):
+                    continue
+                items.append(_evidence(
+                    report_run_id, facility_id, "water_stress",
+                    f"aqueduct_future_water_stress_{scenario}_{year}",
+                    f"Projected water stress — {scenario.replace('_',' ')} — {year}",
+                    "World Resources Institute — Aqueduct 4.0", "modelled",
+                    value_numeric=rec.get("score") if isinstance(rec.get("score"), (int, float)) else None,
+                    value_text=str(rec.get("label") or rec.get("category") or "") or None,
+                    source_dataset="Aqueduct 4.0 Future Global Maps Data",
+                    source_reference="https://www.wri.org/research/aqueduct-40-updated-decision-relevant-global-water-risk-indicators",
+                    retrieved_at=retrieved,
+                    scenario=scenario_label or scenario,
+                    time_horizon=str(year),
+                    spatial_resolution="Hydrological basin / Aqueduct spatial unit",
+                    confidence="medium",
+                    confidence_reason="CMIP6-based Aqueduct future water-stress projection intended for global screening and prioritization.",
+                    limitations=water_risk.get("limitations"),
+                    raw_evidence={"raw": rec.get("raw"), "score": rec.get("score"), "label": rec.get("label"), "category": rec.get("category")},
+                ))
+    else:
+        items.append(_evidence(
+            report_run_id, facility_id, "water_stress",
+            "aqueduct_water_risk_status", "Aqueduct 4.0 water-risk evidence availability",
+            "World Resources Institute — Aqueduct 4.0", "modelled",
+            value_text=str(water_risk.get("status") or "not_available"),
+            retrieved_at=retrieved,
+            confidence="unresolved",
+            confidence_reason=water_risk.get("reason") or "Aqueduct 4.0 evidence was not available.",
+            limitations="Water-stress materiality must remain unresolved until basin-level evidence is available.",
         ))
 
     if telemetry.get("elevation_m") is not None:
@@ -790,22 +880,92 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             support=["river_flood_map_status", "baseline_rx1day_mm", "baseline_rx5day_mm", "elevation_m", "client_basement_present", "client_critical_equipment_level", "client_drainage_protection"],
         )
 
-    add(
-        "water_stress", "evidence_gap",
-        "Baseline and future water-stress exposure have not yet been characterised.",
-        sensitivity=(
-            "high" if profile.get("water_dependency") in ("high", "critical")
-            else "moderate" if profile.get("water_dependency") == "moderate"
-            else "low" if profile.get("water_dependency") == "low"
-            else "unresolved"
-        ),
-        reasoning="Facility water dependency can be recorded now, but regional baseline/future water-stress evidence is not yet present.",
-        confidence="unresolved",
-        confidence_reason="No V2 water-stress dataset has yet been added.",
-        action_type="verify",
-        action="Add baseline and future water-stress evidence before materiality classification.",
-        support=["client_water_dependency"],
+    water_ctx = telemetry.get("water_risk") or {}
+    water_sensitivity = (
+        "high" if profile.get("water_dependency") in ("high", "critical")
+        else "moderate" if profile.get("water_dependency") == "moderate"
+        else "low" if profile.get("water_dependency") == "low"
+        else "unresolved"
     )
+
+    if water_ctx.get("status") == "ok":
+        baseline = water_ctx.get("baseline") or {}
+        label = str(baseline.get("water_stress_label") or "").lower()
+        drought_label = str(baseline.get("drought_risk_label") or "").lower()
+        future = water_ctx.get("future_water_stress") or {}
+
+        future_labels = []
+        for scenario in future.values():
+            for rec in (scenario or {}).values():
+                if isinstance(rec, dict) and rec.get("label"):
+                    future_labels.append(str(rec.get("label")).lower())
+
+        high_baseline = any(term in label for term in ("extremely high", "high"))
+        medium_baseline = "medium" in label
+        high_drought = any(term in drought_label for term in ("extremely high", "high"))
+        future_high = any(any(term in x for term in ("extremely high", "high")) for x in future_labels)
+
+        support = [
+            "aqueduct_baseline_water_stress_raw",
+            "aqueduct_baseline_water_stress_score",
+            "aqueduct_baseline_water_stress_label",
+            "aqueduct_baseline_water_depletion_label",
+            "aqueduct_baseline_drought_risk_label",
+            "aqueduct_future_water_stress_business_as_usual_2030",
+            "aqueduct_future_water_stress_business_as_usual_2050",
+            "aqueduct_future_water_stress_pessimistic_2050",
+            "client_water_dependency",
+        ]
+
+        if water_sensitivity == "high" and (high_baseline or high_drought or future_high):
+            add(
+                "water_stress", "material",
+                "Aqueduct 4.0 indicates elevated basin-level water stress and/or drought exposure, and the facility reports high or critical dependence on uninterrupted water supply.",
+                sensitivity=water_sensitivity,
+                reasoning="Basin-level water scarcity evidence combines with client-declared operational dependency, creating a plausible supply-disruption pathway.",
+                consequence="Operational continuity may be sensitive to restrictions, reduced availability, supply interruptions or competition for water during stressed periods.",
+                confidence="medium",
+                confidence_reason="Aqueduct is a well-established global screening dataset, while actual utility reliability, local groundwater conditions and facility dependency are not independently verified.",
+                action_type="verify",
+                action="Verify local utility/source reliability, storage, alternate supply, historical restrictions and business-continuity arrangements for water interruption.",
+                support=support,
+            )
+        elif high_baseline or medium_baseline or high_drought or future_high:
+            add(
+                "water_stress", "monitor",
+                "Aqueduct 4.0 indicates relevant basin-level water-stress or drought conditions for the assessed location.",
+                sensitivity=water_sensitivity,
+                reasoning="Regional water-risk evidence is relevant, but facility consequence depends on actual source, storage, dependency and local supply management.",
+                confidence="medium",
+                confidence_reason="Aqueduct supports basin-level prioritization, not site-specific utility reliability or hydrogeological conclusions.",
+                action_type="verify",
+                action="Confirm actual water source, reliability, storage and contingency arrangements; retain future water-stress monitoring.",
+                support=support,
+            )
+        else:
+            add(
+                "water_stress", "monitor",
+                "Aqueduct 4.0 water-risk indicators are available and do not currently indicate a strong basin-level stress signal under the captured baseline evidence.",
+                sensitivity=water_sensitivity,
+                reasoning="Global screening evidence is available, but local utility reliability and facility-specific supply resilience remain outside the dataset.",
+                confidence="medium",
+                confidence_reason="Aqueduct provides consistent basin-level screening but cannot establish local supply sufficiency.",
+                action_type="monitor",
+                action="Retain periodic water-risk reassessment and verify local supply resilience if water is operationally important.",
+                support=support,
+            )
+    else:
+        add(
+            "water_stress", "evidence_gap",
+            "Baseline and future water-stress exposure have not yet been characterised.",
+            sensitivity=water_sensitivity,
+            reasoning="Facility water dependency can be recorded now, but basin-level water-risk evidence is unavailable.",
+            confidence="unresolved",
+            confidence_reason=water_ctx.get("reason") or "Aqueduct 4.0 evidence is unavailable.",
+            action_type="verify",
+            action="Resolve Aqueduct 4.0 water-risk evidence before materiality classification.",
+            support=["aqueduct_water_risk_status", "client_water_dependency"],
+        )
 
     add(
         "wind", "evidence_gap",
