@@ -67,7 +67,8 @@ jobs:
                   location=payload.get("location", "18.516958, 73.666824"),
                   answers=payload.get("answers", {}),
                   site_name=payload.get("site_name", "Monitored Location"),
-                  customer_email=payload.get("customer_email", "thebrink2028@gmail.com")
+                  customer_email=payload.get("customer_email", "thebrink2028@gmail.com"),
+                  product_type=payload.get("product_type", "location_dossier")
               )
 
               import datetime
