@@ -1415,12 +1415,12 @@ export default {
           updated_at: now
         };
 
-        const facilityRes = await fetch(\`\${sbUrl}/rest/v1/brink_facilities\`, {
+        const facilityRes = await fetch(`${sbUrl}/rest/v1/brink_facilities`, {
           method: "POST",
           headers: sbHeaders(sbKey, "return=representation"),
           body: JSON.stringify(facilityPayload)
         });
-        if (!facilityRes.ok) throw new Error(\`Facility save failed: \${await facilityRes.text()}\`);
+        if (!facilityRes.ok) throw new Error(`Facility save failed: ${await facilityRes.text()}`);
         const facilityRows = await facilityRes.json();
         const facility = facilityRows[0];
         if (!facility) throw new Error("Facility record was not returned.");
@@ -1448,18 +1448,18 @@ export default {
           created_at: now
         };
 
-        const subRes = await fetch(\`\${sbUrl}/rest/v1/brink_monitoring_subscriptions\`, {
+        const subRes = await fetch(`${sbUrl}/rest/v1/brink_monitoring_subscriptions`, {
           method: "POST",
           headers: sbHeaders(sbKey, "return=representation"),
           body: JSON.stringify(subPayload)
         });
         if (!subRes.ok) {
           // Clean up the facility if the paired subscription cannot be created.
-          await fetch(\`\${sbUrl}/rest/v1/brink_facilities?id=eq.\${encodeURIComponent(facility.id)}\`, {
+          await fetch(`${sbUrl}/rest/v1/brink_facilities?id=eq.${encodeURIComponent(facility.id)}`, {
             method: "DELETE",
             headers: sbHeaders(sbKey, "return=minimal")
           }).catch(() => {});
-          throw new Error(\`Subscription save failed: \${await subRes.text()}\`);
+          throw new Error(`Subscription save failed: ${await subRes.text()}`);
         }
 
         const reviewUrl = new URL("/api/commercial/review", url.origin);
@@ -1479,47 +1479,47 @@ export default {
           await Promise.all([
             fetch("https://api.resend.com/emails", {
               method: "POST",
-              headers: { "Authorization": \`Bearer \${env.RESEND_API_KEY}\`, "Content-Type": "application/json" },
+              headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
               body: JSON.stringify({
                 from: sender,
                 to: ["thebrink2028@gmail.com"],
                 reply_to: email,
-                subject: \`[COMMERCIAL FACILITY REVIEW] \${facilityName} · \${productLabels[productType]}\`,
-                html: \`
+                subject: `[COMMERCIAL FACILITY REVIEW] ${facilityName} · ${productLabels[productType]}`,
+                html: `
                   <div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#111">
                     <p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#555">The Brink World · Commercial Facility Intake</p>
-                    <h2>\${safe(facilityName)}</h2>
+                    <h2>${safe(facilityName)}</h2>
                     <table style="border-collapse:collapse;width:100%">
-                      <tr><td style="padding:6px;color:#666">Organisation</td><td><strong>\${safe(organization)}</strong></td></tr>
-                      <tr><td style="padding:6px;color:#666">Contact</td><td>\${safe(contactName)} · \${safe(email)}</td></tr>
-                      <tr><td style="padding:6px;color:#666">Location</td><td>\${safe(location.label)}</td></tr>
-                      <tr><td style="padding:6px;color:#666">Product</td><td>\${safe(productLabels[productType])}</td></tr>
-                      <tr><td style="padding:6px;color:#666">Cadence</td><td>\${safe(cadence)}</td></tr>
-                      <tr><td style="padding:6px;color:#666">Critical function</td><td>\${safe(criticalFunction || "—")}</td></tr>
+                      <tr><td style="padding:6px;color:#666">Organisation</td><td><strong>${safe(organization)}</strong></td></tr>
+                      <tr><td style="padding:6px;color:#666">Contact</td><td>${safe(contactName)} · ${safe(email)}</td></tr>
+                      <tr><td style="padding:6px;color:#666">Location</td><td>${safe(location.label)}</td></tr>
+                      <tr><td style="padding:6px;color:#666">Product</td><td>${safe(productLabels[productType])}</td></tr>
+                      <tr><td style="padding:6px;color:#666">Cadence</td><td>${safe(cadence)}</td></tr>
+                      <tr><td style="padding:6px;color:#666">Critical function</td><td>${safe(criticalFunction || "—")}</td></tr>
                     </table>
-                    <p><strong>Requested workflow:</strong> \${safe(notes || "Not supplied")}</p>
-                    <p><a href="\${reviewUrl.toString()}" style="display:inline-block;background:#0b0d11;color:#fff;padding:12px 18px;text-decoration:none">Review & activate</a></p>
+                    <p><strong>Requested workflow:</strong> ${safe(notes || "Not supplied")}</p>
+                    <p><a href="${reviewUrl.toString()}" style="display:inline-block;background:#0b0d11;color:#fff;padding:12px 18px;text-decoration:none">Review & activate</a></p>
                   </div>
-                \`
+                `
               })
             }),
             fetch("https://api.resend.com/emails", {
               method: "POST",
-              headers: { "Authorization": \`Bearer \${env.RESEND_API_KEY}\`, "Content-Type": "application/json" },
+              headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
               body: JSON.stringify({
                 from: sender,
                 to: [email],
                 reply_to: env.DOSSIER_REPLY_TO || "thebrink2028@gmail.com",
                 subject: "Your facility risk request has been received",
-                html: \`
+                html: `
                   <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111">
                     <p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#555">The Brink World · Facility Risk Intelligence</p>
                     <h2>We received your facility request.</h2>
-                    <p><strong>\${safe(facilityName)}</strong><br>\${safe(location.label)}</p>
+                    <p><strong>${safe(facilityName)}</strong><br>${safe(location.label)}</p>
                     <p>We will review the requested scope before any paid monitoring or recurring reporting is activated.</p>
-                    <p>Reference: <strong>\${subscriptionId.slice(0,8).toUpperCase()}</strong></p>
+                    <p>Reference: <strong>${subscriptionId.slice(0,8).toUpperCase()}</strong></p>
                   </div>
-                \`
+                `
               })
             })
           ]).catch(e => console.warn("Commercial intake email error:", e));
@@ -1544,8 +1544,8 @@ export default {
         return new Response("Invalid commercial review link.", { status: 400, headers: { "Content-Type": "text/plain" } });
       }
 
-      const subUrl = new URL(\`\${sbUrl}/rest/v1/brink_monitoring_subscriptions\`);
-      subUrl.searchParams.set("id", \`eq.\${subscriptionId}\`);
+      const subUrl = new URL(`${sbUrl}/rest/v1/brink_monitoring_subscriptions`);
+      subUrl.searchParams.set("id", `eq.${subscriptionId}`);
       subUrl.searchParams.set("select", "*");
       subUrl.searchParams.set("limit", "1");
       const subRes = await fetch(subUrl.toString(), { headers: sbHeaders(sbKey) });
@@ -1560,8 +1560,8 @@ export default {
         return new Response("This review link is invalid or expired.", { status: 403, headers: { "Content-Type": "text/plain" } });
       }
 
-      const fUrl = new URL(\`\${sbUrl}/rest/v1/brink_facilities\`);
-      fUrl.searchParams.set("id", \`eq.\${sub.facility_id}\`);
+      const fUrl = new URL(`${sbUrl}/rest/v1/brink_facilities`);
+      fUrl.searchParams.set("id", `eq.${sub.facility_id}`);
       fUrl.searchParams.set("select", "*");
       fUrl.searchParams.set("limit", "1");
       const fRes = await fetch(fUrl.toString(), { headers: sbHeaders(sbKey) });
@@ -1580,7 +1580,7 @@ export default {
       };
       const already = sub.status !== "pending_review";
 
-      const html = \`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+      const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <title>Commercial Review · The Brink World</title>
       <style>
       body{font-family:Arial,sans-serif;background:#080b10;color:#eef2f7;margin:0;padding:28px}.card{max-width:760px;margin:auto;background:#111722;border:1px solid #263348;border-radius:10px;padding:24px}
@@ -1588,23 +1588,23 @@ export default {
       button{background:#00f3ff;color:#061018;border:0;border-radius:5px;padding:12px 18px;font-weight:800;cursor:pointer}@media(max-width:560px){.row{grid-template-columns:1fr;gap:3px}}
       </style></head><body><div class="card">
       <div style="font-size:12px;color:#8fa1b6;text-transform:uppercase;letter-spacing:.08em">The Brink World · Commercial Activation</div>
-      <h1>\${esc(facility.facility_name)}</h1>
-      <div class="row"><span class="k">Organisation</span><span class="v">\${esc(facility.organization_name)}</span></div>
-      <div class="row"><span class="k">Contact</span><span class="v">\${esc(facility.contact_name)} · \${esc(facility.contact_email)}</span></div>
-      <div class="row"><span class="k">Location</span><span class="v">\${esc(facility.location_label)}</span></div>
-      <div class="row"><span class="k">Product</span><span class="v">\${esc(labels[sub.product_type] || sub.product_type)}</span></div>
-      <div class="row"><span class="k">Cadence</span><span class="v">\${esc(sub.cadence)}</span></div>
-      <div class="row"><span class="k">Critical function</span><span class="v">\${esc(facility.critical_function || "—")}</span></div>
-      <div class="row"><span class="k">Requested workflow</span><span class="v">\${esc(sub.commercial_terms?.notes || "—")}</span></div>
+      <h1>${esc(facility.facility_name)}</h1>
+      <div class="row"><span class="k">Organisation</span><span class="v">${esc(facility.organization_name)}</span></div>
+      <div class="row"><span class="k">Contact</span><span class="v">${esc(facility.contact_name)} · ${esc(facility.contact_email)}</span></div>
+      <div class="row"><span class="k">Location</span><span class="v">${esc(facility.location_label)}</span></div>
+      <div class="row"><span class="k">Product</span><span class="v">${esc(labels[sub.product_type] || sub.product_type)}</span></div>
+      <div class="row"><span class="k">Cadence</span><span class="v">${esc(sub.cadence)}</span></div>
+      <div class="row"><span class="k">Critical function</span><span class="v">${esc(facility.critical_function || "—")}</span></div>
+      <div class="row"><span class="k">Requested workflow</span><span class="v">${esc(sub.commercial_terms?.notes || "—")}</span></div>
       <div class="warn"><strong>Activation starts reporting.</strong><br>Confirm the commercial scope/payment separately before activating. An active subscription can immediately generate and email the first report.</div>
-      \${already ? \`<p><strong>Status: \${esc(sub.status)}</strong></p>\` : \`
+      ${already ? `<p><strong>Status: ${esc(sub.status)}</strong></p>` : `
       <form method="post" action="/api/commercial/activate">
-        <input type="hidden" name="subscription" value="\${esc(subscriptionId)}">
-        <input type="hidden" name="token" value="\${esc(token)}">
+        <input type="hidden" name="subscription" value="${esc(subscriptionId)}">
+        <input type="hidden" name="token" value="${esc(token)}">
         <label style="display:block;margin:14px 0"><input type="checkbox" name="confirmed" value="yes" required> Commercial scope/payment has been approved and reporting may begin.</label>
         <button type="submit">ACTIVATE & GENERATE FIRST REPORT</button>
-      </form>\`}
-      </div></body></html>\`;
+      </form>`}
+      </div></body></html>`;
 
       return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
     }
@@ -1621,8 +1621,8 @@ export default {
         const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
         if (!sbUrl || !sbKey) throw new Error("Commercial database environment is incomplete.");
 
-        const lookupUrl = new URL(\`\${sbUrl}/rest/v1/brink_monitoring_subscriptions\`);
-        lookupUrl.searchParams.set("id", \`eq.\${subscriptionId}\`);
+        const lookupUrl = new URL(`${sbUrl}/rest/v1/brink_monitoring_subscriptions`);
+        lookupUrl.searchParams.set("id", `eq.${subscriptionId}`);
         lookupUrl.searchParams.set("select", "*");
         lookupUrl.searchParams.set("limit", "1");
         const lookup = await fetch(lookupUrl.toString(), { headers: sbHeaders(sbKey) });
@@ -1641,7 +1641,7 @@ export default {
         }
 
         const now = new Date().toISOString();
-        const patch = await fetch(\`\${sbUrl}/rest/v1/brink_monitoring_subscriptions?id=eq.\${encodeURIComponent(subscriptionId)}&status=eq.pending_review\`, {
+        const patch = await fetch(`${sbUrl}/rest/v1/brink_monitoring_subscriptions?id=eq.${encodeURIComponent(subscriptionId)}&status=eq.pending_review`, {
           method: "PATCH",
           headers: sbHeaders(sbKey, "return=representation"),
           body: JSON.stringify({
@@ -1651,17 +1651,17 @@ export default {
             next_report_at: now
           })
         });
-        if (!patch.ok) throw new Error(\`Activation failed: \${await patch.text()}\`);
+        if (!patch.ok) throw new Error(`Activation failed: ${await patch.text()}`);
         const activated = await patch.json();
         if (!Array.isArray(activated) || activated.length === 0) {
           return new Response("Subscription was already processed.", { status: 200, headers: { "Content-Type":"text/plain" } });
         }
 
         if (!env.GITHUB_PAT || !env.GITHUB_REPO) throw new Error("GitHub commercial dispatch environment is incomplete.");
-        const dispatch = await fetch(\`https://api.github.com/repos/\${env.GITHUB_REPO}/dispatches\`, {
+        const dispatch = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
           method:"POST",
           headers:{
-            "Authorization":\`Bearer \${env.GITHUB_PAT}\`,
+            "Authorization":`Bearer ${env.GITHUB_PAT}`,
             "Accept":"application/vnd.github+json",
             "X-GitHub-Api-Version":"2022-11-28",
             "User-Agent":"TheBrinkWorld-Commercial-Activation"
@@ -1673,12 +1673,12 @@ export default {
         });
 
         if (!dispatch.ok) {
-          await fetch(\`\${sbUrl}/rest/v1/brink_monitoring_subscriptions?id=eq.\${encodeURIComponent(subscriptionId)}\`, {
+          await fetch(`${sbUrl}/rest/v1/brink_monitoring_subscriptions?id=eq.${encodeURIComponent(subscriptionId)}`, {
             method:"PATCH",
             headers:sbHeaders(sbKey,"return=minimal"),
             body:JSON.stringify({status:"activation_dispatch_failed"})
           });
-          throw new Error(\`Commercial report dispatch failed (\${dispatch.status}): \${await dispatch.text()}\`);
+          throw new Error(`Commercial report dispatch failed (${dispatch.status}): ${await dispatch.text()}`);
         }
 
         return new Response(
@@ -1686,7 +1686,7 @@ export default {
           { headers:{ "Content-Type":"text/html; charset=utf-8" } }
         );
       } catch (err) {
-        return new Response(\`Activation failed: \${err.message}\`, { status:500, headers:{ "Content-Type":"text/plain; charset=utf-8" } });
+        return new Response(`Activation failed: ${err.message}`, { status:500, headers:{ "Content-Type":"text/plain; charset=utf-8" } });
       }
     }
 
