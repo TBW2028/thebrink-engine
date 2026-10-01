@@ -494,6 +494,16 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 .space-live-grid{
   display:grid;grid-template-columns:90px minmax(0,1fr);gap:15px;align-items:center;
 }
+.space-status-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:10px 0 11px;}
+.space-status-card{background:rgba(6,9,14,.5);border:1px solid var(--line);border-radius:6px;padding:8px 9px;min-width:0;}
+.space-status-label{font-family:var(--font-mono);font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.space-status-value{font-family:var(--font-mono);font-size:12px;font-weight:800;color:#fff;margin-top:3px;overflow-wrap:anywhere;}
+.space-driver{margin-top:9px;padding:9px 10px;border-left:3px solid var(--accent-blue);background:rgba(107,158,255,.05);font-size:.8rem;color:var(--soft);line-height:1.45;}
+.space-brink-read{margin-top:9px;padding-top:9px;border-top:1px solid rgba(30,42,56,.7);font-size:.82rem;color:var(--soft);line-height:1.5;}
+.space-brink-read strong{color:#fff;}
+@media(max-width:700px){.space-status-strip{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:420px){.space-status-strip{grid-template-columns:1fr;}}
+
 .moon-visual{
   width:72px;height:72px;border-radius:50%;display:grid;place-items:center;
   background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.12),rgba(255,255,255,.02) 45%,rgba(0,0,0,.18));
@@ -702,14 +712,39 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
     </div>
     <div class="tray-content">
       <div style="background:var(--panel2);padding:14px;border-radius:7px;border:1px solid var(--line);">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap;">
-          <span class="mono" style="font-size:11px;font-weight:800;color:var(--accent-blue);">NOAA SPACE WEATHER + LOCAL LUNAR EPHEMERIS</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+          <span class="mono" style="font-size:11px;font-weight:800;color:var(--accent-blue);">NOAA SPACE WEATHER INTELLIGENCE</span>
           <span class="badge" id="spaceBadge">ACTIVE MONITOR</span>
         </div>
-        <div class="space-live-grid">
+
+        <div class="space-status-strip">
+          <div class="space-status-card">
+            <div class="space-status-label">Forecast / watch</div>
+            <div class="space-status-value" id="spaceForecastState">Checking…</div>
+          </div>
+          <div class="space-status-card">
+            <div class="space-status-label">Solar wind</div>
+            <div class="space-status-value" id="spaceWindState">-- km/s</div>
+          </div>
+          <div class="space-status-card">
+            <div class="space-status-label">IMF Bz</div>
+            <div class="space-status-value" id="spaceBzState">-- nT</div>
+          </div>
+          <div class="space-status-card">
+            <div class="space-status-label">Earth response</div>
+            <div class="space-status-value" id="spaceKpState">Kp --</div>
+          </div>
+        </div>
+
+        <div class="space-driver" id="spaceDriver">
+          Waiting for the latest NOAA geomagnetic bulletin and upstream solar-wind telemetry.
+        </div>
+        <div class="space-brink-read" id="spaceBrinkRead"><strong>Brink read:</strong> Building the current coupling picture…</div>
+
+        <div class="space-live-grid" style="margin-top:12px;">
           <div class="moon-visual" id="moonDisc"><span id="moonPhaseIcon">🌙</span></div>
           <div>
-            <div id="spaceSummary" style="font-size:.9rem;color:#fff;font-weight:650;">Reading NOAA geomagnetic conditions…</div>
+            <div id="spaceSummary" style="font-size:.86rem;color:#fff;font-weight:650;">Reading NOAA geomagnetic conditions…</div>
             <div class="space-moon-name" id="moonPhaseName" style="margin-top:8px;">Calculating Moon phase…</div>
             <div class="space-moon-meta" id="moonPhaseMeta">Using the selected location for local sky visibility.</div>
           </div>
@@ -1976,33 +2011,103 @@ function renderMoonAndEclipse() {
 }
 
 async function fetchSpaceWeather() {
-  let kpVal = null;
+  let status = null;
+
   try {
-    const res = await fetch("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json");
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.length) {
-        const latest = data[data.length - 1];
-        kpVal = latest.kp_index !== undefined ? Number(latest.kp_index) : Number(latest.kp);
-      }
-    }
+    const r = await fetch(DOSSIER_API + "/api/space/status", { cache: "no-store" });
+    if (r.ok) status = await r.json();
   } catch (e) {
-    console.warn("NOAA SWPC Kp fetch failed:", e);
+    console.warn("Brink space-status endpoint failed:", e);
   }
 
-  if (Number.isFinite(kpVal)) {
-    $("c-space").textContent = "Kp " + Math.round(kpVal);
-    $("spaceBadge").textContent = kpVal >= 5 ? "GEOMAGNETIC STORM" : (kpVal >= 4 ? "UNSETTLED" : "QUIET / NOMINAL");
-    $("spaceBadge").style.color = kpVal >= 5 ? "var(--hot)" : (kpVal >= 4 ? "var(--warn)" : "var(--accent)");
+  // Fallback to direct Kp so the tile still works if the Worker endpoint is unavailable.
+  if (!status || !status.current) {
+    try {
+      const res = await fetch("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json");
+      if (res.ok) {
+        const data = await res.json();
+        const latest = data && data.length ? data[data.length - 1] : null;
+        status = {
+          current: {
+            kp: latest ? Number(latest.kp_index !== undefined ? latest.kp_index : latest.kp) : null
+          },
+          latest_geomagnetic_message: null,
+          source: "NOAA Space Weather Prediction Center"
+        };
+      }
+    } catch (e) {
+      console.warn("NOAA SWPC Kp fallback failed:", e);
+    }
+  }
+
+  const cur = status && status.current ? status.current : {};
+  const kp = Number(cur.kp);
+  const speed = Number(cur.solar_wind_speed_km_s);
+  const density = Number(cur.proton_density_cm3);
+  const bt = Number(cur.bt_nt);
+  const bz = Number(cur.bz_nt);
+
+  let gScale = "Below G1";
+  if (Number.isFinite(kp)) {
+    if (kp >= 9) gScale = "G5";
+    else if (kp >= 8) gScale = "G4";
+    else if (kp >= 7) gScale = "G3";
+    else if (kp >= 6) gScale = "G2";
+    else if (kp >= 5) gScale = "G1";
+  }
+
+  $("c-space").textContent = Number.isFinite(kp) ? "Kp " + Math.round(kp) : "Kp --";
+  $("spaceKpState").textContent = Number.isFinite(kp) ? ("Kp " + kp.toFixed(1) + " · " + gScale) : "Kp --";
+  $("spaceWindState").textContent = Number.isFinite(speed) ? Math.round(speed) + " km/s" : "-- km/s";
+  $("spaceBzState").textContent = Number.isFinite(bz) ? bz.toFixed(1) + " nT" : "-- nT";
+
+  const bulletin = status && status.latest_geomagnetic_message ? status.latest_geomagnetic_message : null;
+  $("spaceForecastState").textContent = bulletin && bulletin.headline ? bulletin.headline : "No current watch headline";
+
+  if (Number.isFinite(kp)) {
+    $("spaceBadge").textContent = kp >= 5 ? "GEOMAGNETIC STORM" : (kp >= 4 ? "UNSETTLED" : "QUIET / NOMINAL");
+    $("spaceBadge").style.color = kp >= 5 ? "var(--hot)" : (kp >= 4 ? "var(--warn)" : "var(--accent)");
   } else {
-    $("c-space").textContent = "Kp --";
     $("spaceBadge").textContent = "DATA CHECK";
   }
 
+  let driverText = "No specific geomagnetic driver is resolved from the latest NOAA bulletin.";
+  if (bulletin && bulletin.driver) driverText = bulletin.driver;
+  $("spaceDriver").innerHTML =
+    "<strong style=\"color:#fff\">Forecast / driver:</strong> " + escapeHtml(driverText);
+
+  const windState = !Number.isFinite(speed) ? "solar-wind speed unavailable" :
+    speed >= 700 ? "very fast solar wind" :
+    speed >= 500 ? "elevated solar-wind speed" :
+    "solar-wind speed near a quieter range";
+
+  const bzState = !Number.isFinite(bz) ? "Bz unavailable" :
+    bz <= -10 ? "strong southward Bz" :
+    bz <= -5 ? "southward Bz" :
+    bz < 0 ? "weakly southward Bz" :
+    "northward/neutral Bz";
+
+  const coupling = Number.isFinite(bz) && bz <= -5 && Number.isFinite(speed) && speed >= 500;
+  let read =
+    "Observed upstream conditions show " + windState + " and " + bzState + ". ";
+  if (coupling) {
+    read += "This combination is favorable for stronger solar-wind coupling into Earth's magnetosphere. ";
+  } else {
+    read += "The current combination does not by itself indicate strong magnetic coupling. ";
+  }
+  if (Number.isFinite(bt) || Number.isFinite(density)) {
+    const pieces = [];
+    if (Number.isFinite(bt)) pieces.push("Bt " + bt.toFixed(1) + " nT");
+    if (Number.isFinite(density)) pieces.push("density " + density.toFixed(1) + " cm⁻³");
+    read += "Upstream telemetry: " + pieces.join(" · ") + ". ";
+  }
+  read += "Kp is the observed Earth-response measure; forecast watches should be treated separately from measured arrival conditions.";
+
+  $("spaceBrinkRead").innerHTML = "<strong>Brink read:</strong> " + escapeHtml(read);
   $("spaceSummary").innerHTML =
-    "<strong>Planetary K-index:</strong> " +
-    (Number.isFinite(kpVal) ? "Kp " + Math.round(kpVal) : "not currently resolved") +
-    " · <span style=\"color:var(--ok)\">NOAA Space Weather Prediction Center</span>";
+    "<strong>Observed geomagnetic response:</strong> " +
+    (Number.isFinite(kp) ? "Kp " + kp.toFixed(1) + " (" + gScale + ")" : "not currently resolved") +
+    " · NOAA SWPC";
 
   renderMoonAndEclipse();
 }
