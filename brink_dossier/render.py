@@ -7,15 +7,17 @@ from weasyprint import HTML
 from .geometry import preview_location
 from .sources import fetch_telemetry
 from .blocks import build_report_blocks
+from .products import get_product_profile
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
-def produce(location, answers, site_name, customer_email, out_dir="reports"):
+def produce(location, answers, site_name, customer_email, out_dir="reports", product_type="location_dossier"):
     pin = preview_location(location)
     if not pin["ok"]:
         raise ValueError(pin["error"])
 
     lat, lon = pin["lat"], pin["lon"]
+    product_key, product = get_product_profile(product_type)
     ref_code = f"BRK-{int(time.time()) % 100000:05d}"
     data = fetch_telemetry(lat, lon, context=answers)
 
@@ -25,9 +27,12 @@ def produce(location, answers, site_name, customer_email, out_dir="reports"):
     coords_formatted = f"{abs(round(lat, 4))}°{lat_card}, {abs(round(lon, 4))}°{lon_card}"
 
     meta = {
-        "report_title": "Location Threat Dossier",
+        "report_title": product["title"],
         "product_name": "The Brink World",
-        "tier_label": "Decision-Support Intelligence",
+        "tier_label": product["tier"],
+        "product_type": product_key,
+        "product_intended_use": product["intended_use"],
+        "product_limitation": product["limitation"],
         "ref": ref_code,
         "site_name": site_name,
         "customer_name": answers.get("customer_name", "Operations Lead"),
@@ -69,9 +74,9 @@ def produce(location, answers, site_name, customer_email, out_dir="reports"):
             "from": sender,
             "to": [customer_email],
             "reply_to": reply_to,
-            "subject": f"Your Location Threat Dossier — {site_name} ({ref_code})",
+            "subject": f"Your {product['title']} — {site_name} ({ref_code})",
             "html": (
-                f"<h3>The Brink World — Location Threat Dossier</h3>"
+                f"<h3>The Brink World — {product['title']}</h3>"
                 f"<p>Your requested location intelligence report for <strong>{site_name}</strong> "
                 f"({coords_formatted}) is attached.</p>"
                 f"<p>Dossier Reference: <strong>{ref_code}</strong></p>"
@@ -94,7 +99,7 @@ def produce(location, answers, site_name, customer_email, out_dir="reports"):
             "from": sender,
             "to": ["thebrink2028@gmail.com"],
             "reply_to": customer_email,
-            "subject": f"[DOSSIER DELIVERED] {site_name} · {ref_code}",
+            "subject": f"[REPORT DELIVERED] {product['short_name']} · {site_name} · {ref_code}",
             "html": (
                 f"<h3>The Brink World — Dossier Delivery Record</h3>"
                 f"<p><strong>Reference:</strong> {ref_code}</p>"
