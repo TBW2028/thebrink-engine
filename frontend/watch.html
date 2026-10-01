@@ -6,6 +6,7 @@
 <title>Earth &amp; Climate Watch · The Brink World</title>
 <meta name="description" content="Real-time planetary tremors, cyclones, storm surge radar, and asset risk audits."/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -509,7 +510,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
   background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.12),rgba(255,255,255,.02) 45%,rgba(0,0,0,.18));
   border:1px solid rgba(255,255,255,.12);box-shadow:0 0 28px rgba(107,158,255,.08);
 }
-.moon-visual span{font-size:52px;line-height:1;filter:drop-shadow(0 3px 8px rgba(0,0,0,.45));}
+.moon-visual canvas{width:100%;height:100%;display:block;border-radius:50%;filter:drop-shadow(0 3px 8px rgba(0,0,0,.45));}
 .space-moon-name{color:#fff;font-weight:800;font-size:1rem;}
 .space-moon-meta{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.45;}
 .eclipse-notice{
@@ -524,7 +525,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
 @media(max-width:460px){
   .space-live-grid{grid-template-columns:64px minmax(0,1fr);gap:11px;}
   .moon-visual{width:58px;height:58px;}
-  .moon-visual span{font-size:42px;}
+  .moon-visual canvas{width:100%;height:100%;}
 }
 </style>
 </head>
@@ -742,7 +743,7 @@ h1{ font-family:var(--font-display); font-size: clamp(1.6rem, 5vw, 2.2rem); lett
         <div class="space-brink-read" id="spaceBrinkRead"><strong>Brink read:</strong> Building the current coupling picture…</div>
 
         <div class="space-live-grid" style="margin-top:12px;">
-          <div class="moon-visual" id="moonDisc"><span id="moonPhaseIcon">🌙</span></div>
+          <div class="moon-visual" id="moonDisc"><canvas id="moonCanvas" width="120" height="120" aria-label="Current Moon phase"></canvas></div>
           <div>
             <div id="spaceSummary" style="font-size:.86rem;color:#fff;font-weight:650;">Reading NOAA geomagnetic conditions…</div>
             <div class="space-moon-name" id="moonPhaseName" style="margin-top:8px;">Calculating Moon phase…</div>
@@ -1265,6 +1266,7 @@ async function handleDirectUnsubscribe(e) {
 }
 
 let userLat = null, userLon = null, userCity = "Detecting...";
+let userLocationSource = "unknown";
 let climateUnit = "C";
 let climateState = {
   curTempC: null,
@@ -1464,6 +1466,7 @@ async function initUserLocation() {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       async pos => {
+        userLocationSource = "device";
         const { latitude: lat, longitude: lon } = pos.coords;
         try {
           const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
@@ -1485,6 +1488,7 @@ async function fallbackIPLocation() {
     const res = await fetch("https://ipwho.is/");
     const d = await res.json();
     if (d.success && d.latitude && d.longitude) {
+      userLocationSource = "ip";
       loadFullClimateEngineCompact(d.latitude, d.longitude, `${d.city || 'Regional Hub'}, ${d.country || ''}`);
       return;
     }
@@ -1498,7 +1502,10 @@ $("btnChangeCity").addEventListener("click", () => {
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(manual.trim())}&limit=1`)
     .then(r => r.json())
     .then(p => {
-      if (p && p[0]) loadFullClimateEngineCompact(parseFloat(p[0].lat), parseFloat(p[0].lon), p[0].display_name.split(",").slice(0, 2).join(","));
+      if (p && p[0]) {
+        userLocationSource = "manual";
+        loadFullClimateEngineCompact(parseFloat(p[0].lat), parseFloat(p[0].lon), p[0].display_name.split(",").slice(0, 2).join(","));
+      }
     });
 });
 
@@ -1888,126 +1895,246 @@ function focusMapOnEvent(lat, lon) {
 }
 
 // SPACE WEATHER + MOON PHASE
-const ECLIPSE_CALENDAR = [
-  {date:"2027-02-06", type:"Solar", kind:"Annular"},
-  {date:"2027-02-20", type:"Lunar", kind:"Penumbral"},
-  {date:"2027-07-18", type:"Lunar", kind:"Penumbral"},
-  {date:"2027-08-02", type:"Solar", kind:"Total"},
-  {date:"2027-08-17", type:"Lunar", kind:"Penumbral"},
-  {date:"2028-01-12", type:"Lunar", kind:"Partial"},
-  {date:"2028-01-26", type:"Solar", kind:"Annular"},
-  {date:"2028-07-06", type:"Lunar", kind:"Partial"},
-  {date:"2028-07-22", type:"Solar", kind:"Total"},
-  {date:"2028-12-31", type:"Lunar", kind:"Total"},
-  {date:"2029-01-14", type:"Solar", kind:"Partial"},
-  {date:"2029-06-12", type:"Solar", kind:"Partial"},
-  {date:"2029-06-26", type:"Lunar", kind:"Total"},
-  {date:"2029-07-11", type:"Solar", kind:"Partial"},
-  {date:"2029-12-05", type:"Solar", kind:"Partial"},
-  {date:"2029-12-20", type:"Lunar", kind:"Total"},
-  {date:"2030-06-01", type:"Solar", kind:"Annular"},
-  {date:"2030-06-15", type:"Lunar", kind:"Partial"},
-  {date:"2030-11-25", type:"Solar", kind:"Total"},
-  {date:"2030-12-09", type:"Lunar", kind:"Penumbral"}
-];
-
-function moonPhaseData(date) {
-  const synodic = 29.53058867;
-  const ref = Date.UTC(2000,0,6,18,14,0);
-  let age = ((date.getTime() - ref) / 86400000) % synodic;
-  if (age < 0) age += synodic;
-  const phase = age / synodic;
-  const illumination = (1 - Math.cos(2 * Math.PI * phase)) / 2;
-  let name = "New Moon";
-  if (phase < 0.03 || phase >= 0.97) name = "New Moon";
-  else if (phase < 0.22) name = "Waxing Crescent";
-  else if (phase < 0.28) name = "First Quarter";
-  else if (phase < 0.47) name = "Waxing Gibbous";
-  else if (phase < 0.53) name = "Full Moon";
-  else if (phase < 0.72) name = "Waning Gibbous";
-  else if (phase < 0.78) name = "Last Quarter";
-  else name = "Waning Crescent";
-  return { age:age, phase:phase, illumination:illumination, name:name };
+function phaseNameFromAngle(angle) {
+  const a = ((Number(angle) % 360) + 360) % 360;
+  const near = (target) => Math.min(Math.abs(a-target), 360-Math.abs(a-target)) <= 2.5;
+  if (near(0)) return "New Moon";
+  if (near(90)) return "First Quarter";
+  if (near(180)) return "Full Moon";
+  if (near(270)) return "Last Quarter";
+  if (a < 90) return "Waxing Crescent";
+  if (a < 180) return "Waxing Gibbous";
+  if (a < 270) return "Waning Gibbous";
+  return "Waning Crescent";
 }
 
-function drawMoonPhase(phase) {
+function drawExactMoonPhase(phaseAngle) {
   const canvas = $("moonCanvas");
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
-  const W = canvas.width, H = canvas.height, r = Math.min(W,H) * 0.43;
-  const cx = W/2, cy = H/2;
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2, r = Math.min(W,H)*0.43;
+  const a = ((Number(phaseAngle)%360)+360)%360;
+  const rad = a*Math.PI/180;
+  const waxing = a < 180;
+
   ctx.clearRect(0,0,W,H);
+  const img = ctx.createImageData(W,H);
+  const light = [244,241,218];
+  const dark = [13,18,25];
 
-  ctx.beginPath();
-  ctx.arc(cx,cy,r,0,Math.PI*2);
-  ctx.fillStyle = "#11161d";
-  ctx.fill();
+  // Orthographic sphere rendering. Sun direction rotates through the lunar
+  // phase angle; this produces the correct illuminated fraction continuously.
+  const sx = -Math.sin(rad);
+  const sz = -Math.cos(rad);
 
-  const p = phase.phase;
-  const illum = phase.illumination;
-  const waxing = p < 0.5;
-  const hemisphereFlip = Number(userLat) < 0;
-  const brightRight = hemisphereFlip ? !waxing : waxing;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx,cy,r,0,Math.PI*2);
-  ctx.clip();
-
-  // Bright half.
-  ctx.fillStyle = "#f3f0dd";
-  ctx.fillRect(brightRight ? cx : cx-r, cy-r, r, 2*r);
-
-  // Terminator ellipse: narrows at quarter, broadens near new/full.
-  const k = Math.abs(Math.cos(2*Math.PI*p));
-  ctx.beginPath();
-  ctx.ellipse(cx,cy,r*k,r,0,0,Math.PI*2);
-  if (illum < 0.5) {
-    ctx.fillStyle = "#11161d";
-  } else {
-    ctx.fillStyle = "#f3f0dd";
+  for (let y=0; y<H; y++) {
+    for (let x=0; x<W; x++) {
+      const nx = (x-cx)/r;
+      const ny = (y-cy)/r;
+      const rr = nx*nx + ny*ny;
+      const p = 4*(y*W+x);
+      if (rr > 1) {
+        img.data[p+3]=0;
+        continue;
+      }
+      const nz = Math.sqrt(Math.max(0,1-rr));
+      const sunDot = nx*sx + nz*sz;
+      const lit = sunDot > 0 ? 1 : 0;
+      const limb = Math.max(0.55, nz);
+      const base = lit ? light : dark;
+      img.data[p]   = Math.round(base[0]*limb);
+      img.data[p+1] = Math.round(base[1]*limb);
+      img.data[p+2] = Math.round(base[2]*limb);
+      img.data[p+3] = 255;
+    }
   }
-  ctx.fill();
+  ctx.putImageData(img,0,0);
 
-  ctx.restore();
   ctx.beginPath();
   ctx.arc(cx,cy,r,0,Math.PI*2);
-  ctx.strokeStyle = "rgba(255,255,255,.18)";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle="rgba(255,255,255,.20)";
+  ctx.lineWidth=1.5;
   ctx.stroke();
 }
 
+function moonAltitudeAt(date, observer) {
+  try {
+    const eq = Astronomy.Equator(Astronomy.Body.Moon, date, observer, true, true);
+    const hor = Astronomy.Horizon(date, observer, eq.ra, eq.dec, "normal");
+    return Number(hor.altitude);
+  } catch (_) {
+    return null;
+  }
+}
+
+function formatAstronomyLocal(date) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return "time unresolved";
+  try {
+    const opts = {
+      month:"short", day:"numeric", hour:"2-digit", minute:"2-digit",
+      hour12:false
+    };
+    if (climateState.timezone) opts.timeZone = climateState.timezone;
+    return new Intl.DateTimeFormat("en", opts).format(date);
+  } catch (_) {
+    return date.toLocaleString();
+  }
+}
+
+function eclipseKindText(kind) {
+  const raw = String(kind || "").toLowerCase();
+  if (raw.includes("total")) return "Total";
+  if (raw.includes("annular")) return "Annular";
+  if (raw.includes("partial")) return "Partial";
+  if (raw.includes("penumbral")) return "Penumbral";
+  return String(kind || "Eclipse");
+}
+
+function visibleLunarEclipseCandidate(now, observer) {
+  try {
+    let eclipse = Astronomy.SearchLunarEclipse(new Date(now.getTime() - 24*3600*1000));
+    for (let tries=0; tries<2 && eclipse; tries++) {
+      const peak = eclipse.peak.date;
+      const halfMinutes = Math.max(
+        Number(eclipse.sd_penum) || 0,
+        Number(eclipse.sd_partial) || 0,
+        Number(eclipse.sd_total) || 0
+      );
+      const begin = new Date(peak.getTime() - halfMinutes*60000);
+      const finish = new Date(peak.getTime() + halfMinutes*60000);
+
+      if (finish < now) {
+        eclipse = Astronomy.NextLunarEclipse(eclipse.peak);
+        continue;
+      }
+
+      const sampleTimes = [];
+      for (let i=0;i<=8;i++) {
+        sampleTimes.push(new Date(begin.getTime() + (finish.getTime()-begin.getTime())*(i/8)));
+      }
+      const altitudes = sampleTimes.map(t => moonAltitudeAt(t, observer)).filter(Number.isFinite);
+      const visible = altitudes.some(a => a > 0);
+
+      return {
+        type:"Lunar",
+        kind:eclipseKindText(eclipse.kind),
+        begin, peak, finish,
+        visible,
+        peakAltitude:moonAltitudeAt(peak, observer),
+        obscuration:Number.isFinite(Number(eclipse.obscuration)) ? Number(eclipse.obscuration) : null
+      };
+    }
+  } catch (e) {
+    console.warn("Local lunar eclipse calculation failed:", e);
+  }
+  return null;
+}
+
+function localSolarEclipseCandidate(now, observer) {
+  try {
+    let eclipse = Astronomy.SearchLocalSolarEclipse(new Date(now.getTime() - 24*3600*1000), observer);
+    for (let tries=0; tries<2 && eclipse; tries++) {
+      const begin = eclipse.partial_begin?.time?.date || null;
+      const peak = eclipse.peak?.time?.date || null;
+      const finish = eclipse.partial_end?.time?.date || null;
+      if (!begin || !peak || !finish) return null;
+
+      if (finish < now) {
+        eclipse = Astronomy.NextLocalSolarEclipse(eclipse.peak.time, observer);
+        continue;
+      }
+
+      const altitudes = [
+        eclipse.partial_begin?.altitude,
+        eclipse.peak?.altitude,
+        eclipse.partial_end?.altitude
+      ].map(Number).filter(Number.isFinite);
+
+      return {
+        type:"Solar",
+        kind:eclipseKindText(eclipse.kind),
+        begin, peak, finish,
+        visible:altitudes.some(a => a > 0),
+        peakAltitude:Number(eclipse.peak?.altitude),
+        obscuration:Number.isFinite(Number(eclipse.obscuration)) ? Number(eclipse.obscuration) : null
+      };
+    }
+  } catch (e) {
+    console.warn("Local solar eclipse calculation failed:", e);
+  }
+  return null;
+}
+
 function renderMoonAndEclipse() {
-  const now = new Date();
-  const phase = moonPhaseData(now);
-  drawMoonPhase(phase);
-  $("moonPhaseName").textContent = phase.name;
-  $("moonPhaseMeta").textContent =
-    Math.round(phase.illumination * 100) + "% illuminated · " +
-    (Number(userLat) < 0 ? "southern" : "northern") + " hemisphere orientation";
+  if (!Number.isFinite(Number(userLat)) || !Number.isFinite(Number(userLon))) return;
 
   const notice = $("eclipseNotice");
+  notice.className = "eclipse-notice";
   notice.style.display = "none";
   notice.textContent = "";
 
-  // One-day global eclipse notice. Exact local visibility is deliberately not inferred
-  // from broad regional tables; the notice tells the user to check the NASA visibility map.
-  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  for (const e of ECLIPSE_CALENDAR) {
-    const parts = e.date.split("-").map(Number);
-    const eventUTC = Date.UTC(parts[0], parts[1]-1, parts[2]);
-    const days = Math.round((eventUTC - todayUTC) / 86400000);
-    if (days === 1 || days === 0) {
-      notice.style.display = "block";
-      notice.textContent = (days === 1 ? "ECLIPSE TOMORROW · " : "ECLIPSE TODAY · ") +
-        e.kind + " " + e.type.toLowerCase() +
-        ". Local visibility varies; verify against the NASA eclipse visibility map.";
-      break;
-    }
+  if (typeof Astronomy === "undefined") {
+    $("moonPhaseName").textContent = "Astronomy engine loading…";
+    $("moonPhaseMeta").textContent = "Waiting for local ephemeris calculation.";
+    return;
   }
 
-  $("lunarTideSummary").textContent =
-    "Moon phase is calculated for the current date and oriented by the selected location hemisphere. Eclipse dates use NASA GSFC catalog data; local visibility is not assumed.";
+  const now = new Date();
+  const observer = new Astronomy.Observer(Number(userLat), Number(userLon), 0);
+  const phaseAngle = Astronomy.MoonPhase(now);
+  const illumInfo = Astronomy.Illumination(Astronomy.Body.Moon, now);
+  const illumination = Number(illumInfo.phase_fraction) * 100;
+  const phaseName = phaseNameFromAngle(phaseAngle);
+  const altitude = moonAltitudeAt(now, observer);
+
+  drawExactMoonPhase(phaseAngle);
+
+  $("moonPhaseName").textContent = phaseName;
+  const sourceLabel = userLocationSource === "ip" ? "IP-resolved location" :
+    userLocationSource === "device" ? "device location" :
+    userLocationSource === "manual" ? "selected location" : "current location";
+
+  const altText = Number.isFinite(altitude)
+    ? (altitude >= 0 ? Math.abs(altitude).toFixed(1) + "° above horizon" : Math.abs(altitude).toFixed(1) + "° below horizon")
+    : "altitude unresolved";
+
+  $("moonPhaseMeta").textContent =
+    illumination.toFixed(1) + "% illuminated · phase " + Number(phaseAngle).toFixed(1) + "° · " +
+    altText + " · " + sourceLabel;
+
+  const solar = localSolarEclipseCandidate(now, observer);
+  const lunar = visibleLunarEclipseCandidate(now, observer);
+  const candidates = [solar, lunar]
+    .filter(e => e && e.visible)
+    .sort((a,b) => a.begin - b.begin);
+
+  const e = candidates[0];
+  if (!e) return;
+
+  const msToStart = e.begin.getTime() - now.getTime();
+  const msToEnd = e.finish.getTime() - now.getTime();
+  const within24h = msToStart <= 24*3600*1000 && msToEnd >= 0;
+  if (!within24h) return;
+
+  const inProgress = e.begin <= now && e.finish >= now;
+  const when = inProgress ? "ECLIPSE IN PROGRESS" : "LOCAL ECLIPSE WITHIN 24H";
+  let detail = when + " · " + e.kind + " " + e.type.toLowerCase() +
+    " · peak " + formatAstronomyLocal(e.peak);
+
+  if (Number.isFinite(e.obscuration)) {
+    detail += " · " + Math.round(e.obscuration*100) + "% obscuration";
+  }
+  if (Number.isFinite(e.peakAltitude)) {
+    detail += " · peak altitude " + e.peakAltitude.toFixed(1) + "°";
+  }
+
+  notice.className = "eclipse-notice active" + (inProgress ? " urgent" : "");
+  notice.style.display = "block";
+  notice.textContent = detail;
+
+  // Change the Moon label during a locally visible eclipse so the event cannot be missed.
+  $("moonPhaseName").textContent = e.kind + " " + e.type + " Eclipse";
 }
 
 async function fetchSpaceWeather() {
@@ -2177,6 +2304,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   setInterval(fetchLiveHazards, 2 * 60 * 1000);
   setInterval(fetchSpaceWeather, 3 * 60 * 1000);
+  setInterval(renderMoonAndEclipse, 60 * 1000);
   setInterval(loadRainViewerRadar, 10 * 60 * 1000);
   setInterval(() => {
     if (userLat && userLon) loadFullClimateEngineCompact(userLat, userLon, userCity);
