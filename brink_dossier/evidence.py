@@ -88,7 +88,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
     signals = telemetry.get("live_hazards_300km") or []
     quakes = telemetry.get("recent_quakes") or []
     current = telemetry.get("weather_current") or {}
-    strongest = telemetry.get("strongest_local_signal")
+    strongest = telemetry.get("strongest_local_signal")\n    historical_heat = telemetry.get("historical_heat") or {}
 
     items.append(_evidence(
         report_run_id, facility_id, "multi_hazard_operational",
@@ -158,6 +158,63 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             confidence="medium",
             confidence_reason="Established numerical weather source at the assessed coordinate, but not an on-site observation.",
             limitations="Current weather is operational context and must not be used alone as long-horizon physical-risk evidence.",
+        ))
+
+    if historical_heat.get("status") == "ok":
+        heat_specs = [
+            ("baseline_p95_tmax_c", "Historical baseline 95th percentile daily maximum temperature", historical_heat.get("p95_tmax_c"), "°C"),
+            ("baseline_p99_tmax_c", "Historical baseline 99th percentile daily maximum temperature", historical_heat.get("p99_tmax_c"), "°C"),
+            ("baseline_days_ge_35c", "Historical mean annual days with maximum temperature ≥35°C", historical_heat.get("mean_annual_days_ge_35c"), "days/year"),
+            ("baseline_days_ge_40c", "Historical mean annual days with maximum temperature ≥40°C", historical_heat.get("mean_annual_days_ge_40c"), "days/year"),
+            ("baseline_nights_ge_25c", "Historical mean annual nights with minimum temperature ≥25°C", historical_heat.get("mean_annual_nights_ge_25c"), "nights/year"),
+            ("recent_days_ge_35c", "Recent mean annual days with maximum temperature ≥35°C", historical_heat.get("recent_mean_annual_days_ge_35c"), "days/year"),
+        ]
+        for code, name, value, unit in heat_specs:
+            if value is None:
+                continue
+            items.append(_evidence(
+                report_run_id, facility_id, "heat",
+                code, name,
+                "ERA5-Land via Open-Meteo Historical Weather API", "modelled",
+                value_numeric=value, unit=unit,
+                source_dataset="ERA5-Land",
+                source_reference="Copernicus Climate Data Store / Open-Meteo commercial historical access",
+                source_version="ERA5-Land",
+                retrieved_at=retrieved,
+                observation_start="1991-01-01T00:00:00+00:00" if code.startswith("baseline_") else "2021-01-01T00:00:00+00:00",
+                observation_end="2020-12-31T23:59:59+00:00" if code.startswith("baseline_") else "2025-12-31T23:59:59+00:00",
+                spatial_resolution=historical_heat.get("spatial_resolution"),
+                temporal_resolution="daily statistics derived from reanalysis",
+                confidence="medium",
+                confidence_reason="Established ERA5-Land reanalysis provides a consistent historical gridded baseline; it is not an on-site observation.",
+                limitations=historical_heat.get("limitations"),
+            ))
+
+        hottest = historical_heat.get("hottest_day") or {}
+        if hottest.get("temperature_c") is not None:
+            items.append(_evidence(
+                report_run_id, facility_id, "heat",
+                "historical_hottest_day", "Highest daily maximum temperature in retrieved historical series",
+                "ERA5-Land via Open-Meteo Historical Weather API", "modelled",
+                value_numeric=hottest.get("temperature_c"), unit="°C",
+                value_text=hottest.get("date"),
+                source_dataset="ERA5-Land", retrieved_at=retrieved,
+                spatial_resolution=historical_heat.get("spatial_resolution"),
+                temporal_resolution="daily maximum",
+                confidence="medium",
+                confidence_reason="Reanalysis extreme at the model grid cell, not an on-site thermometer observation.",
+                limitations=historical_heat.get("limitations"),
+            ))
+    else:
+        items.append(_evidence(
+            report_run_id, facility_id, "heat",
+            "historical_heat_baseline_status", "Historical heat baseline availability",
+            "ERA5-Land / Open-Meteo", "modelled",
+            value_text=str(historical_heat.get("status") or "not_available"),
+            retrieved_at=retrieved,
+            confidence="unresolved",
+            confidence_reason=historical_heat.get("reason") or "Historical heat baseline was not available.",
+            limitations="Heat materiality must remain unresolved until historical heat evidence is available.",
         ))
 
     if telemetry.get("elevation_m") is not None:
@@ -352,23 +409,73 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             support=["usgs_quake_count_30d_350km"],
         )
 
-    # Current weather is deliberately insufficient for long-horizon materiality.
-    add(
-        "heat", "evidence_gap",
-        "Long-horizon extreme-heat exposure has not yet been characterised.",
-        sensitivity=(
-            "high" if profile.get("cooling_dependency") in ("high", "critical")
-            else "moderate" if profile.get("cooling_dependency") == "moderate"
-            else "low" if profile.get("cooling_dependency") == "low"
-            else "unresolved"
-        ),
-        reasoning="Current temperature and a seven-day forecast are operational weather context, not a historical/future heat-risk assessment.",
-        confidence="unresolved",
-        confidence_reason="Historical heat extremes and forward-looking climate projections are not yet in the evidence ledger.",
-        action_type="verify",
-        action="Add historical heat metrics and future scenario evidence before classifying heat materiality.",
-        support=["current_temperature_c", "client_cooling_dependency"],
+    heat_ctx = telemetry.get("historical_heat") or {}
+    heat_sensitivity = (
+        "high" if profile.get("cooling_dependency") in ("high", "critical")
+        else "moderate" if profile.get("cooling_dependency") == "moderate"
+        else "low" if profile.get("cooling_dependency") == "low"
+        else "unresolved"
     )
+    if heat_ctx.get("status") == "ok":
+        days35 = heat_ctx.get("mean_annual_days_ge_35c")
+        days40 = heat_ctx.get("mean_annual_days_ge_40c")
+        p99 = heat_ctx.get("p99_tmax_c")
+        heat_metric_codes = [
+            "baseline_p95_tmax_c", "baseline_p99_tmax_c",
+            "baseline_days_ge_35c", "baseline_days_ge_40c",
+            "baseline_nights_ge_25c", "recent_days_ge_35c",
+            "client_cooling_dependency"
+        ]
+
+        if heat_sensitivity == "high" and ((days35 or 0) >= 30 or (days40 or 0) >= 5):
+            add(
+                "heat", "material",
+                "Historical reanalysis indicates recurrent high-temperature exposure and the facility reports high or critical cooling dependence.",
+                sensitivity=heat_sensitivity,
+                reasoning="Historical heat exposure combines with a client-declared critical operational dependency, creating a plausible heat-to-operation pathway.",
+                consequence="Elevated cooling demand, HVAC/power stress or loss of temperature-controlled operations may become operationally relevant during extreme heat.",
+                confidence="medium",
+                confidence_reason="Historical ERA5-Land evidence is established at grid scale, while facility sensitivity is client-declared and not independently verified.",
+                action_type="verify",
+                action="Verify cooling redundancy, backup power capability and critical temperature tolerances; add forward-looking climate projections before long-horizon reliance.",
+                support=heat_metric_codes,
+            )
+        elif (days35 or 0) >= 15 or (days40 or 0) >= 1 or (p99 or 0) >= 38:
+            add(
+                "heat", "monitor",
+                "Historical reanalysis indicates meaningful extreme-heat exposure at the assessed grid cell.",
+                sensitivity=heat_sensitivity,
+                reasoning="The historical baseline supports heat relevance, but full future materiality requires facility vulnerability and forward-looking scenario evidence.",
+                confidence="medium",
+                confidence_reason="ERA5-Land provides a consistent historical reanalysis baseline but does not resolve building-scale microclimate.",
+                action_type="verify",
+                action="Verify facility heat sensitivity and add 2030/2050 climate projections before determining long-horizon heat materiality.",
+                support=heat_metric_codes,
+            )
+        else:
+            add(
+                "heat", "monitor",
+                "Historical heat has been characterised at screening level; forward-looking heat change remains unresolved.",
+                sensitivity=heat_sensitivity,
+                reasoning="A historical baseline is now available, but V2 does not yet include future climate scenario evidence.",
+                confidence="medium",
+                confidence_reason="Historical reanalysis is available; future trend and building-scale exposure remain outside this finding.",
+                action_type="monitor",
+                action="Retain the historical baseline and add forward-looking climate projections for 2030/2050 assessment.",
+                support=heat_metric_codes,
+            )
+    else:
+        add(
+            "heat", "evidence_gap",
+            "Long-horizon extreme-heat exposure has not yet been characterised.",
+            sensitivity=heat_sensitivity,
+            reasoning="Current temperature and a seven-day forecast are operational weather context, not a historical/future heat-risk assessment.",
+            confidence="unresolved",
+            confidence_reason=heat_ctx.get("reason") or "Historical heat evidence is unavailable.",
+            action_type="verify",
+            action="Configure the commercial historical-weather source and add future scenario evidence before classifying heat materiality.",
+            support=["historical_heat_baseline_status", "current_temperature_c", "client_cooling_dependency"],
+        )
 
     add(
         "flood", "evidence_gap",
