@@ -238,11 +238,80 @@ async function geocodeRequestedLocation(body) {
         }
       }
     }
-  } catch (_) {
-    // Final error below.
+  } catch (err) {
+    console.warn("Nominatim geocoding failed:", err?.message || err);
   }
 
-  throw new Error("We could not locate that place. Try a nearby town/city, postcode, or use 'Use my current location'.");
+  // ---- Final fallback: Photon / OpenStreetMap ----
+  // Useful when a provider blocks datacenter/edge traffic or temporarily fails.
+  try {
+    const u = new URL("https://photon.komoot.io/api/");
+    u.searchParams.set("q", rawQuery);
+    u.searchParams.set("limit", "10");
+    u.searchParams.set("lang", "en");
+
+    const photonRes = await fetch(u.toString(), {
+      headers: {
+        "Accept": "application/json"
+      }
+    });
+
+    if (photonRes.ok) {
+      const data = await photonRes.json();
+      const features = Array.isArray(data?.features) ? data.features : [];
+      const locality = String(parts[0] || "").toLowerCase();
+      let chosen = null;
+      let chosenScore = -1;
+
+      for (const feature of features) {
+        const p = feature?.properties || {};
+        const coords = feature?.geometry?.coordinates || [];
+        const lon = Number(coords[0]);
+        const lat = Number(coords[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+        const haystack = [
+          p.name,
+          p.city,
+          p.district,
+          p.county,
+          p.state,
+          p.country,
+          p.countrycode
+        ].filter(Boolean).join(" ").toLowerCase();
+
+        let score = 0;
+        if (locality && haystack.includes(locality)) score += 8;
+        for (const token of tokens) {
+          if (haystack.includes(token)) score += 2;
+        }
+        if (p.city || p.name) score += 1;
+        if (p.state) score += 0.5;
+        if (p.country) score += 0.5;
+
+        if (score > chosenScore) {
+          chosenScore = score;
+          chosen = { feature, lat, lon };
+        }
+      }
+
+      if (chosen) {
+        const p = chosen.feature.properties || {};
+        return {
+          label: [p.name || p.city, p.district || p.county, p.state, p.country].filter(Boolean).join(", ") || rawQuery,
+          lat: chosen.lat,
+          lon: chosen.lon,
+          country: p.country || null,
+          countryCode: String(p.countrycode || "").toUpperCase() || null,
+          geocoder: "photon_openstreetmap"
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Photon geocoding failed:", err?.message || err);
+  }
+
+  throw new Error("We could not locate that place. Try a nearby town/city, postcode, or latitude/longitude.");
 }
 
 
