@@ -43,6 +43,7 @@
   .cover-inner { position: relative; z-index: 2; height: 100%; }
   .wordmark { font-family: 'Bebas Neue', sans-serif; font-size: 17pt; letter-spacing: 0.09em; color: #fff; }
   .wordmark em { font-style: normal; color: var(--brass); }
+  .brandline { font-family: 'IBM Plex Mono', monospace; font-size: 6.2pt; color: #8E95A2; letter-spacing: 0.045em; margin-top: 2px; }
   .cover-rule { border-top: 0.5pt solid #2A2E36; margin: 11px 0; }
   .cover-meta { font-family: 'IBM Plex Mono', monospace; font-size: 6.2pt; color: #7C8290; }
   .cover-classif { font-family: 'IBM Plex Mono', monospace; font-size: 6.6pt; font-weight: 600; color: #C6564E; letter-spacing: 0.12em; }
@@ -70,7 +71,8 @@
   <div class="cover-grid"></div>
   <div class="cover-inner">
     <div class="wordmark">THE BRINK <em>WORLD</em></div>
-    <div class="cover-classif">LOCATION THREAT DOSSIER · {{ meta.tier_label }}</div>
+    <div class="brandline">Intelligence powered by The Brink World.</div>
+    <div class="cover-classif" style="margin-top:8px;">LOCATION THREAT DOSSIER · {{ meta.tier_label }}</div>
     <div class="cover-rule"></div>
     <div class="cover-meta">{{ meta.coords_str }} · {{ meta.occupancy_label }} · Ref: {{ meta.ref }}</div>
     <div style="margin-top: 42mm;">
