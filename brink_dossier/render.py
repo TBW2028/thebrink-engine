@@ -11,7 +11,7 @@ from .products import get_product_profile
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
-def produce(location, answers, site_name, customer_email, out_dir="reports", product_type="location_dossier"):
+def produce(location, answers, site_name, customer_email, out_dir="reports", product_type="location_dossier", return_context=False):
     pin = preview_location(location)
     if not pin["ok"]:
         raise ValueError(pin["error"])
