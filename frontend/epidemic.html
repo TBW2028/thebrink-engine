@@ -1104,7 +1104,7 @@ function dominantVariants(signals) {
 function renderLiveSummary(signals) {
   const box = $("liveSummary");
   if (!signals.length) {
-    box.innerHTML = `<div class="warn-box" style="border-top:3px solid var(--border-strong);"><div class="note-line" style="margin:0">Live signals are not available right now. The standing advisories below remain valid.</div></div>`;
+    box.innerHTML = `<div class="warn-box" style="border-top:3px solid var(--border-strong);"><div class="note-line" style="margin:0">Live official-source signals are not available right now. No current outbreak claim is being made from this feed.</div></div>`;
     return;
   }
   const tiles = [];
@@ -1266,50 +1266,45 @@ function updateSyncStatus(signals) {
   $("footerSyncStamp").textContent = `LAST DATA SYNC: ${stamp}`;
 }
 
-/* Legacy register (old Render API). Used ONLY when the live table is unreachable or empty, and labelled as unverified. */
-async function loadLegacyScreener() {
-  const tableBody = $("screenerTableBody");
-  const syncStatus = $("healthSyncStatus");
-  $("registerNote").textContent = "Legacy feed — not source-verified. Live official data replaces this as soon as it is available.";
-  // legacy rows use the old 6-column layout; keep headers readable
-  try {
-    const res = await fetch(`${API}/api/health/screener`);
-    if (!res.ok) throw new Error("Feed temporarily unavailable");
-    const data = await res.json();
-    syncStatus.textContent = `LEGACY FEED: ${data.updated_utc} · ${data.active_records} ADVISORIES (UNVERIFIED)`;
-    if (!data.screener || data.screener.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted); font-size:15px;">No advisories in the legacy feed.</td></tr>`;
-      return;
-    }
-    tableBody.innerHTML = data.screener.map(row => `
-      <tr>
-        <td><strong style="color:#fff">${escapeHtml(row.disease)}</strong></td>
-        <td>${escapeHtml(row.location)}</td>
-        <td style="color:var(--text-soft); font-size:13.5px;">${escapeHtml(row.cases_infected || row.summary)}</td>
-        <td><span class="badge badge-amber static">Legacy</span></td>
-        <td style="color:var(--text-muted); font-size:13.5px;">${escapeHtml(row.timestamp)}</td>
-        <td><button type="button" class="badge ${escapeHtml(row.badge_class || "badge-amber")}" data-title="${escapeHtml(row.severity)}" data-body="${escapeHtml(getExplanationForSeverity(row.severity))}">${escapeHtml(row.severity)} ℹ️</button></td>
-      </tr>`).join("");
-  } catch (e) {
-    syncStatus.textContent = "LIVE FEED UNAVAILABLE — TRY AGAIN LATER";
-    tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted); font-size:15px;">The outbreak register is temporarily unavailable.</td></tr>`;
-  }
-}
-
 async function loadLiveHealthScreener() {
   let signals = [];
-  try { signals = await fetchSignals(); } catch (e) { console.warn("Live signals unavailable:", e); }
+  let fetchError = null;
+
+  try {
+    signals = await fetchSignals();
+  } catch (e) {
+    fetchError = e;
+    console.warn("Live signals unavailable:", e);
+  }
+
   renderLiveSummary(signals);
   renderVariantTracker(signals);
   renderWastewater(signals);
   renderLocalHealthFromSignals(signals);
+
   if (signals.length) {
     renderOutbreakRegister(signals.filter(s => s.kind === "outbreak_notice"));
     checkFreshness(signals);
     updateSyncStatus(signals);
-  } else {
-    await loadLegacyScreener();
+    return;
   }
+
+  // Never substitute an old/unverified feed when the official pipeline is empty.
+  $("healthSyncStatus").textContent = fetchError
+    ? "LIVE OFFICIAL FEED UNAVAILABLE"
+    : "NO CURRENT OFFICIAL SIGNALS RESOLVED";
+
+  $("footerSyncStamp").textContent = fetchError
+    ? "LAST DATA SYNC: UNAVAILABLE"
+    : "LAST DATA SYNC: NO CURRENT RECORDS";
+
+  $("registerNote").textContent =
+    "No verified WHO Disease Outbreak News records are currently available from the live outbreak pipeline.";
+
+  $("screenerTableBody").innerHTML =
+    '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);font-size:15px;">' +
+    'No verified live outbreak records are currently available. Historical or legacy rows are intentionally not substituted.' +
+    '</td></tr>';
 }
 
 // One handler for every explanatory badge (no inline JS, no quote-escaping problems)
