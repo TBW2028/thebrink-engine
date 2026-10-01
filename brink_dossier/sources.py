@@ -6,7 +6,7 @@ CACHE_DIR = Path(".brink_cache")
 CACHE_DIR.mkdir(exist_ok=True)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")\nOPEN_METEO_API_KEY = os.environ.get("OPEN_METEO_API_KEY")
 
 
 def _cached_get(url, params=None, ttl_seconds=1800, headers=None):
@@ -221,6 +221,169 @@ def forecast_summary(days):
     }
 
 
+def _percentile(values, q):
+    vals = sorted(float(v) for v in values if v is not None)
+    if not vals:
+        return None
+    if len(vals) == 1:
+        return vals[0]
+    pos = (len(vals) - 1) * q
+    lo = int(math.floor(pos))
+    hi = int(math.ceil(pos))
+    if lo == hi:
+        return vals[lo]
+    return vals[lo] + (vals[hi] - vals[lo]) * (pos - lo)
+
+
+def fetch_historical_heat_context(lat, lon):
+    """
+    Institutional historical-heat baseline.
+
+    The commercial engine does not call Open-Meteo's free endpoint for this
+    module. A paid Open-Meteo key is required so commercial use is explicit.
+    The underlying reanalysis requested is ERA5-Land.
+    """
+    if not OPEN_METEO_API_KEY:
+        return {
+            "status": "not_configured",
+            "reason": "OPEN_METEO_API_KEY is not configured for commercial historical-weather access.",
+            "dataset": "ERA5-Land",
+            "baseline_period": "1991-2020",
+        }
+
+    endpoint = "https://customer-archive-api.open-meteo.com/v1/archive"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": "1991-01-01",
+        "end_date": "2025-12-31",
+        "daily": "temperature_2m_max,temperature_2m_min",
+        "models": "era5_land",
+        "timezone": "UTC",
+        "cell_selection": "land",
+        "apikey": OPEN_METEO_API_KEY,
+    }
+
+    try:
+        r = requests.get(endpoint, params=params, timeout=45)
+        if r.status_code != 200:
+            return {
+                "status": "error",
+                "reason": f"Historical heat source returned HTTP {r.status_code}.",
+                "dataset": "ERA5-Land",
+                "baseline_period": "1991-2020",
+            }
+        payload = r.json()
+    except Exception as exc:
+        return {
+            "status": "error",
+            "reason": f"Historical heat retrieval failed: {str(exc)[:220]}",
+            "dataset": "ERA5-Land",
+            "baseline_period": "1991-2020",
+        }
+
+    daily = payload.get("daily") or {}
+    dates = daily.get("time") or []
+    tmax = daily.get("temperature_2m_max") or []
+    tmin = daily.get("temperature_2m_min") or []
+    n = min(len(dates), len(tmax), len(tmin))
+    if n < 365:
+        return {
+            "status": "error",
+            "reason": "Historical heat source returned insufficient daily data.",
+            "dataset": "ERA5-Land",
+            "baseline_period": "1991-2020",
+        }
+
+    baseline_max = []
+    baseline_min = []
+    recent_max = []
+    recent_min = []
+    hottest = None
+    annual = {}
+
+    for i in range(n):
+        day = str(dates[i])
+        try:
+            year = int(day[:4])
+            tx = float(tmax[i]) if tmax[i] is not None else None
+            tn = float(tmin[i]) if tmin[i] is not None else None
+        except (TypeError, ValueError):
+            continue
+
+        if tx is not None and (hottest is None or tx > hottest["temperature_c"]):
+            hottest = {"date": day, "temperature_c": tx}
+
+        if 1991 <= year <= 2020:
+            if tx is not None:
+                baseline_max.append(tx)
+            if tn is not None:
+                baseline_min.append(tn)
+            yr = annual.setdefault(year, {"days_ge_35": 0, "days_ge_40": 0, "nights_ge_25": 0})
+            if tx is not None and tx >= 35.0:
+                yr["days_ge_35"] += 1
+            if tx is not None and tx >= 40.0:
+                yr["days_ge_40"] += 1
+            if tn is not None and tn >= 25.0:
+                yr["nights_ge_25"] += 1
+        elif 2021 <= year <= 2025:
+            if tx is not None:
+                recent_max.append(tx)
+            if tn is not None:
+                recent_min.append(tn)
+
+    years = sorted(annual)
+    if not baseline_max or not years:
+        return {
+            "status": "error",
+            "reason": "Could not calculate the 1991-2020 historical heat baseline.",
+            "dataset": "ERA5-Land",
+            "baseline_period": "1991-2020",
+        }
+
+    mean_days_35 = sum(annual[y]["days_ge_35"] for y in years) / len(years)
+    mean_days_40 = sum(annual[y]["days_ge_40"] for y in years) / len(years)
+    mean_nights_25 = sum(annual[y]["nights_ge_25"] for y in years) / len(years)
+
+    recent_days_35 = None
+    if recent_max:
+        recent_year_counts = {}
+        for i in range(n):
+            day = str(dates[i])
+            try:
+                year = int(day[:4])
+                tx = float(tmax[i]) if tmax[i] is not None else None
+            except (TypeError, ValueError):
+                continue
+            if 2021 <= year <= 2025 and tx is not None:
+                recent_year_counts.setdefault(year, 0)
+                if tx >= 35.0:
+                    recent_year_counts[year] += 1
+        if recent_year_counts:
+            recent_days_35 = sum(recent_year_counts.values()) / len(recent_year_counts)
+
+    return {
+        "status": "ok",
+        "dataset": "ERA5-Land",
+        "access": "Open-Meteo Historical Weather API (commercial endpoint)",
+        "baseline_period": "1991-2020",
+        "recent_period": "2021-2025",
+        "spatial_resolution": "0.1 degree grid; ERA5-Land native resolution approximately 9 km",
+        "p95_tmax_c": round(_percentile(baseline_max, 0.95), 1),
+        "p99_tmax_c": round(_percentile(baseline_max, 0.99), 1),
+        "mean_annual_days_ge_35c": round(mean_days_35, 1),
+        "mean_annual_days_ge_40c": round(mean_days_40, 1),
+        "mean_annual_nights_ge_25c": round(mean_nights_25, 1),
+        "recent_mean_annual_days_ge_35c": round(recent_days_35, 1) if recent_days_35 is not None else None,
+        "hottest_day": hottest,
+        "baseline_years": len(years),
+        "limitations": (
+            "Gridded reanalysis, not an on-site thermometer record. "
+            "Building-scale urban heat, shade, ventilation and microclimate are not resolved."
+        ),
+    }
+
+
 def agriculture_context(now, country_code, purpose_details, wx_summary):
     details = purpose_details or {}
     crop = str(details.get("crop") or "").strip() or None
@@ -364,7 +527,7 @@ def fetch_telemetry(lat, lon, context=None):
             "wind_kmh": current.get("wind_speed_10m"),
         },
         "forecast_days": days,
-        "forecast_summary": wx_summary,
+        "forecast_summary": wx_summary,\n        "historical_heat": historical_heat,
         "recent_quakes": recent_events,
         "quake_count_30d_350km": len(quakes_data.get("features", [])),
         "live_hazards_300km": local_300,
