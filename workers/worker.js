@@ -1545,53 +1545,58 @@ export default {
             business_continuity_threat_register: "External Threat Register"
           };
 
-          await Promise.all([
-            fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                from: sender,
-                to: ["thebrink2028@gmail.com"],
-                reply_to: email,
-                subject: `[COMMERCIAL FACILITY REVIEW] ${facilityName} · ${productLabels[productType]}`,
-                html: `
-                  <div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#111">
-                    <p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#555">The Brink World · Commercial Facility Intake</p>
-                    <h2>${safe(facilityName)}</h2>
-                    <table style="border-collapse:collapse;width:100%">
-                      <tr><td style="padding:6px;color:#666">Organisation</td><td><strong>${safe(organization)}</strong></td></tr>
-                      <tr><td style="padding:6px;color:#666">Contact</td><td>${safe(contactName)} · ${safe(email)}</td></tr>
-                      <tr><td style="padding:6px;color:#666">Location</td><td>${safe(location.label)}</td></tr>
-                      <tr><td style="padding:6px;color:#666">Product</td><td>${safe(productLabels[productType])}</td></tr>
-                      <tr><td style="padding:6px;color:#666">Cadence</td><td>${safe(cadence)}</td></tr>
-                      <tr><td style="padding:6px;color:#666">Critical function</td><td>${safe(criticalFunction || "—")}</td></tr>
-                    </table>
-                    <p><strong>Requested workflow:</strong> ${safe(notes || "Not supplied")}</p>
-                    <p><a href="${reviewUrl.toString()}" style="display:inline-block;background:#0b0d11;color:#fff;padding:12px 18px;text-decoration:none">Review & activate</a></p>
-                  </div>
-                `
-              })
-            }),
-            fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                from: sender,
-                to: [email],
-                reply_to: env.DOSSIER_REPLY_TO || "thebrink2028@gmail.com",
-                subject: "Your facility risk request has been received",
-                html: `
-                  <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111">
-                    <p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#555">The Brink World · Facility Risk Intelligence</p>
-                    <h2>We received your facility request.</h2>
-                    <p><strong>${safe(facilityName)}</strong><br>${safe(location.label)}</p>
-                    <p>We will review the requested scope before any paid monitoring or recurring reporting is activated.</p>
-                    <p>Reference: <strong>${subscriptionId.slice(0,8).toUpperCase()}</strong></p>
-                  </div>
-                `
-              })
+          const adminMail = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: sender,
+              to: ["thebrink2028@gmail.com"],
+              reply_to: email,
+              subject: `[COMMERCIAL FACILITY REVIEW] ${facilityName} · ${productLabels[productType]}`,
+              html: `
+                <div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#111">
+                  <p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#555">The Brink World · Commercial Facility Intake</p>
+                  <h2>${safe(facilityName)}</h2>
+                  <table style="border-collapse:collapse;width:100%">
+                    <tr><td style="padding:6px;color:#666">Organisation</td><td><strong>${safe(organization)}</strong></td></tr>
+                    <tr><td style="padding:6px;color:#666">Contact</td><td>${safe(contactName)} · ${safe(email)}</td></tr>
+                    <tr><td style="padding:6px;color:#666">Location</td><td>${safe(location.label)}</td></tr>
+                    <tr><td style="padding:6px;color:#666">Product</td><td>${safe(productLabels[productType])}</td></tr>
+                    <tr><td style="padding:6px;color:#666">Cadence</td><td>${safe(cadence)}</td></tr>
+                    <tr><td style="padding:6px;color:#666">Critical function</td><td>${safe(criticalFunction || "—")}</td></tr>
+                  </table>
+                  <p><strong>Requested workflow:</strong> ${safe(notes || "Not supplied")}</p>
+                  <p><a href="${reviewUrl.toString()}" style="display:inline-block;background:#0b0d11;color:#fff;padding:12px 18px;text-decoration:none">Review & activate</a></p>
+                </div>
+              `
             })
-          ]).catch(e => console.warn("Commercial intake email error:", e));
+          });
+          if (!adminMail.ok) {
+            console.error("Commercial admin email failed:", adminMail.status, await adminMail.text());
+          }
+
+          const customerMail = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: sender,
+              to: [email],
+              reply_to: "thebrink2028@gmail.com",
+              subject: "Your facility risk request has been received",
+              html: `
+                <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111">
+                  <p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#555">The Brink World · Facility Risk Intelligence</p>
+                  <h2>We received your facility request.</h2>
+                  <p><strong>${safe(facilityName)}</strong><br>${safe(location.label)}</p>
+                  <p>We will review the requested scope before any paid monitoring or recurring reporting is activated.</p>
+                  <p>Reference: <strong>${subscriptionId.slice(0,8).toUpperCase()}</strong></p>
+                </div>
+              `
+            })
+          });
+          if (!customerMail.ok) {
+            console.error("Commercial customer acknowledgement failed:", customerMail.status, await customerMail.text());
+          }
         }
 
         return jsonResponse({
