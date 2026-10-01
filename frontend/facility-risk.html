@@ -18,7 +18,7 @@ label{display:block;font:700 10.5px "JetBrains Mono";letter-spacing:.06em;text-t
 input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:#fff;padding:11px 12px;font:14px inherit;outline:none}textarea{min-height:88px;resize:vertical}input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.btn{width:100%;border:0;border-radius:6px;padding:12px 15px;margin-top:18px;background:var(--accent);color:#061018;font:800 11px "JetBrains Mono";text-transform:uppercase;letter-spacing:.05em;cursor:pointer}.btn:disabled{opacity:.5;cursor:not-allowed}
 .note{font-size:12.5px;color:var(--muted);margin-top:10px}.notice{display:none;margin-top:13px;padding:11px;border-radius:6px;font-size:13px}.notice.ok{display:block;border:1px solid var(--ok);background:rgba(16,185,129,.08);color:#bcf6de}.notice.err{display:block;border:1px solid #ef4444;background:rgba(239,68,68,.07);color:#ffcaca}
-.feature{border-bottom:1px solid rgba(36,49,67,.65);padding:11px 0;color:var(--soft);font-size:13.5px}.feature b{color:#fff}.boundary{margin-top:18px;padding:11px;border:1px solid rgba(245,158,11,.3);border-radius:7px;background:rgba(245,158,11,.05);color:#decfab;font-size:12px}
+.feature{border-bottom:1px solid rgba(36,49,67,.65);padding:11px 0;color:var(--soft);font-size:13.5px}.feature b{color:#fff}.boundary{margin-top:18px;padding:11px;border:1px solid rgba(245,158,11,.3);border-radius:7px;background:rgba(245,158,11,.05);color:#decfab;font-size:12px}.profile{margin-top:18px;border:1px solid var(--line);border-radius:8px;background:rgba(17,26,38,.55);padding:0 14px 14px}.profile summary{cursor:pointer;padding:13px 0;font-weight:700;color:#fff}.profile .intro{font-size:12.5px;color:var(--muted);margin:0 0 8px}.consent{display:flex;gap:9px;align-items:flex-start;margin-top:14px;padding:11px;border:1px solid var(--line);border-radius:7px;background:rgba(17,26,38,.45);font-size:12.5px;color:var(--soft)}.consent input{width:auto;margin-top:3px;flex:0 0 auto}.consent label{display:inline;margin:0;font:inherit;letter-spacing:0;text-transform:none;color:inherit}.legal-version{font:600 10px "JetBrains Mono";color:var(--muted);margin-top:8px}
 @media(max-width:900px){.product-grid{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}}
 @media(max-width:540px){main{padding-top:32px}.product-grid{grid-template-columns:1fr}.two{grid-template-columns:1fr}.card{padding:17px}}
 </style>
@@ -86,6 +86,77 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
 </div>
 <label>What decision or workflow should this support?</label>
 <textarea id="notes" placeholder="Insurance renewal, facility risk review, ESG evidence, ISO 22301 register, site acquisition, board risk review, etc."></textarea>
+
+<details class="profile">
+  <summary>Facility vulnerability profile · Institutional assessment</summary>
+  <p class="intro">Complete what you know. Choose “Unknown” rather than guessing. These details allow Brink to distinguish hazard exposure from actual facility vulnerability.</p>
+  <div class="two">
+    <div>
+      <label>Main construction type</label>
+      <select id="constructionType">
+        <option value="unknown">Unknown</option>
+        <option value="reinforced_concrete">Reinforced concrete</option>
+        <option value="steel_frame">Steel frame</option>
+        <option value="masonry">Masonry</option>
+        <option value="timber">Timber</option>
+        <option value="mixed">Mixed construction</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div><label>Approx. year built</label><input id="yearBuilt" type="number" min="1800" max="2100" placeholder="e.g. 2018"></div>
+  </div>
+  <div class="two">
+    <div><label>Floors above ground</label><input id="floorsAboveGround" type="number" min="0" max="300" placeholder="e.g. 3"></div>
+    <div>
+      <label>Basement / below-ground operational area</label>
+      <select id="basementPresent"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select>
+    </div>
+  </div>
+  <div class="two">
+    <div>
+      <label>Critical equipment location</label>
+      <select id="criticalEquipmentLevel">
+        <option value="unknown">Unknown</option>
+        <option value="basement">Basement / below ground</option>
+        <option value="ground_floor">Ground floor</option>
+        <option value="upper_floor">Upper floor</option>
+        <option value="multiple_levels">Multiple levels</option>
+      </select>
+    </div>
+    <div>
+      <label>Backup electricity</label>
+      <select id="backupPower">
+        <option value="unknown">Unknown</option>
+        <option value="none">None</option>
+        <option value="ups">UPS</option>
+        <option value="generator">Generator</option>
+        <option value="solar_battery">Solar + battery</option>
+        <option value="multiple">Multiple systems</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+  </div>
+  <div class="two">
+    <div>
+      <label>Water dependence</label>
+      <select id="waterDependency"><option value="unknown">Unknown</option><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option><option value="critical">Critical</option></select>
+    </div>
+    <div>
+      <label>Cooling / HVAC dependence</label>
+      <select id="coolingDependency"><option value="unknown">Unknown</option><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option><option value="critical">Critical</option></select>
+    </div>
+  </div>
+  <label>Practical road access routes</label>
+  <select id="practicalAccessRoutes"><option value="unknown">Unknown</option><option value="1">1 route</option><option value="2">2 routes</option><option value="3_plus">3 or more routes</option></select>
+  <label>Known drainage / flood protections</label><input id="drainageProtection" placeholder="e.g. raised floor, storm drains, flood barrier, unknown">
+  <label>Previous hazard-related disruption</label><textarea id="previousDisruptions" placeholder="Flooding, heat, storm, earthquake, access loss, utility interruption — or leave blank."></textarea>
+  <label>Critical utilities / suppliers / dependencies</label><textarea id="criticalDependencies" placeholder="e.g. grid power, municipal water, single logistics route, telecoms"></textarea>
+  <label>Existing resilience measures</label><textarea id="resilienceMeasures" placeholder="e.g. generator, redundant cooling, alternate route, water storage"></textarea>
+</details>
+
+<div class="consent"><input id="authorityConfirmed" type="checkbox"><label for="authorityConfirmed">I confirm that I am authorised to provide this information for the organisation and that, to the best of my knowledge, the information supplied is accurate.</label></div>
+<div class="consent"><input id="termsAccepted" type="checkbox"><label for="termsAccepted">I have read and agree to the <a href="/terms.html" target="_blank" rel="noopener">Commercial Terms of Service</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Notice</a>, including the limits on reliance and the use of third-party, modelled and automated risk information.</label></div>
+<div class="legal-version">Terms: TBW-TOS-2026-10-01 · Privacy: TBW-PRIVACY-2026-10-01</div>
 <button class="btn" id="submitBtn" onclick="submitRequest()">Submit facility for review</button>
 <div class="note">Submitting this form does not start paid monitoring automatically. The Brink World reviews the requested scope before activation.</div>
 <div id="notice" class="notice"></div>
@@ -123,10 +194,30 @@ async function submitRequest(){
     product_type:document.getElementById("productType").value,
     cadence:document.getElementById("cadence").value,
     critical_function:document.getElementById("criticalFunction").value.trim(),
-    notes:document.getElementById("notes").value.trim()
+    notes:document.getElementById("notes").value.trim(),
+    construction_type:document.getElementById("constructionType").value,
+    year_built:document.getElementById("yearBuilt").value,
+    floors_above_ground:document.getElementById("floorsAboveGround").value,
+    basement_present:document.getElementById("basementPresent").value,
+    critical_equipment_level:document.getElementById("criticalEquipmentLevel").value,
+    backup_power:document.getElementById("backupPower").value,
+    water_dependency:document.getElementById("waterDependency").value,
+    cooling_dependency:document.getElementById("coolingDependency").value,
+    practical_access_routes:document.getElementById("practicalAccessRoutes").value,
+    drainage_protection:document.getElementById("drainageProtection").value.trim(),
+    previous_disruptions:document.getElementById("previousDisruptions").value.trim(),
+    critical_dependencies:document.getElementById("criticalDependencies").value.trim(),
+    resilience_measures:document.getElementById("resilienceMeasures").value.trim(),
+    authority_confirmed:document.getElementById("authorityConfirmed").checked,
+    client_declaration_confirmed:document.getElementById("authorityConfirmed").checked,
+    terms_accepted:document.getElementById("termsAccepted").checked,
+    privacy_accepted:document.getElementById("termsAccepted").checked
   };
   if(!body.contact_name||!body.email.includes("@")||!body.organization||!body.facility_name||!body.location){
     n.className="notice err";n.textContent="Complete contact name, business email, organisation, facility name and location.";return;
+  }
+  if(!body.authority_confirmed||!body.terms_accepted){
+    n.className="notice err";n.textContent="Confirm your authority and accept the Commercial Terms and Privacy Notice before submitting.";return;
   }
   b.disabled=true;b.textContent="SUBMITTING…";n.className="notice";n.textContent="";
   try{
