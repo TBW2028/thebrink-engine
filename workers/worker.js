@@ -566,6 +566,99 @@ export default {
       }
     }
 
+    // 4b. Unified NOAA Space Weather Status
+    if (url.pathname === "/api/space/status" && request.method === "GET") {
+      try {
+        const fetchJson = async (target, ttl = 120) => {
+          const r = await fetch(target, {
+            headers: { "User-Agent": "TheBrinkEngine/1.0 (+https://thebrinkworld.com)" },
+            cf: { cacheTtl: ttl, cacheEverything: true }
+          });
+          if (!r.ok) throw new Error(`NOAA upstream status ${r.status} for ${target}`);
+          return await r.json();
+        };
+
+        const [plasmaR, magR, kpR, scalesR, alertsR] = await Promise.allSettled([
+          fetchJson("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-hour.json", 120),
+          fetchJson("https://services.swpc.noaa.gov/products/solar-wind/mag-1-hour.json", 120),
+          fetchJson("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json", 120),
+          fetchJson("https://services.swpc.noaa.gov/products/noaa-scales.json", 300),
+          fetchJson("https://services.swpc.noaa.gov/products/alerts.json", 180)
+        ]);
+
+        const lastTableRow = (data) => {
+          if (!Array.isArray(data) || data.length < 2 || !Array.isArray(data[0])) return {};
+          const header = data[0];
+          for (let i = data.length - 1; i >= 1; i--) {
+            if (!Array.isArray(data[i])) continue;
+            const out = {};
+            header.forEach((key, idx) => { out[key] = data[i][idx]; });
+            return out;
+          }
+          return {};
+        };
+
+        const plasma = plasmaR.status === "fulfilled" ? lastTableRow(plasmaR.value) : {};
+        const mag = magR.status === "fulfilled" ? lastTableRow(magR.value) : {};
+
+        let kp = null;
+        let kpTime = null;
+        if (kpR.status === "fulfilled" && Array.isArray(kpR.value) && kpR.value.length) {
+          const latest = kpR.value[kpR.value.length - 1] || {};
+          const raw = latest.kp_index !== undefined ? latest.kp_index : latest.kp;
+          kp = Number.isFinite(Number(raw)) ? Number(raw) : null;
+          kpTime = latest.time_tag || latest.time || null;
+        }
+
+        const alerts = alertsR.status === "fulfilled" && Array.isArray(alertsR.value) ? alertsR.value : [];
+        const geomagnetic = alerts.find(a => /geomagnetic storm|geomagnetic k-index/i.test(String(a.message || ""))) || null;
+
+        let driver = null;
+        let watchText = null;
+        if (geomagnetic && geomagnetic.message) {
+          const comment = String(geomagnetic.message).match(/Comment:\s*([^\r\n]+)/i);
+          if (comment && comment[1].trim()) driver = comment[1].trim();
+          const watch = String(geomagnetic.message).match(/(?:WATCH|WARNING|ALERT):\s*([^\r\n]+)/i);
+          if (watch && watch[1].trim()) watchText = watch[1].trim();
+        }
+
+        const num = v => Number.isFinite(Number(v)) ? Number(v) : null;
+        const body = {
+          observed_at: new Date().toISOString(),
+          current: {
+            kp,
+            kp_time: kpTime,
+            solar_wind_speed_km_s: num(plasma.speed),
+            proton_density_cm3: num(plasma.density),
+            plasma_temperature_k: num(plasma.temperature),
+            plasma_time: plasma.time_tag || null,
+            bt_nt: num(mag.bt),
+            bz_nt: num(mag.bz_gsm !== undefined ? mag.bz_gsm : mag.bz),
+            bx_nt: num(mag.bx_gsm !== undefined ? mag.bx_gsm : mag.bx),
+            by_nt: num(mag.by_gsm !== undefined ? mag.by_gsm : mag.by),
+            magnetic_time: mag.time_tag || null
+          },
+          scales: scalesR.status === "fulfilled" ? scalesR.value : null,
+          latest_geomagnetic_message: geomagnetic ? {
+            product_id: geomagnetic.product_id || null,
+            issue_datetime: geomagnetic.issue_datetime || null,
+            headline: watchText,
+            driver
+          } : null,
+          source: "NOAA Space Weather Prediction Center"
+        };
+
+        return new Response(JSON.stringify(body), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
     // 5. Unified Identity & Topic Vector Preferences
     if (url.pathname === "/api/subscribe" && request.method === "POST") {
       try {
