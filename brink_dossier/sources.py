@@ -7,6 +7,10 @@ import xarray as xr
 import rasterio
 from rasterio.windows import Window
 from rasterio.warp import transform as rio_transform
+import pandas as pd
+import pyogrio
+from shapely.geometry import Point
+from pyproj import Transformer
 
 CACHE_DIR = Path(".brink_cache")
 CACHE_DIR.mkdir(exist_ok=True)
@@ -15,6 +19,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 CDS_API_KEY = os.environ.get("CDS_API_KEY")
 JRC_FLOOD_BASE = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/flood_hazard"
+WRI_AQUEDUCT_ZIP = "https://files.wri.org/aqueduct/aqueduct-4-0-water-risk-data.zip"
 
 
 def _cached_get(url, params=None, ttl_seconds=1800, headers=None):
@@ -882,6 +887,258 @@ def fetch_jrc_river_flood_context(lat, lon):
     }
 
 
+def _download_aqueduct4():
+    """Download and cache the official WRI Aqueduct 4.0 global data package."""
+    root = CACHE_DIR / "aqueduct4"
+    root.mkdir(exist_ok=True)
+    zip_path = root / "aqueduct-4-0-water-risk-data.zip"
+    extract_dir = root / "extracted"
+    marker = extract_dir / ".complete"
+
+    if marker.exists():
+        return extract_dir
+
+    if not zip_path.exists():
+        tmp_path = zip_path.with_suffix(".part")
+        headers = {"User-Agent": "TheBrinkWorld/1.0 physical-risk-intelligence"}
+        with requests.get(WRI_AQUEDUCT_ZIP, headers=headers, stream=True, timeout=180) as r:
+            r.raise_for_status()
+            with open(tmp_path, "wb") as out:
+                for chunk in r.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        out.write(chunk)
+        tmp_path.replace(zip_path)
+
+    if not zipfile.is_zipfile(zip_path):
+        raise RuntimeError("WRI Aqueduct download is not a valid ZIP archive.")
+
+    extract_dir.mkdir(exist_ok=True)
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for member in zf.infolist():
+            path = Path(member.filename)
+            if path.is_absolute() or ".." in path.parts:
+                continue
+            zf.extract(member, extract_dir)
+
+    marker.write_text("Aqueduct 4.0 extracted")
+    return extract_dir
+
+
+def _vector_point_row(path, layer, lon, lat):
+    """Return the feature covering a WGS84 point without loading the full dataset."""
+    info = pyogrio.read_info(path, layer=layer)
+    crs = info.get("crs")
+    x, y = lon, lat
+    if crs and str(crs).upper() not in ("EPSG:4326", "OGC:CRS84"):
+        transformer = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
+        x, y = transformer.transform(lon, lat)
+
+    pad = 0.001 if not crs or "4326" in str(crs) else 250.0
+    frame = pyogrio.read_dataframe(
+        path,
+        layer=layer,
+        bbox=(x - pad, y - pad, x + pad, y + pad),
+    )
+    if frame.empty:
+        return None
+
+    point = Point(x, y)
+    matches = frame[frame.geometry.intersects(point)]
+    if matches.empty:
+        return None
+    return matches.iloc[0]
+
+
+def _aqueduct_assets(root):
+    """Find baseline/future Aqueduct tables by schema, not filename assumptions."""
+    baseline_spatial = None
+    future_spatial = None
+    future_csv = None
+
+    vector_files = list(root.rglob("*.gpkg")) + list(root.rglob("*.shp"))
+    for path in vector_files:
+        try:
+            layers = pyogrio.list_layers(path)
+        except Exception:
+            continue
+        for layer_name, _geom_type in layers:
+            try:
+                info = pyogrio.read_info(path, layer=layer_name)
+                fields = set(str(x) for x in info.get("fields", []))
+            except Exception:
+                continue
+            if baseline_spatial is None and {"bws_raw", "bws_score", "bws_label"}.issubset(fields):
+                baseline_spatial = (path, layer_name)
+            if future_spatial is None and any(
+                key in fields for key in ("bau30_ws_x_r", "bau50_ws_x_r", "opt30_ws_x_r", "pes30_ws_x_r")
+            ):
+                future_spatial = (path, layer_name)
+
+    for path in root.rglob("*.csv"):
+        try:
+            sample = pd.read_csv(path, nrows=2)
+            fields = set(sample.columns)
+        except Exception:
+            continue
+        if any(key in fields for key in ("bau30_ws_x_r", "bau50_ws_x_r", "opt30_ws_x_r", "pes30_ws_x_r")):
+            future_csv = path
+            break
+
+    return baseline_spatial, future_spatial, future_csv
+
+
+def _clean_aqueduct_value(value):
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    if isinstance(value, (int, float)):
+        if float(value) in (-9999.0,):
+            return None
+        return float(value)
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none", "no data", "-9999"}:
+        return None
+    return text
+
+
+def fetch_aqueduct_water_risk_context(lat, lon):
+    """Site-level basin screening using WRI Aqueduct 4.0 baseline and future data."""
+    try:
+        root = _download_aqueduct4()
+        baseline_asset, future_asset, future_csv = _aqueduct_assets(root)
+    except Exception as exc:
+        return {
+            "status": "error",
+            "reason": f"WRI Aqueduct 4.0 data preparation failed: {str(exc)[:280]}",
+            "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
+        }
+
+    if not baseline_asset:
+        return {
+            "status": "error",
+            "reason": "Aqueduct 4.0 baseline annual spatial layer could not be identified in the official download.",
+            "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
+        }
+
+    try:
+        baseline_row = _vector_point_row(
+            str(baseline_asset[0]),
+            baseline_asset[1],
+            lon,
+            lat,
+        )
+    except Exception as exc:
+        return {
+            "status": "error",
+            "reason": f"Aqueduct 4.0 baseline point lookup failed: {str(exc)[:260]}",
+            "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
+        }
+
+    if baseline_row is None:
+        return {
+            "status": "not_covered",
+            "reason": "Aqueduct 4.0 did not resolve a baseline annual feature at the assessed coordinate.",
+            "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
+        }
+
+    def field(row, name):
+        return _clean_aqueduct_value(row.get(name)) if name in row.index else None
+
+    baseline = {
+        "pfaf_id": field(baseline_row, "pfaf_id"),
+        "name_0": field(baseline_row, "name_0"),
+        "name_1": field(baseline_row, "name_1"),
+        "water_stress_raw": field(baseline_row, "bws_raw"),
+        "water_stress_score": field(baseline_row, "bws_score"),
+        "water_stress_label": field(baseline_row, "bws_label"),
+        "water_stress_category": field(baseline_row, "bws_cat"),
+        "water_depletion_raw": field(baseline_row, "bwd_raw"),
+        "water_depletion_score": field(baseline_row, "bwd_score"),
+        "water_depletion_label": field(baseline_row, "bwd_label"),
+        "interannual_variability_raw": field(baseline_row, "iav_raw"),
+        "interannual_variability_label": field(baseline_row, "iav_label"),
+        "seasonal_variability_raw": field(baseline_row, "sev_raw"),
+        "seasonal_variability_label": field(baseline_row, "sev_label"),
+        "drought_risk_raw": field(baseline_row, "drr_raw"),
+        "drought_risk_score": field(baseline_row, "drr_score"),
+        "drought_risk_label": field(baseline_row, "drr_label"),
+    }
+
+    future_row = None
+    if future_asset:
+        try:
+            future_row = _vector_point_row(
+                str(future_asset[0]),
+                future_asset[1],
+                lon,
+                lat,
+            )
+        except Exception:
+            future_row = None
+
+    if future_row is None and future_csv and baseline.get("pfaf_id") is not None:
+        try:
+            table = pd.read_csv(future_csv)
+            pfaf_numeric = pd.to_numeric(table.get("pfaf_id"), errors="coerce")
+            target = float(baseline["pfaf_id"])
+            rows = table[pfaf_numeric == target]
+            if not rows.empty:
+                future_row = rows.iloc[0]
+        except Exception:
+            future_row = None
+
+    future = {}
+    if future_row is not None:
+        for scenario in ("opt", "bau", "pes"):
+            scenario_name = {
+                "opt": "optimistic",
+                "bau": "business_as_usual",
+                "pes": "pessimistic",
+            }[scenario]
+            future[scenario_name] = {}
+            for year_code, year in (("30", 2030), ("50", 2050), ("80", 2080)):
+                prefix = f"{scenario}{year_code}_ws_x_"
+                future[scenario_name][str(year)] = {
+                    "raw": field(future_row, prefix + "r"),
+                    "score": field(future_row, prefix + "s"),
+                    "label": field(future_row, prefix + "l"),
+                    "category": field(future_row, prefix + "c"),
+                }
+
+    return {
+        "status": "ok",
+        "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
+        "publisher": "World Resources Institute",
+        "baseline": baseline,
+        "future_water_stress": future,
+        "future_scenarios": {
+            "optimistic": "SSP1 / RCP2.6",
+            "business_as_usual": "SSP3 / RCP7.0",
+            "pessimistic": "SSP5 / RCP8.5",
+        },
+        "future_periods": {
+            "2030": "2015-2045",
+            "2050": "2035-2065",
+            "2080": "2065-2095",
+        },
+        "licence": "CC BY 4.0",
+        "citation": (
+            "Kuzma, S. et al. (2023), Aqueduct 4.0: Updated decision-relevant global water risk indicators, "
+            "World Resources Institute."
+        ),
+        "limitations": (
+            "Aqueduct is a global basin-level prioritization and screening framework. "
+            "It does not replace local water-supply, utility, hydrogeological or drought-resilience studies. "
+            "WRI notes that important water-management and governance elements are only partially represented "
+            "and recommends local/regional deep dives for decisions requiring greater precision."
+        ),
+    }
+
+
 def agriculture_context(now, country_code, purpose_details, wx_summary):
     details = purpose_details or {}
     crop = str(details.get("crop") or "").strip() or None
@@ -1003,6 +1260,7 @@ def fetch_telemetry(lat, lon, context=None):
     historical_heat = fetch_historical_heat_context(lat, lon)
     historical_rainfall = fetch_historical_rainfall_context(lat, lon)
     river_flood = fetch_jrc_river_flood_context(lat, lon)
+    water_risk = fetch_aqueduct_water_risk_context(lat, lon)
     wx_summary = forecast_summary(days)
     purpose_details = context.get("purpose_details") or {}
     purpose = str(context.get("occupancy") or context.get("purpose") or "").lower()
@@ -1032,6 +1290,7 @@ def fetch_telemetry(lat, lon, context=None):
         "historical_heat": historical_heat,
         "historical_rainfall": historical_rainfall,
         "river_flood": river_flood,
+        "water_risk": water_risk,
         "recent_quakes": recent_events,
         "quake_count_30d_350km": len(quakes_data.get("features", [])),
         "live_hazards_300km": local_300,
@@ -1080,6 +1339,11 @@ def fetch_telemetry(lat, lon, context=None):
                 "type": "Modelled riverine flood inundation",
                 "note": "Global riverine flood water-depth screening at approximately 90 m for multiple return periods. Not an official local flood map; does not represent pluvial drainage flooding."
             } if river_flood.get("status") == "ok" else None,
+            {
+                "name": "WRI Aqueduct 4.0",
+                "type": "Basin-level baseline and future water-risk screening",
+                "note": "Baseline water stress, depletion, variability and drought-risk indicators plus CMIP6-based future water-stress projections for 2030, 2050 and 2080. CC BY 4.0; use as a prioritization tool with local verification."
+            } if water_risk.get("status") == "ok" else None,
             {
                 "name": "OpenStreetMap / Overpass",
                 "type": "Mapped infrastructure",
