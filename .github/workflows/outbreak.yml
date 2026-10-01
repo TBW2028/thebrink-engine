@@ -1,6 +1,11 @@
 name: Outbreak Intelligence Ingestion
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'outbreak_publisher.py'
+      - '.github/workflows/outbreak.yml'
   repository_dispatch:
     types: [outbreak_tick]
   schedule:
