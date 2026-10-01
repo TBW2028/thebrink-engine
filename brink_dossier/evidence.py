@@ -175,10 +175,10 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             items.append(_evidence(
                 report_run_id, facility_id, "heat",
                 code, name,
-                "ERA5-Land via Open-Meteo Historical Weather API", "modelled",
+                "Copernicus Climate Change Service (C3S) — ERA5-Land", "modelled",
                 value_numeric=value, unit=unit,
                 source_dataset="ERA5-Land",
-                source_reference="Copernicus Climate Data Store / Open-Meteo commercial historical access",
+                source_reference="Copernicus Climate Data Store",
                 source_version="ERA5-Land",
                 retrieved_at=retrieved,
                 observation_start="1991-01-01T00:00:00+00:00" if code.startswith("baseline_") else "2021-01-01T00:00:00+00:00",
@@ -195,7 +195,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             items.append(_evidence(
                 report_run_id, facility_id, "heat",
                 "historical_hottest_day", "Highest daily maximum temperature in retrieved historical series",
-                "ERA5-Land via Open-Meteo Historical Weather API", "modelled",
+                "Copernicus Climate Change Service (C3S) — ERA5-Land", "modelled",
                 value_numeric=hottest.get("temperature_c"), unit="°C",
                 value_text=hottest.get("date"),
                 source_dataset="ERA5-Land", retrieved_at=retrieved,
