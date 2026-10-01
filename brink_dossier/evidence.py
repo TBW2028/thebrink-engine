@@ -91,6 +91,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
     strongest = telemetry.get("strongest_local_signal")
     historical_heat = telemetry.get("historical_heat") or {}
     historical_rainfall = telemetry.get("historical_rainfall") or {}
+    river_flood = telemetry.get("river_flood") or {}
 
     items.append(_evidence(
         report_run_id, facility_id, "multi_hazard_operational",
@@ -277,6 +278,100 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             confidence="unresolved",
             confidence_reason=historical_rainfall.get("reason") or "Historical rainfall baseline was not available.",
             limitations="Extreme-rainfall materiality remains unresolved until historical rainfall evidence is available.",
+        ))
+
+    if river_flood.get("status") == "ok":
+        for rp in sorted(int(x) for x in river_flood.get("depths", {}).keys()):
+            rec = river_flood["depths"].get(str(rp)) or {}
+            point_depth = rec.get("point_depth_m")
+            nearby_depth = rec.get("nearby_max_depth_m")
+            if point_depth is not None:
+                items.append(_evidence(
+                    report_run_id, facility_id, "flood",
+                    f"river_flood_rp{rp}_point_depth_m",
+                    f"Modelled riverine flood depth at site grid cell — {rp}-year return period",
+                    "JRC/CEMS GloFAS Global river flood hazard maps v2.1.2", "modelled",
+                    value_numeric=point_depth, unit="m",
+                    source_dataset="Global river flood hazard maps v2.1.2",
+                    source_reference=rec.get("url"),
+                    retrieved_at=retrieved,
+                    spatial_resolution=river_flood.get("resolution"),
+                    temporal_resolution=f"{rp}-year return-period hazard",
+                    confidence="medium",
+                    confidence_reason="Established global riverine flood-hazard model sampled at the assessed grid cell; not an official local flood map.",
+                    limitations=river_flood.get("limitations"),
+                    raw_evidence={"tile": river_flood.get("tile"), "return_period_years": rp},
+                ))
+            if nearby_depth is not None:
+                items.append(_evidence(
+                    report_run_id, facility_id, "flood",
+                    f"river_flood_rp{rp}_nearby_max_depth_m",
+                    f"Maximum modelled riverine flood depth in small site neighbourhood — {rp}-year return period",
+                    "JRC/CEMS GloFAS Global river flood hazard maps v2.1.2", "modelled",
+                    value_numeric=nearby_depth, unit="m",
+                    source_dataset="Global river flood hazard maps v2.1.2",
+                    source_reference=rec.get("url"),
+                    retrieved_at=retrieved,
+                    spatial_resolution=river_flood.get("resolution"),
+                    temporal_resolution=f"{rp}-year return-period hazard",
+                    confidence="low",
+                    confidence_reason="Neighbourhood maximum is useful for screening nearby inundation but is not an on-site depth.",
+                    limitations=river_flood.get("limitations"),
+                    raw_evidence={"tile": river_flood.get("tile"), "return_period_years": rp},
+                ))
+
+        items.append(_evidence(
+            report_run_id, facility_id, "flood",
+            "river_flood_lowest_point_exposure_rp",
+            "Lowest return period with modelled riverine inundation at site grid cell",
+            "JRC/CEMS GloFAS Global river flood hazard maps v2.1.2", "modelled",
+            value_numeric=river_flood.get("lowest_point_exposure_rp_years"),
+            unit="years" if river_flood.get("lowest_point_exposure_rp_years") is not None else None,
+            value_text="No ≥0.1 m point exposure in sampled return periods" if river_flood.get("lowest_point_exposure_rp_years") is None else None,
+            source_dataset="Global river flood hazard maps v2.1.2",
+            retrieved_at=retrieved,
+            spatial_resolution=river_flood.get("resolution"),
+            confidence="medium",
+            confidence_reason="Derived directly from sampled return-period depth rasters.",
+            limitations=river_flood.get("limitations"),
+        ))
+        items.append(_evidence(
+            report_run_id, facility_id, "flood",
+            "river_flood_lowest_nearby_exposure_rp",
+            "Lowest return period with modelled riverine inundation in small site neighbourhood",
+            "JRC/CEMS GloFAS Global river flood hazard maps v2.1.2", "modelled",
+            value_numeric=river_flood.get("lowest_nearby_exposure_rp_years"),
+            unit="years" if river_flood.get("lowest_nearby_exposure_rp_years") is not None else None,
+            value_text="No ≥0.1 m nearby exposure in sampled return periods" if river_flood.get("lowest_nearby_exposure_rp_years") is None else None,
+            source_dataset="Global river flood hazard maps v2.1.2",
+            retrieved_at=retrieved,
+            spatial_resolution=river_flood.get("resolution"),
+            confidence="low",
+            confidence_reason="Derived from a small neighbourhood screen, not from the exact site grid cell.",
+            limitations=river_flood.get("limitations"),
+        ))
+        if river_flood.get("artifact_caution"):
+            items.append(_evidence(
+                report_run_id, facility_id, "flood",
+                "river_flood_artifact_caution",
+                "Riverine flood raster artefact caution",
+                "JRC/CEMS GloFAS Global river flood hazard maps v2.1.2", "interpreted",
+                value_text="Very high modelled depth detected; specialist/local verification required before reliance.",
+                retrieved_at=retrieved,
+                confidence="low",
+                confidence_reason="Global flood-map documentation cautions that very high depths can reflect modelling artefacts.",
+                limitations=river_flood.get("limitations"),
+            ))
+    else:
+        items.append(_evidence(
+            report_run_id, facility_id, "flood",
+            "river_flood_map_status", "Mapped riverine flood exposure availability",
+            "JRC/CEMS GloFAS Global river flood hazard maps v2.1.2", "modelled",
+            value_text=str(river_flood.get("status") or "not_available"),
+            retrieved_at=retrieved,
+            confidence="unresolved",
+            confidence_reason=river_flood.get("reason") or "Mapped riverine flood evidence was not available.",
+            limitations="Flood materiality must remain unresolved without an appropriate mapped hazard layer.",
         ))
 
     if telemetry.get("elevation_m") is not None:
@@ -614,18 +709,86 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             support=["historical_rainfall_baseline_status", "current_precipitation_mm"],
         )
 
-    add(
-        "flood", "evidence_gap",
-        "Riverine and surface-water inundation depth, extent and return-period exposure remain unresolved.",
-        sensitivity=flood_sensitivity,
-        reasoning="Historical rainfall intensity does not establish riverine or pluvial flood depth, drainage performance, finished-floor exposure or return period.",
-        confidence="unresolved",
-        confidence_reason="A defensible mapped flood-hazard layer has not yet been added.",
-        action_type="verify",
-        action="Add mapped riverine/pluvial flood evidence and verify finished-floor/drainage characteristics.",
-        specialist=False,
-        support=["baseline_rx1day_mm", "baseline_rx5day_mm", "elevation_m", "client_basement_present", "client_critical_equipment_level", "client_drainage_protection"],
-    )
+    flood_ctx = telemetry.get("river_flood") or {}
+    if flood_ctx.get("status") == "ok":
+        point_rp = flood_ctx.get("lowest_point_exposure_rp_years")
+        nearby_rp = flood_ctx.get("lowest_nearby_exposure_rp_years")
+        point100 = ((flood_ctx.get("depths") or {}).get("100") or {}).get("point_depth_m")
+        support = [
+            "river_flood_lowest_point_exposure_rp",
+            "river_flood_lowest_nearby_exposure_rp",
+            "river_flood_rp100_point_depth_m",
+            "river_flood_rp100_nearby_max_depth_m",
+            "baseline_rx1day_mm",
+            "baseline_rx5day_mm",
+            "client_basement_present",
+            "client_critical_equipment_level",
+            "client_drainage_protection",
+        ]
+
+        if point_rp is not None and point_rp <= 100 and flood_sensitivity == "high":
+            add(
+                "flood", "material",
+                "Global riverine flood mapping indicates modelled inundation at the assessed site grid cell within the sampled 100-year return-period range, and the facility has client-declared ground/below-ground sensitivity.",
+                sensitivity=flood_sensitivity,
+                reasoning="Mapped riverine inundation and facility vulnerability combine into a plausible site-impact pathway.",
+                consequence="Potential water ingress, ground-level equipment exposure, access disruption or operational interruption requires site verification.",
+                confidence="medium",
+                confidence_reason="The hazard layer is an established global screening model at approximately 90 m; building-level elevation, local drainage and official/local flood mapping remain unresolved.",
+                action_type="specialist_assessment",
+                action="Verify against authoritative/local flood mapping and obtain site-specific finished-floor/drainage assessment before underwriting or engineering reliance.",
+                specialist=True,
+                support=support,
+            )
+        elif point_rp is not None:
+            add(
+                "flood", "monitor",
+                "Global riverine flood mapping indicates modelled inundation at the assessed site grid cell for at least one sampled return period.",
+                sensitivity=flood_sensitivity,
+                reasoning="Mapped riverine exposure is present, but facility vulnerability and local flood behaviour require further verification.",
+                confidence="medium",
+                confidence_reason="Global 90 m screening evidence supports riverine exposure; parcel/building conditions remain unresolved.",
+                action_type="verify",
+                action="Verify local flood mapping, finished-floor elevation, drainage and critical-equipment exposure.",
+                support=support,
+            )
+        elif nearby_rp is not None:
+            add(
+                "flood", "monitor",
+                "No ≥0.1 m riverine inundation was resolved at the exact site grid cell in the sampled return periods, but modelled inundation occurs within the small surrounding neighbourhood.",
+                sensitivity=flood_sensitivity,
+                reasoning="Nearby modelled inundation may be operationally relevant to access or adjacent drainage, but it is not an on-site flood-depth conclusion.",
+                confidence="low",
+                confidence_reason="Neighbourhood screening indicates nearby exposure while exact-site exposure is not resolved.",
+                action_type="verify",
+                action="Check authoritative/local flood mapping and route/drainage conditions before treating nearby modelled inundation as site exposure.",
+                support=support,
+            )
+        else:
+            add(
+                "flood", "monitor",
+                "No ≥0.1 m riverine inundation was resolved at the assessed grid cell or small neighbourhood across the sampled JRC/CEMS return-period layers.",
+                sensitivity=flood_sensitivity,
+                reasoning="The global riverine flood screen does not show mapped exposure in the sampled layers, but pluvial flooding, drainage failure and smaller/local watercourses remain outside this result.",
+                confidence="medium",
+                confidence_reason="The global riverine screen is available and traceable, but its approximately 90 m resolution and model scope do not justify a Low Relevance conclusion for all flood mechanisms.",
+                action_type="verify",
+                action="Retain riverine monitoring and separately assess pluvial drainage flooding where relevant to the site.",
+                support=support,
+            )
+    else:
+        add(
+            "flood", "evidence_gap",
+            "Mapped riverine flood depth and return-period exposure remain unresolved.",
+            sensitivity=flood_sensitivity,
+            reasoning="Historical rainfall intensity does not establish riverine or pluvial flood depth, drainage performance or finished-floor exposure.",
+            confidence="unresolved",
+            confidence_reason=flood_ctx.get("reason") or "The mapped riverine flood layer was unavailable.",
+            action_type="verify",
+            action="Resolve mapped riverine flood evidence and separately assess pluvial/drainage exposure.",
+            specialist=False,
+            support=["river_flood_map_status", "baseline_rx1day_mm", "baseline_rx5day_mm", "elevation_m", "client_basement_present", "client_critical_equipment_level", "client_drainage_protection"],
+        )
 
     add(
         "water_stress", "evidence_gap",
