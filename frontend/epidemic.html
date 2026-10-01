@@ -904,35 +904,66 @@ function initCurrencyPreference(isInIndia) {
   onCurrencySelect(pref);
 }
 
-async function evaluateLocalHealthBuffer(cityName, stateName, lat, lon) {
+let localHealthContext = { city:"", state:"", country:"", countryCode:"", lat:null, lon:null };
+
+async function evaluateLocalHealthBuffer(cityName, stateName, lat, lon, countryName = "", countryCode = "") {
+  localHealthContext = {
+    city: cityName || "",
+    state: stateName || "",
+    country: countryName || "",
+    countryCode: String(countryCode || "").toUpperCase(),
+    lat: Number(lat),
+    lon: Number(lon)
+  };
+
   const badge = document.getElementById("localSiteBadge");
   const details = document.getElementById("localHealthDetails");
-  
-  badge.textContent = `📍 LOCAL HEALTH PERIMETER: ${cityName}, ${stateName} (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`;
+  const label = [cityName, stateName, countryName].filter(Boolean).join(", ");
 
-  const s = (stateName + " " + cityName).toLowerCase();
-  
-  if (s.includes("gujarat") || s.includes("navsari") || s.includes("surat") || s.includes("valsad")) {
-    details.innerHTML = `
-      <strong style="color:var(--accent-amber)">ACTIVE SURROUNDING PROFILE (South Gujarat Basin):</strong> 
-      Post-monsoon river water stagnation (Ambika/Purna catchment) driving <strong>elevated Dengue (DENV-2) hospital admissions</strong> and localized <strong>Leptospirosis</strong> risk in waterlogged agricultural perimeter. Potable water chlorination mandated across local wards.
-    `;
-  } else if (s.includes("maharashtra") || s.includes("pune") || s.includes("mumbai") || s.includes("thane")) {
-    details.innerHTML = `
-      <strong style="color:var(--accent-amber)">ACTIVE SURROUNDING PROFILE (Western Maharashtra Belt):</strong> 
-      Urban vector breeding surge detected. High OPD presentations for <strong>Chikungunya arthralgia</strong> and <strong>Dengue</strong>. Water supply turbidity elevated following recent catchment inflow.
-    `;
-  } else if (s.includes("delhi") || s.includes("punjab") || s.includes("haryana") || s.includes("uttar pradesh")) {
-    details.innerHTML = `
-      <strong style="color:var(--accent-amber)">ACTIVE SURROUNDING PROFILE (Northern River Basin):</strong> 
-      Post-monsoon enteric clusters and seasonal vector emergence active. Monitor early winter respiratory viral transmission across dense metro corridors.
-    `;
-  } else {
-    details.innerHTML = `
-      <strong style="color:var(--accent-green)">LOCAL HEALTH PERIMETER STABLE:</strong> 
-      No acute emergency epidemic declarations within immediate 150 km corridor. Standard seasonal baseline precautions active.
-    `;
+  badge.textContent =
+    "📍 LOCAL HEALTH PERIMETER: " + label +
+    " (" + Number(lat).toFixed(2) + "°, " + Number(lon).toFixed(2) + "°)";
+
+  details.innerHTML =
+    '<strong style="color:var(--accent-cyan)">OFFICIAL-SOURCE MATCHING:</strong> ' +
+    'Checking current WHO/ECDC/CDC signals that explicitly resolve to this location. ' +
+    'No local disease claim is inferred from season, weather, or geography alone.';
+}
+
+function renderLocalHealthFromSignals(signals) {
+  const details = document.getElementById("localHealthDetails");
+  if (!details || !localHealthContext.city) return;
+
+  const needles = [
+    localHealthContext.city,
+    localHealthContext.state,
+    localHealthContext.country
+  ].filter(Boolean).map(x => String(x).toLowerCase());
+
+  const matches = signals.filter(s => {
+    if (s.geo_scope === "global") return false;
+    const hay = [
+      s.geo_name, s.geo_code, s.headline, s.entity
+    ].filter(Boolean).join(" ").toLowerCase();
+    return needles.some(n => n.length >= 3 && hay.includes(n));
+  }).slice(0, 5);
+
+  if (!matches.length) {
+    details.innerHTML =
+      '<strong style="color:var(--accent-green)">NO LOCATION-MATCHED OFFICIAL SIGNAL IN THIS FEED:</strong> ' +
+      'The current WHO/ECDC/CDC records do not explicitly resolve to this selected location. ' +
+      'This is a coverage statement, not evidence that no disease activity exists locally.';
+    return;
   }
+
+  details.innerHTML =
+    '<strong style="color:var(--accent-amber)">LOCATION-MATCHED OFFICIAL SIGNALS:</strong><br/>' +
+    matches.map(s => {
+      const when = fmtDate(s.published_at || s.as_of);
+      return '• ' + escapeHtml(s.headline || s.entity) +
+        ' <span style="color:var(--text-muted)">(' + escapeHtml(s.source_name || "official source") +
+        ' · ' + escapeHtml(when) + ')</span>';
+    }).join("<br/>");
 }
 
 async function initLocalHealthScanner() {
@@ -945,8 +976,9 @@ async function initLocalHealthScanner() {
         const city = data.address?.city || data.address?.town || data.address?.district || "Local Sector";
         const state = data.address?.state || "Regional Corridor";
         const countryCode = data.address?.country_code || "";
+        const country = data.address?.country || "";
         initCurrencyPreference(countryCode.toLowerCase() === "in");
-        evaluateLocalHealthBuffer(city, state, lat, lon);
+        evaluateLocalHealthBuffer(city, state, lat, lon, country, countryCode);
       } catch(e) {
         fallbackIPLocation();
       }
@@ -965,27 +997,29 @@ async function fallbackIPLocation() {
       const d = await res.json();
       if (d.success && d.latitude && d.longitude) {
         initCurrencyPreference(d.country_code === "IN");
-        evaluateLocalHealthBuffer(d.city || "Regional Sector", d.region || "", d.latitude, d.longitude);
+        evaluateLocalHealthBuffer(d.city || "Regional Sector", d.region || "", d.latitude, d.longitude, d.country || "", d.country_code || "");
         return;
       }
     }
   } catch(e){}
   initCurrencyPreference(true);
-  evaluateLocalHealthBuffer("Pune", "Maharashtra", 18.5204, 73.8567);
+  evaluateLocalHealthBuffer("Pune", "Maharashtra", 18.5204, 73.8567, "India", "IN");
 }
 
 document.getElementById("btnChangeLocal").addEventListener("click", () => {
   const manual = prompt("Enter city or district to scan surrounding health profile (e.g. Navsari, Pune, Mumbai, London):", "Navsari");
   if (!manual || !manual.trim()) return;
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(manual.trim())}&limit=1`)
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(manual.trim())}&limit=1`)
     .then(r => r.json())
     .then(places => {
       if (places && places.length > 0) {
         const p = places[0];
         const parts = p.display_name.split(",");
-        const c = parts[0].trim();
-        const s = parts.length > 2 ? parts[2].trim() : parts[1].trim();
-        evaluateLocalHealthBuffer(c, s, parseFloat(p.lat), parseFloat(p.lon));
+        const c = p.address?.city || p.address?.town || p.address?.village || parts[0].trim();
+        const s = p.address?.state || (parts.length > 2 ? parts[2].trim() : parts[1].trim());
+        const country = p.address?.country || "";
+        const countryCode = p.address?.country_code || "";
+        evaluateLocalHealthBuffer(c, s, parseFloat(p.lat), parseFloat(p.lon), country, countryCode);
       } else {
         alert("Sector location not found.");
       }
@@ -1200,7 +1234,7 @@ function renderWastewater(signals) {
     </div>`).join("");
   const states = ws.filter(s => s.geo_scope === "subnational").sort((a, b) => (b.value || 0) - (a.value || 0)).slice(0, 12);
   const chips = states.length
-    ? `<div class="section-label" style="margin-top:6px;">US states with high activity or a rising trend</div>
+    ? `<div class="section-label" style="margin-top:6px;">US wastewater sites with high activity or a rising trend</div>
        <div class="chip-row">${states.map(s => `<span class="chip">${escapeHtml(s.geo_name)} · ${escapeHtml(s.entity)} · ${escapeHtml(s.value_text)} ${trendHtml(s.trend)}</span>`).join("")}</div>`
     : `<p class="note-line">No US state currently shows high activity or a rising trend at moderate-or-higher levels.</p>`;
   box.innerHTML = `
@@ -1268,6 +1302,7 @@ async function loadLiveHealthScreener() {
   renderLiveSummary(signals);
   renderVariantTracker(signals);
   renderWastewater(signals);
+  renderLocalHealthFromSignals(signals);
   if (signals.length) {
     renderOutbreakRegister(signals.filter(s => s.kind === "outbreak_notice"));
     checkFreshness(signals);
