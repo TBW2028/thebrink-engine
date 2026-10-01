@@ -611,7 +611,10 @@ export default {
         }
 
         const alerts = alertsR.status === "fulfilled" && Array.isArray(alertsR.value) ? alertsR.value : [];
-        const geomagnetic = alerts.find(a => /geomagnetic storm|geomagnetic k-index/i.test(String(a.message || ""))) || null;
+        const geomagneticAlerts = alerts
+          .filter(a => /geomagnetic storm|geomagnetic k-index/i.test(String(a.message || "")))
+          .sort((a,b) => new Date(b.issue_datetime || 0) - new Date(a.issue_datetime || 0));
+        const geomagnetic = geomagneticAlerts[0] || null;
 
         let driver = null;
         let watchText = null;
