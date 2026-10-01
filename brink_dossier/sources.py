@@ -19,6 +19,7 @@ CACHE_DIR.mkdir(exist_ok=True)
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 CDS_API_KEY = os.environ.get("CDS_API_KEY")
+NASA_FIRMS_MAP_KEY = os.environ.get("NASA_FIRMS_MAP_KEY")
 JRC_FLOOD_BASE = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/flood_hazard"
 WRI_AQUEDUCT_ZIP = "https://files.wri.org/aqueduct/aqueduct-4-0-water-risk-data.zip"
 COPERNICUS_DEM_30M_BASE = "https://copernicus-dem-30m.s3.amazonaws.com"
@@ -1463,6 +1464,121 @@ def fetch_cyclone_history_context(lat, lon):
     }
 
 
+def fetch_firms_fire_context(lat, lon):
+    """Operational thermal-anomaly/fire context from NASA FIRMS VIIRS NOAA-20/21 NRT."""
+    if not NASA_FIRMS_MAP_KEY:
+        return {
+            "status": "not_configured",
+            "reason": "NASA_FIRMS_MAP_KEY is not configured.",
+            "dataset": "NASA FIRMS VIIRS NOAA-20/21 NRT",
+            "window_days": 5,
+        }
+
+    # Small regional box around the facility; distance thresholds are calculated after retrieval.
+    lat_pad = 1.6
+    lon_pad = 1.6 / max(0.25, math.cos(math.radians(lat)))
+    west = max(-180.0, lon - lon_pad)
+    east = min(180.0, lon + lon_pad)
+    south = max(-90.0, lat - lat_pad)
+    north = min(90.0, lat + lat_pad)
+    area = f"{west},{south},{east},{north}"
+
+    detections = []
+    errors = {}
+    for source in ("VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT"):
+        url = (
+            "https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
+            f"{NASA_FIRMS_MAP_KEY}/{source}/{area}/5"
+        )
+        try:
+            r = requests.get(url, timeout=45, headers={"User-Agent": "TheBrinkWorld/1.0 physical-risk-intelligence"})
+            if r.status_code != 200:
+                errors[source] = f"HTTP {r.status_code}"
+                continue
+            lines = r.text.strip().splitlines()
+            if len(lines) < 2:
+                continue
+            reader = pd.read_csv(pd.io.common.StringIO(r.text))
+            for _, row in reader.iterrows():
+                dlat = _safe_float(row.get("latitude"))
+                dlon = _safe_float(row.get("longitude"))
+                if dlat is None or dlon is None:
+                    continue
+                distance = haversine(lat, lon, dlat, dlon)
+                if distance > 150.0:
+                    continue
+                frp = _safe_float(row.get("frp"))
+                confidence = str(row.get("confidence") or "").strip() or None
+                date = str(row.get("acq_date") or "").strip() or None
+                time_txt = str(row.get("acq_time") or "").strip()
+                detections.append({
+                    "source": source,
+                    "latitude": dlat,
+                    "longitude": dlon,
+                    "distance_km": round(distance, 1),
+                    "acq_date": date,
+                    "acq_time": time_txt or None,
+                    "confidence": confidence,
+                    "frp_mw": round(frp, 1) if frp is not None else None,
+                    "daynight": str(row.get("daynight") or "").strip() or None,
+                })
+        except Exception as exc:
+            errors[source] = str(exc)[:220]
+
+    # Deduplicate the same approximate thermal anomaly across two VIIRS feeds.
+    seen = set()
+    unique = []
+    for rec in sorted(detections, key=lambda x: (x.get("acq_date") or "", x.get("acq_time") or "", x["distance_km"])):
+        key = (
+            rec.get("acq_date"),
+            rec.get("acq_time"),
+            round(rec["latitude"], 3),
+            round(rec["longitude"], 3),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(rec)
+
+    nearest = min(unique, key=lambda x: x["distance_km"]) if unique else None
+    peak_frp = None
+    if unique:
+        with_frp = [x for x in unique if x.get("frp_mw") is not None]
+        if with_frp:
+            peak_frp = max(with_frp, key=lambda x: x["frp_mw"])
+
+    counts = {
+        radius: sum(1 for x in unique if x["distance_km"] <= radius)
+        for radius in (5, 10, 25, 50, 100)
+    }
+    days = sorted({x.get("acq_date") for x in unique if x.get("acq_date")})
+
+    status = "ok" if unique or len(errors) < 2 else "error"
+    return {
+        "status": status,
+        "dataset": "NASA FIRMS VIIRS NOAA-20/21 NRT",
+        "publisher": "NASA LANCE FIRMS",
+        "window_days": 5,
+        "detection_count_within_5km": counts[5],
+        "detection_count_within_10km": counts[10],
+        "detection_count_within_25km": counts[25],
+        "detection_count_within_50km": counts[50],
+        "detection_count_within_100km": counts[100],
+        "detection_days": days,
+        "nearest_detection": nearest,
+        "peak_frp_detection": peak_frp,
+        "detections": unique[:100],
+        "errors": errors,
+        "source_reference": "https://firms.modaps.eosdis.nasa.gov/api/area/",
+        "limitations": (
+            "FIRMS reports satellite-detected thermal anomalies/hotspots, not verified wildfire perimeters. "
+            "A detection may reflect vegetation fire or another heat source, and cloud/smoke/satellite overpass timing can "
+            "cause missed detections. Distance is straight-line proximity. This five-day operational screen does not "
+            "characterize long-term wildfire susceptibility, fuel, burn probability, flame length or structure vulnerability."
+        ),
+    }
+
+
 def agriculture_context(now, country_code, purpose_details, wx_summary):
     details = purpose_details or {}
     crop = str(details.get("crop") or "").strip() or None
@@ -1587,6 +1703,7 @@ def fetch_telemetry(lat, lon, context=None):
     water_risk = fetch_aqueduct_water_risk_context(lat, lon)
     terrain = fetch_terrain_context(lat, lon)
     cyclone_history = fetch_cyclone_history_context(lat, lon)
+    fire_context = fetch_firms_fire_context(lat, lon)
     wx_summary = forecast_summary(days)
     purpose_details = context.get("purpose_details") or {}
     purpose = str(context.get("occupancy") or context.get("purpose") or "").lower()
@@ -1619,6 +1736,7 @@ def fetch_telemetry(lat, lon, context=None):
         "water_risk": water_risk,
         "terrain": terrain,
         "cyclone_history": cyclone_history,
+        "fire_context": fire_context,
         "recent_quakes": recent_events,
         "quake_count_30d_350km": len(quakes_data.get("features", [])),
         "live_hazards_300km": local_300,
@@ -1682,6 +1800,11 @@ def fetch_telemetry(lat, lon, context=None):
                 "type": "Historical tropical-cyclone best-track archive",
                 "note": "Modern satellite-era (since 1980) storm-track proximity and reported WMO storm intensity context. Track-point winds are not site wind speeds or structural design loads; DOI 10.25921/82ty-9e16."
             } if cyclone_history.get("status") == "ok" else None,
+            {
+                "name": "NASA LANCE FIRMS — VIIRS NOAA-20/21 NRT",
+                "type": "Operational satellite thermal-anomaly detections",
+                "note": "Five-day nearby thermal-anomaly screen from VIIRS NOAA-20 and NOAA-21. Detections are not verified wildfire perimeters and do not establish long-term wildfire susceptibility."
+            } if fire_context.get("status") == "ok" else None,
             {
                 "name": "OpenStreetMap / Overpass",
                 "type": "Mapped infrastructure",
