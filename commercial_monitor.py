@@ -30,6 +30,8 @@ def add_months(dt, months):
 
 def next_due(now, cadence):
     cadence = str(cadence or "monthly").lower()
+    if cadence == "one_off":
+        return None
     if cadence == "weekly":
         return now + timedelta(days=7)
     if cadence == "quarterly":
@@ -147,10 +149,14 @@ def main():
                 "output_location": pdf_path,
                 "completed_at": finished.isoformat(),
             })
-            sb_patch("brink_monitoring_subscriptions", {"id": sub["id"]}, {
+            following = next_due(finished, sub.get("cadence"))
+            sub_update = {
                 "last_report_at": finished.isoformat(),
-                "next_report_at": next_due(finished, sub.get("cadence")).isoformat(),
-            })
+                "next_report_at": following.isoformat() if following else None,
+            }
+            if str(sub.get("cadence") or "").lower() == "one_off":
+                sub_update["status"] = "completed"
+            sb_patch("brink_monitoring_subscriptions", {"id": sub["id"]}, sub_update)
             print(f"[OK] {sub['product_type']} delivered for {f['facility_name']} · {ref}")
         except Exception as exc:
             if run:
