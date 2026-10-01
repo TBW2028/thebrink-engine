@@ -1,6 +1,8 @@
 name: Commercial Facility Monitoring
 
 on:
+  repository_dispatch:
+    types: [commercial_tick]
   schedule:
     - cron: '41 2 * * *'
   workflow_dispatch:
