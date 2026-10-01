@@ -94,6 +94,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
     river_flood = telemetry.get("river_flood") or {}
     water_risk = telemetry.get("water_risk") or {}
     terrain_ctx = telemetry.get("terrain") or {}
+    cyclone_history = telemetry.get("cyclone_history") or {}
 
     items.append(_evidence(
         report_run_id, facility_id, "multi_hazard_operational",
@@ -507,6 +508,73 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             confidence="unresolved",
             confidence_reason=terrain_ctx.get("reason") or "Terrain evidence was not available.",
             limitations="Terrain and landslide-related screening remain unresolved without a suitable terrain model.",
+        ))
+
+    if cyclone_history.get("status") == "ok":
+        for radius in (100, 250, 500):
+            items.append(_evidence(
+                report_run_id, facility_id, "tropical_cyclone",
+                f"ibtracs_storm_count_{radius}km_since1980",
+                f"Unique tropical cyclones with IBTrACS track points within {radius} km since 1980",
+                "NOAA NCEI — IBTrACS v04r01", "observed",
+                value_numeric=cyclone_history.get(f"storm_count_within_{radius}km") or 0,
+                unit="storms",
+                source_dataset="IBTrACS v04r01 since1980",
+                source_reference="https://www.ncei.noaa.gov/products/international-best-track-archive",
+                retrieved_at=retrieved,
+                observation_start="1980-01-01T00:00:00+00:00",
+                observation_end=retrieved,
+                spatial_resolution=f"{radius} km radial track-proximity screen",
+                confidence="high",
+                confidence_reason="NOAA IBTrACS is the global consolidated historical tropical-cyclone best-track archive; the count is deterministic for the defined radius and period.",
+                limitations=cyclone_history.get("limitations"),
+            ))
+
+        nearest = cyclone_history.get("nearest_storm") or {}
+        if nearest.get("nearest_distance_km") is not None:
+            items.append(_evidence(
+                report_run_id, facility_id, "tropical_cyclone",
+                "ibtracs_nearest_track_distance_km",
+                "Nearest historical tropical-cyclone track distance since 1980",
+                "NOAA NCEI — IBTrACS v04r01", "observed",
+                value_numeric=nearest.get("nearest_distance_km"), unit="km",
+                value_text=f"{nearest.get('name') or 'Unnamed cyclone'} · {nearest.get('season') or 'year unavailable'}",
+                source_dataset="IBTrACS v04r01 since1980",
+                source_reference="https://www.ncei.noaa.gov/products/international-best-track-archive",
+                retrieved_at=retrieved,
+                confidence="high",
+                confidence_reason="Great-circle distance derived from NOAA IBTrACS best-track coordinates.",
+                limitations=cyclone_history.get("limitations"),
+                raw_evidence=nearest,
+            ))
+
+        peak_wind = cyclone_history.get("max_reported_wmo_wind_within_250km_kt")
+        if peak_wind is not None:
+            items.append(_evidence(
+                report_run_id, facility_id, "tropical_cyclone",
+                "ibtracs_max_wmo_wind_nearby_250km_kt",
+                "Highest reported WMO storm intensity at an IBTrACS track point within 250 km",
+                "NOAA NCEI — IBTrACS v04r01", "observed",
+                value_numeric=peak_wind, unit="knots",
+                source_dataset="IBTrACS v04r01 since1980",
+                source_reference="https://www.ncei.noaa.gov/products/international-best-track-archive",
+                retrieved_at=retrieved,
+                confidence="medium",
+                confidence_reason="Historical WMO-reported storm intensity is traceable, but agency wind-averaging periods differ and IBTrACS does not normalize them.",
+                limitations=cyclone_history.get("limitations"),
+                raw_evidence=cyclone_history.get("max_reported_wmo_wind_storm") or {},
+            ))
+    else:
+        items.append(_evidence(
+            report_run_id, facility_id, "tropical_cyclone",
+            "ibtracs_cyclone_history_status",
+            "Historical tropical-cyclone evidence availability",
+            "NOAA NCEI — IBTrACS v04r01", "observed",
+            value_text=str(cyclone_history.get("status") or "not_available"),
+            retrieved_at=retrieved,
+            confidence="unresolved",
+            confidence_reason=cyclone_history.get("reason") or "IBTrACS historical cyclone evidence was not available.",
+            limitations="Cyclone-history materiality must remain unresolved without a suitable best-track dataset.",
         ))
 
     if telemetry.get("elevation_m") is not None:
@@ -1010,6 +1078,83 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             action_type="verify",
             action="Resolve Aqueduct 4.0 water-risk evidence before materiality classification.",
             support=["aqueduct_water_risk_status", "client_water_dependency"],
+        )
+
+    cyclone_ctx = telemetry.get("cyclone_history") or {}
+    if cyclone_ctx.get("status") == "ok":
+        count100 = cyclone_ctx.get("storm_count_within_100km") or 0
+        count250 = cyclone_ctx.get("storm_count_within_250km") or 0
+        count500 = cyclone_ctx.get("storm_count_within_500km") or 0
+        nearest = cyclone_ctx.get("nearest_storm") or {}
+        support = [
+            "ibtracs_storm_count_100km_since1980",
+            "ibtracs_storm_count_250km_since1980",
+            "ibtracs_storm_count_500km_since1980",
+            "ibtracs_nearest_track_distance_km",
+            "ibtracs_max_wmo_wind_nearby_250km_kt",
+            "client_construction_type",
+            "client_backup_power",
+        ]
+
+        if count100 > 0:
+            add(
+                "tropical_cyclone", "monitor",
+                f"NOAA IBTrACS records {count100} tropical cyclone(s) with best-track points within 100 km of the assessed location since 1980.",
+                sensitivity="unresolved",
+                reasoning="Close historical cyclone tracks establish tropical-cyclone relevance, but historical proximity does not provide facility wind load, damage probability or future occurrence probability.",
+                consequence="Cyclone-related wind, rainfall, utility interruption and access disruption may be relevant depending on building design and operational resilience.",
+                confidence="high",
+                confidence_reason="Historical track proximity is derived directly from NOAA IBTrACS; facility vulnerability and design-wind adequacy remain unresolved.",
+                action_type="verify",
+                action="Verify applicable structural/design wind standard, roof/cladding condition, backup power and critical outdoor equipment; retain official cyclone-warning monitoring.",
+                support=support,
+            )
+        elif count250 > 0:
+            add(
+                "tropical_cyclone", "monitor",
+                f"NOAA IBTrACS records {count250} tropical cyclone(s) with best-track points within 250 km of the assessed location since 1980.",
+                sensitivity="unresolved",
+                reasoning="Regional historical tropical-cyclone exposure is present, although site wind intensity and structural vulnerability are not established by track proximity.",
+                confidence="medium",
+                confidence_reason="IBTrACS supports historical proximity screening; translating storm-track intensity to site-specific wind requires dedicated wind-hazard modelling.",
+                action_type="monitor",
+                action="Retain tropical-cyclone monitoring and verify design-wind/roof vulnerability where operationally material.",
+                support=support,
+            )
+        elif count500 > 0:
+            add(
+                "tropical_cyclone", "monitor",
+                "Historical tropical-cyclone tracks occur within the wider 500 km regional screen, but no track was resolved within 250 km in the modern IBTrACS record.",
+                sensitivity="unresolved",
+                reasoning="The wider regional record establishes basin-level cyclone context without demonstrating close historical site exposure.",
+                confidence="medium",
+                confidence_reason="Historical best-track evidence is strong for the defined screen; site-level wind exposure remains unresolved.",
+                action_type="monitor",
+                action="Maintain official cyclone-warning monitoring; add site-specific wind-hazard evidence if the asset or decision requires it.",
+                support=support,
+            )
+        else:
+            add(
+                "tropical_cyclone", "low_relevance",
+                "No NOAA IBTrACS tropical-cyclone best-track point was resolved within 500 km of the assessed location in the modern since-1980 record.",
+                sensitivity="unresolved",
+                reasoning="The modern historical record supports limited tropical-cyclone track relevance for this location under the defined 500 km screen.",
+                confidence="medium",
+                confidence_reason="IBTrACS provides a strong modern historical track archive, but absence of past nearby tracks does not guarantee future absence and does not address non-tropical severe wind.",
+                action_type="routine_reassessment",
+                action="Reassess periodically and continue authoritative severe-weather monitoring; evaluate non-tropical wind separately.",
+                support=support,
+            )
+    else:
+        add(
+            "tropical_cyclone", "evidence_gap",
+            "Historical tropical-cyclone proximity could not be characterised.",
+            sensitivity="unresolved",
+            confidence="unresolved",
+            confidence_reason=cyclone_ctx.get("reason") or "IBTrACS historical evidence was unavailable.",
+            action_type="verify",
+            action="Resolve NOAA IBTrACS historical cyclone evidence before classifying tropical-cyclone relevance.",
+            support=["ibtracs_cyclone_history_status"],
         )
 
     add(
