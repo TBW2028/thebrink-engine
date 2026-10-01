@@ -201,7 +201,255 @@ def _commercial_product_section(meta, data, answers):
     return None
 
 
-def build_report_blocks(meta, data, answers):
+def _titleize(value):
+    return str(value or "").replace("_", " ").title()
+
+
+def _risk_finding_rows(risk_findings):
+    rows = []
+    for spec in risk_findings or []:
+        rec = spec.get("record") or {}
+        rows.append([
+            _titleize(rec.get("hazard_type")),
+            _titleize(rec.get("materiality")),
+            _titleize(rec.get("facility_sensitivity")),
+            _titleize(rec.get("confidence")),
+            rec.get("finding_text") or "—",
+        ])
+    return rows
+
+
+def _v2_institutional_sections(meta, data, answers, risk_findings):
+    profile = answers.get("facility_profile") or {}
+    sections = []
+
+    profile_rows = [
+        ["Construction", profile.get("construction_type") or "Not supplied"],
+        ["Year built", profile.get("year_built") or "Not supplied"],
+        ["Floors above ground", profile.get("floors_above_ground") or "Not supplied"],
+        ["Basement / below-ground area", profile.get("basement_present") or "Not supplied"],
+        ["Critical equipment level", profile.get("critical_equipment_level") or "Not supplied"],
+        ["Backup power", profile.get("backup_power") or "Not supplied"],
+        ["Water dependency", profile.get("water_dependency") or "Not supplied"],
+        ["Cooling / HVAC dependency", profile.get("cooling_dependency") or "Not supplied"],
+        ["Practical road access routes", profile.get("practical_access_routes") or "Not supplied"],
+        ["Drainage / flood protection", profile.get("drainage_protection") or "Not supplied"],
+    ]
+    sections.append({
+        "title": "Site & Asset Profile",
+        "subtitle": "Client-declared facility characteristics used to interpret external hazard evidence.",
+        "blocks": [
+            {"kind": "kvtable", "title": "Facility Vulnerability Profile", "rows": profile_rows},
+            {"kind": "flag", "title": "CLIENT-DECLARED DATA", "severe": False, "text": "Facility characteristics are client-declared unless explicitly stated otherwise. They have not been independently inspected, measured or certified by The Brink World."},
+        ],
+    })
+
+    finding_rows = _risk_finding_rows(risk_findings)
+    sections.append({
+        "title": "Physical-Risk Materiality Screen",
+        "subtitle": "Deterministic screening findings under the current Brink methodology.",
+        "blocks": [
+            {"kind": "table", "title": "Hazard Materiality Register", "headers": ["HAZARD", "MATERIALITY", "SENSITIVITY", "CONFIDENCE", "CURRENT FINDING"], "rows": finding_rows or [["—","—","—","—","No V2 findings generated."]]},
+            {"kind": "flag", "title": "MATERIALITY RULE", "severe": False, "text": "Material means a plausible facility-impact pathway is supported by the available hazard evidence and sensitivity information. Monitor means evidence is relevant but not sufficient for a material conclusion. Evidence Gap means the required evidence is unresolved. Low Relevance is used only where the current evidence supports that narrower conclusion."},
+        ],
+    })
+
+    heat = data.get("historical_heat") or {}
+    rain = data.get("historical_rainfall") or {}
+    flood = data.get("river_flood") or {}
+    water = data.get("water_risk") or {}
+    terrain = data.get("terrain") or {}
+    cyclone = data.get("cyclone_history") or {}
+    fire = data.get("fire_context") or {}
+
+    heat_rows = [
+        ["Historical baseline", heat.get("baseline_period") or "Not available"],
+        ["P95 daily maximum temperature", _fmt(heat.get("p95_tmax_c"), "°C")],
+        ["P99 daily maximum temperature", _fmt(heat.get("p99_tmax_c"), "°C")],
+        ["Mean annual days ≥35°C", _fmt(heat.get("mean_annual_days_ge_35c"), " days/year")],
+        ["Mean annual days ≥40°C", _fmt(heat.get("mean_annual_days_ge_40c"), " days/year")],
+        ["Mean annual nights ≥25°C", _fmt(heat.get("mean_annual_nights_ge_25c"), " nights/year")],
+        ["Recent mean annual days ≥35°C", _fmt(heat.get("recent_mean_annual_days_ge_35c"), " days/year")],
+    ]
+    sections.append({
+        "title": "Extreme Heat",
+        "subtitle": "Historical heat baseline from ERA5-Land with facility-sensitivity interpretation.",
+        "blocks": [
+            {"kind": "kvtable", "title": "Heat Evidence", "rows": heat_rows},
+            {"kind": "flag", "title": "HEAT LIMITATION", "severe": False, "text": heat.get("limitations") or "Historical heat evidence is not available for this run."},
+        ],
+    })
+
+    rain_rows = [
+        ["Historical baseline", rain.get("baseline_period") or "Not available"],
+        ["Mean annual precipitation", _fmt(rain.get("mean_annual_precip_mm"), " mm/year")],
+        ["Mean annual wet days", _fmt(rain.get("mean_annual_wet_days"), " days/year")],
+        ["Mean annual days ≥20 mm", _fmt(rain.get("mean_annual_days_ge_20mm"), " days/year")],
+        ["Mean annual days ≥50 mm", _fmt(rain.get("mean_annual_days_ge_50mm"), " days/year")],
+        ["P95 wet-day precipitation", _fmt(rain.get("p95_wet_day_mm"), " mm/day")],
+        ["Mean annual Rx1day", _fmt(rain.get("mean_annual_rx1day_mm"), " mm/day")],
+        ["Mean annual Rx5day", _fmt(rain.get("mean_annual_rx5day_mm"), " mm/5 days")],
+    ]
+    flood_rows = []
+    if flood.get("status") == "ok":
+        for rp in ("10","20","50","75","100","200","500"):
+            rec = (flood.get("depths") or {}).get(rp) or {}
+            flood_rows.append([
+                f"{rp}-year",
+                _fmt(rec.get("point_depth_m"), " m"),
+                _fmt(rec.get("nearby_max_depth_m"), " m"),
+            ])
+    else:
+        flood_rows = [["—", flood.get("reason") or "Mapped riverine flood evidence unavailable", "—"]]
+
+    sections.append({
+        "title": "Flood & Extreme Rainfall",
+        "subtitle": "Historical rainfall intensity plus modelled riverine inundation screening.",
+        "blocks": [
+            {"kind": "kvtable", "title": "Extreme Rainfall Evidence", "rows": rain_rows},
+            {"kind": "table", "title": "Riverine Flood Depth Screen", "headers": ["RETURN PERIOD", "SITE GRID CELL", "SMALL NEIGHBOURHOOD MAX"], "rows": flood_rows},
+            {"kind": "flag", "title": "FLOOD BOUNDARY", "severe": False, "text": "Riverine flood mapping does not establish pluvial drainage flooding, finished-floor elevation, building ingress or local drainage performance. Neighbourhood depth is not an on-site depth."},
+        ],
+    })
+
+    wb = water.get("baseline") or {}
+    future = water.get("future_water_stress") or {}
+    water_rows = [
+        ["Baseline water stress", wb.get("water_stress_label") or "Not available"],
+        ["Baseline water depletion", wb.get("water_depletion_label") or "Not available"],
+        ["Interannual variability", wb.get("interannual_variability_label") or "Not available"],
+        ["Seasonal variability", wb.get("seasonal_variability_label") or "Not available"],
+        ["Drought risk", wb.get("drought_risk_label") or "Not available"],
+    ]
+    future_rows = []
+    for scenario, years in future.items():
+        for year in ("2030","2050","2080"):
+            rec = (years or {}).get(year) or {}
+            if rec:
+                future_rows.append([
+                    scenario.replace("_"," ").title(),
+                    year,
+                    rec.get("label") or rec.get("category") or _fmt(rec.get("score")),
+                ])
+    sections.append({
+        "title": "Water Stress & Drought",
+        "subtitle": "Basin-level Aqueduct 4.0 baseline and forward-looking water-stress screening.",
+        "blocks": [
+            {"kind": "kvtable", "title": "Baseline Water-Risk Context", "rows": water_rows},
+            {"kind": "table", "title": "Future Water-Stress Scenarios", "headers": ["SCENARIO", "HORIZON", "PROJECTED CATEGORY"], "rows": future_rows or [["—","—","Future water-stress values not resolved."]]},
+            {"kind": "flag", "title": "WATER-RISK BOUNDARY", "severe": False, "text": water.get("limitations") or "Aqueduct evidence is unavailable for this run."},
+        ],
+    })
+
+    t250 = terrain.get("metrics_250m") or {}
+    t1k = terrain.get("metrics_1km") or {}
+    terrain_rows = [
+        ["Point elevation", _fmt(terrain.get("point_elevation_m"), " m")],
+        ["250 m mean slope", _fmt(t250.get("slope_mean_deg"), "°")],
+        ["250 m P95 slope", _fmt(t250.get("slope_p95_deg"), "°")],
+        ["250 m relief", _fmt(t250.get("relief_m"), " m")],
+        ["1 km mean slope", _fmt(t1k.get("slope_mean_deg"), "°")],
+        ["1 km P95 slope", _fmt(t1k.get("slope_p95_deg"), "°")],
+        ["1 km maximum slope", _fmt(t1k.get("slope_max_deg"), "°")],
+        ["1 km relief", _fmt(t1k.get("relief_m"), " m")],
+    ]
+    sections.append({
+        "title": "Terrain, Landslide & Access",
+        "subtitle": "DEM-derived terrain characterization and access sensitivity.",
+        "blocks": [
+            {"kind": "kvtable", "title": "Terrain Evidence", "rows": terrain_rows},
+            {"kind": "flag", "title": "LANDSLIDE BOUNDARY", "severe": False, "text": terrain.get("limitations") or "Terrain evidence is unavailable. DEM slope and relief do not establish landslide probability."},
+        ],
+    })
+
+    cyclone_rows = [
+        ["Storm tracks within 100 km since 1980", _fmt(cyclone.get("storm_count_within_100km"))],
+        ["Storm tracks within 250 km since 1980", _fmt(cyclone.get("storm_count_within_250km"))],
+        ["Storm tracks within 500 km since 1980", _fmt(cyclone.get("storm_count_within_500km"))],
+        ["Nearest historical track", _fmt((cyclone.get("nearest_storm") or {}).get("nearest_distance_km"), " km")],
+        ["Peak reported WMO storm intensity within 250 km", _fmt(cyclone.get("max_reported_wmo_wind_within_250km_kt"), " kt")],
+    ]
+    sections.append({
+        "title": "Wind, Cyclone & Severe Weather",
+        "subtitle": "Historical tropical-cyclone track context, separate from structural design-wind assessment.",
+        "blocks": [
+            {"kind": "kvtable", "title": "Tropical-Cyclone History", "rows": cyclone_rows},
+            {"kind": "flag", "title": "WIND BOUNDARY", "severe": False, "text": cyclone.get("limitations") or "Historical tropical-cyclone evidence is unavailable. Non-tropical severe wind and structural design loads remain separate evidence needs."},
+        ],
+    })
+
+    fire_rows = [
+        ["Thermal anomalies ≤5 km / 5 days", _fmt(fire.get("detection_count_within_5km"))],
+        ["Thermal anomalies ≤10 km / 5 days", _fmt(fire.get("detection_count_within_10km"))],
+        ["Thermal anomalies ≤25 km / 5 days", _fmt(fire.get("detection_count_within_25km"))],
+        ["Nearest thermal anomaly", _fmt((fire.get("nearest_detection") or {}).get("distance_km"), " km")],
+        ["Peak nearby Fire Radiative Power", _fmt((fire.get("peak_frp_detection") or {}).get("frp_mw"), " MW")],
+    ]
+    sections.append({
+        "title": "Wildfire & Fire Activity",
+        "subtitle": "Current NASA FIRMS thermal-anomaly context with long-horizon wildfire kept separate.",
+        "blocks": [
+            {"kind": "kvtable", "title": "Operational Fire Context", "rows": fire_rows},
+            {"kind": "flag", "title": "WILDFIRE BOUNDARY", "severe": False, "text": fire.get("limitations") or "FIRMS operational fire evidence is not configured or unavailable. Long-horizon wildfire susceptibility remains a separate evidence need."},
+        ],
+    })
+
+    action_rows = []
+    gap_rows = []
+    for spec in risk_findings or []:
+        rec = spec.get("record") or {}
+        hazard = _titleize(rec.get("hazard_type"))
+        mat = str(rec.get("materiality") or "").lower()
+        if rec.get("recommended_action"):
+            action_rows.append([
+                hazard,
+                _titleize(rec.get("action_type")),
+                rec.get("recommended_action"),
+                "Yes" if rec.get("specialist_review_required") else "No",
+            ])
+        if mat == "evidence_gap":
+            gap_rows.append([
+                hazard,
+                rec.get("finding_text") or "Evidence unresolved",
+                rec.get("confidence_reason") or "Required evidence unavailable.",
+            ])
+
+    sections.append({
+        "title": "Resilience & Due-Diligence Action Register",
+        "subtitle": "Actions generated from current findings; these are decision-support priorities, not engineering instructions.",
+        "blocks": [
+            {"kind": "table", "title": "Action Register", "headers": ["DOMAIN", "ACTION TYPE", "RECOMMENDED NEXT STEP", "SPECIALIST REVIEW"], "rows": action_rows or [["—","—","No action generated.","—"]]},
+        ],
+    })
+
+    sections.append({
+        "title": "Data Gaps & Reliance Conditions",
+        "subtitle": "Unresolved evidence that constrains the conclusions in this dossier.",
+        "blocks": [
+            {"kind": "table", "title": "Evidence Gaps", "headers": ["DOMAIN", "UNRESOLVED QUESTION", "WHY CONFIDENCE IS LIMITED"], "rows": gap_rows or [["—","No material evidence gaps recorded by the current rules.","—"]]},
+            {"kind": "flag", "title": "NO SILENT ASSUMPTIONS", "severe": False, "text": "Unknown or unavailable evidence is not converted into a Low Relevance finding. The Brink World retains unresolved conditions explicitly until the required evidence is available."},
+        ],
+    })
+
+    sections.append({
+        "title": "Methodology & Model Governance",
+        "subtitle": "Versioned rules governing this dossier.",
+        "blocks": [
+            {"kind": "kvtable", "title": "Governance Versions", "rows": [
+                ["Methodology", meta.get("methodology_version") or "Not recorded"],
+                ["Materiality rules", meta.get("materiality_rules_version") or "Not recorded"],
+                ["Confidence rules", meta.get("confidence_rules_version") or "Not recorded"],
+                ["Evidence schema", meta.get("evidence_schema_version") or "Not recorded"],
+                ["Evidence retrieval timestamp", _when(data.get("retrieved_at"))],
+            ]},
+            {"kind": "flag", "title": "MODEL GOVERNANCE", "severe": False, "text": "This dossier combines observed, official-warning, mapped, client-declared and modelled evidence. Findings are generated by versioned deterministic rules. The Brink World does not infer insured loss, engineering adequacy, legal compliance, probable maximum loss or catastrophe-model output unless separately commissioned and supported by an appropriate specialist method."},
+        ],
+    })
+
+    return sections
+
+
+def build_report_blocks(meta, data, answers, risk_findings=None):
     strongest = data.get("strongest_local_signal")
     local = data.get("live_hazards_300km") or []
     nearby = data.get("live_hazards_1000km") or []
@@ -364,6 +612,9 @@ def build_report_blocks(meta, data, answers):
         {"title": "Seismic Context", "subtitle": "Observed USGS earthquake activity in the regional window.", "blocks": seismic_blocks},
         {"title": "Weather & Near-Term Conditions", "subtitle": "Current modelled atmospheric context and seven-day outlook.", "blocks": weather_blocks},
     ]
+
+    institutional_sections = _v2_institutional_sections(meta, data, answers, risk_findings)
+    sections.extend(institutional_sections)
 
     purpose_section = _purpose_blocks(data, answers)
     if purpose_section:
