@@ -33,7 +33,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Cache WRI Aqueduct data
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .brink_cache/aqueduct4
