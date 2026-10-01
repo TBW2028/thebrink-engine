@@ -95,6 +95,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
     water_risk = telemetry.get("water_risk") or {}
     terrain_ctx = telemetry.get("terrain") or {}
     cyclone_history = telemetry.get("cyclone_history") or {}
+    fire_context = telemetry.get("fire_context") or {}
 
     items.append(_evidence(
         report_run_id, facility_id, "multi_hazard_operational",
@@ -575,6 +576,73 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             confidence="unresolved",
             confidence_reason=cyclone_history.get("reason") or "IBTrACS historical cyclone evidence was not available.",
             limitations="Cyclone-history materiality must remain unresolved without a suitable best-track dataset.",
+        ))
+
+    if fire_context.get("status") == "ok":
+        for radius in (5, 10, 25, 50, 100):
+            items.append(_evidence(
+                report_run_id, facility_id, "wildfire_operational",
+                f"firms_thermal_anomaly_count_{radius}km_5d",
+                f"NASA FIRMS thermal-anomaly detections within {radius} km over the latest 5-day operational window",
+                "NASA LANCE FIRMS — VIIRS NOAA-20/21 NRT", "observed",
+                value_numeric=fire_context.get(f"detection_count_within_{radius}km") or 0,
+                unit="detections",
+                source_dataset="FIRMS VIIRS NOAA-20/21 NRT",
+                source_reference=fire_context.get("source_reference"),
+                retrieved_at=retrieved,
+                temporal_resolution="latest 5-day FIRMS NRT window",
+                spatial_resolution=f"{radius} km radial proximity screen",
+                confidence="medium",
+                confidence_reason="Satellite thermal-anomaly detections are directly retrieved from NASA FIRMS, but they are not verified wildfire perimeters.",
+                limitations=fire_context.get("limitations"),
+            ))
+
+        nearest = fire_context.get("nearest_detection") or {}
+        if nearest.get("distance_km") is not None:
+            items.append(_evidence(
+                report_run_id, facility_id, "wildfire_operational",
+                "firms_nearest_thermal_anomaly_km",
+                "Nearest NASA FIRMS thermal-anomaly detection in latest 5-day window",
+                "NASA LANCE FIRMS — VIIRS NOAA-20/21 NRT", "observed",
+                value_numeric=nearest.get("distance_km"), unit="km",
+                value_text=nearest.get("acq_date"),
+                source_dataset="FIRMS VIIRS NOAA-20/21 NRT",
+                source_reference=fire_context.get("source_reference"),
+                retrieved_at=retrieved,
+                confidence="medium",
+                confidence_reason="Great-circle proximity is derived from satellite-detection coordinates.",
+                limitations=fire_context.get("limitations"),
+                raw_evidence=nearest,
+            ))
+
+        peak = fire_context.get("peak_frp_detection") or {}
+        if peak.get("frp_mw") is not None:
+            items.append(_evidence(
+                report_run_id, facility_id, "wildfire_operational",
+                "firms_peak_frp_mw_5d",
+                "Highest Fire Radiative Power among nearby FIRMS detections in latest 5-day window",
+                "NASA LANCE FIRMS — VIIRS NOAA-20/21 NRT", "observed",
+                value_numeric=peak.get("frp_mw"), unit="MW",
+                value_text=peak.get("acq_date"),
+                source_dataset="FIRMS VIIRS NOAA-20/21 NRT",
+                source_reference=fire_context.get("source_reference"),
+                retrieved_at=retrieved,
+                confidence="medium",
+                confidence_reason="FRP is a satellite-derived characteristic of the detected thermal anomaly; it is not a structure-level exposure metric.",
+                limitations=fire_context.get("limitations"),
+                raw_evidence=peak,
+            ))
+    else:
+        items.append(_evidence(
+            report_run_id, facility_id, "wildfire_operational",
+            "firms_operational_status",
+            "NASA FIRMS operational thermal-anomaly evidence availability",
+            "NASA LANCE FIRMS — VIIRS NOAA-20/21 NRT", "observed",
+            value_text=str(fire_context.get("status") or "not_available"),
+            retrieved_at=retrieved,
+            confidence="unresolved",
+            confidence_reason=fire_context.get("reason") or "NASA FIRMS evidence was not available.",
+            limitations="Current thermal-anomaly context cannot be assessed without FIRMS access.",
         ))
 
     if telemetry.get("elevation_m") is not None:
@@ -1168,14 +1236,77 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
         support=["current_wind_kmh"],
     )
 
-    add(
-        "wildfire", "evidence_gap",
-        "Wildfire relevance has not yet been characterised.",
-        confidence="unresolved",
-        confidence_reason="No wildfire exposure/history layer has yet been added.",
-        action_type="verify",
-        action="Screen wildfire exposure using appropriate fire-history and land-context evidence.",
-    )
+    fire_ctx = telemetry.get("fire_context") or {}
+    if fire_ctx.get("status") == "ok":
+        fire5 = fire_ctx.get("detection_count_within_5km") or 0
+        fire10 = fire_ctx.get("detection_count_within_10km") or 0
+        fire25 = fire_ctx.get("detection_count_within_25km") or 0
+        support = [
+            "firms_thermal_anomaly_count_5km_5d",
+            "firms_thermal_anomaly_count_10km_5d",
+            "firms_thermal_anomaly_count_25km_5d",
+            "firms_nearest_thermal_anomaly_km",
+            "firms_peak_frp_mw_5d",
+        ]
+        if fire5 > 0:
+            add(
+                "wildfire_operational", "monitor",
+                f"NASA FIRMS detected {fire5} thermal anomaly/anomalies within 5 km of the facility in the latest five-day window.",
+                sensitivity="unresolved",
+                reasoning="Very close satellite thermal anomalies warrant operational attention, but FIRMS detections are not verified wildfire perimeters.",
+                consequence="Potential smoke, fire-response, outdoor-work, access or utility disruption may require local verification and authority guidance.",
+                confidence="medium",
+                confidence_reason="NASA FIRMS provides near-real-time satellite detections; exact fire perimeter, cause and facility exposure are not established.",
+                action_type="verify",
+                action="Check local fire authorities/incident sources immediately where detections are current and verify whether the anomaly represents an active wildfire affecting the facility.",
+                support=support,
+            )
+        elif fire10 > 0 or fire25 > 0:
+            add(
+                "wildfire_operational", "monitor",
+                "NASA FIRMS detected nearby thermal anomalies in the latest five-day window.",
+                sensitivity="unresolved",
+                reasoning="Nearby satellite thermal anomalies are operational context, not proof of wildfire exposure at the facility.",
+                confidence="medium",
+                confidence_reason="Thermal anomalies are directly observed by satellite but require incident/local-source confirmation.",
+                action_type="monitor",
+                action="Monitor official/local fire information and operational impacts such as smoke, access and power disruption.",
+                support=support,
+            )
+        else:
+            add(
+                "wildfire_operational", "low_relevance",
+                "No NASA FIRMS thermal anomaly was resolved within 25 km in the latest five-day operational window.",
+                sensitivity="unresolved",
+                reasoning="The current satellite screen does not indicate a nearby thermal anomaly, but this says nothing about long-term wildfire susceptibility.",
+                confidence="medium",
+                confidence_reason="The conclusion is limited to the current five-day FIRMS operational window.",
+                action_type="routine_reassessment",
+                action="Continue operational fire monitoring during relevant seasons and emergencies.",
+                support=support,
+            )
+
+        add(
+            "wildfire", "evidence_gap",
+            "Long-horizon wildfire susceptibility and burn probability remain unresolved.",
+            sensitivity="unresolved",
+            reasoning="Near-real-time FIRMS thermal anomalies do not characterize historical burn frequency, fuels, vegetation, drought-conditioned fire weather or future burn probability.",
+            confidence="unresolved",
+            confidence_reason="A defensible long-horizon wildfire hazard/susceptibility layer has not yet been integrated.",
+            action_type="verify",
+            action="Add a validated wildfire susceptibility/burn-history layer before classifying long-term wildfire materiality.",
+            support=support,
+        )
+    else:
+        add(
+            "wildfire", "evidence_gap",
+            "Wildfire relevance has not yet been characterised.",
+            confidence="unresolved",
+            confidence_reason=fire_ctx.get("reason") or "NASA FIRMS operational evidence is unavailable and no long-horizon wildfire layer is integrated.",
+            action_type="verify",
+            action="Configure FIRMS operational monitoring and add a validated long-horizon wildfire exposure/history layer.",
+            support=["firms_operational_status"],
+        )
 
     terrain = telemetry.get("terrain") or {}
     if terrain.get("status") == "ok":
