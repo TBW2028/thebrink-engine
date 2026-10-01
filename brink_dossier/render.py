@@ -8,6 +8,13 @@ from .geometry import preview_location
 from .sources import fetch_telemetry
 from .blocks import build_report_blocks
 from .products import get_product_profile
+from .evidence import (
+    build_risk_findings,
+    METHODOLOGY_VERSION,
+    MATERIALITY_RULES_VERSION,
+    CONFIDENCE_RULES_VERSION,
+    EVIDENCE_SCHEMA_VERSION,
+)
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
@@ -37,10 +44,22 @@ def produce(location, answers, site_name, customer_email, out_dir="reports", pro
         "site_name": site_name,
         "customer_name": answers.get("customer_name", "Operations Lead"),
         "occupancy_label": answers.get("occupancy", "General location intelligence").title(),
-        "coords_str": coords_formatted
+        "coords_str": coords_formatted,
+        "methodology_version": METHODOLOGY_VERSION,
+        "materiality_rules_version": MATERIALITY_RULES_VERSION,
+        "confidence_rules_version": CONFIDENCE_RULES_VERSION,
+        "evidence_schema_version": EVIDENCE_SCHEMA_VERSION,
     }
 
-    cover, sections = build_report_blocks(meta, data, answers)
+    profile = answers.get("facility_profile") or {}
+    risk_findings = build_risk_findings(
+        report_run_id="render-preview",
+        facility={"id": "render-preview"},
+        profile=profile,
+        telemetry=data,
+    )
+
+    cover, sections = build_report_blocks(meta, data, answers, risk_findings=risk_findings)
 
     tpl_dir = os.path.join(os.path.dirname(__file__), "templates")
     env = Environment(loader=FileSystemLoader(tpl_dir))
