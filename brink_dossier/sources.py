@@ -1,12 +1,16 @@
-import os, math, json, time, requests
+import os, math, json, time, requests, tempfile
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
+
+import cdsapi
+import xarray as xr
 
 CACHE_DIR = Path(".brink_cache")
 CACHE_DIR.mkdir(exist_ok=True)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")\nOPEN_METEO_API_KEY = os.environ.get("OPEN_METEO_API_KEY")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+CDS_API_KEY = os.environ.get("CDS_API_KEY")
 
 
 def _cached_get(url, params=None, ttl_seconds=1800, headers=None):
@@ -235,108 +239,157 @@ def _percentile(values, q):
     return vals[lo] + (vals[hi] - vals[lo]) * (pos - lo)
 
 
-def fetch_historical_heat_context(lat, lon):
-    """
-    Institutional historical-heat baseline.
+def _cds_daily_temperature(lat, lon, statistic):
+    """Download ERA5-Land daily 2 m temperature statistics for one grid-cell area."""
+    if not CDS_API_KEY:
+        raise RuntimeError("CDS_API_KEY is not configured.")
 
-    The commercial engine does not call Open-Meteo's free endpoint for this
-    module. A paid Open-Meteo key is required so commercial use is explicit.
-    The underlying reanalysis requested is ERA5-Land.
-    """
-    if not OPEN_METEO_API_KEY:
+    cache_key = f"era5land_{statistic}_{round(lat, 2)}_{round(lon, 2)}_1991_2025.nc"
+    cache_file = CACHE_DIR / cache_key
+
+    if not cache_file.exists():
+        client = cdsapi.Client(
+            url="https://cds.climate.copernicus.eu/api",
+            key=CDS_API_KEY,
+            quiet=True,
+            progress=False,
+        )
+        request = {
+            "variable": ["2m_temperature"],
+            "year": [str(y) for y in range(1991, 2026)],
+            "month": [f"{m:02d}" for m in range(1, 13)],
+            "day": [f"{d:02d}" for d in range(1, 32)],
+            "daily_statistic": statistic,
+            "time_zone": "utc+00:00",
+            "frequency": "1_hourly",
+            "area": [
+                min(90.0, lat + 0.06),
+                max(-180.0, lon - 0.06),
+                max(-90.0, lat - 0.06),
+                min(180.0, lon + 0.06),
+            ],
+        }
+        client.retrieve(
+            "derived-era5-land-daily-statistics",
+            request,
+            str(cache_file),
+        )
+
+    ds = xr.open_dataset(cache_file)
+    try:
+        if not ds.data_vars:
+            raise RuntimeError("ERA5-Land response contained no data variables.")
+        da = ds[next(iter(ds.data_vars))]
+
+        time_dim = next(
+            (d for d in da.dims if d in ("valid_time", "time", "date")),
+            None,
+        )
+        if not time_dim:
+            time_dim = next((d for d in da.dims if "time" in d.lower()), None)
+        if not time_dim:
+            raise RuntimeError("Could not identify the time dimension in ERA5-Land data.")
+
+        for dim in list(da.dims):
+            if dim != time_dim:
+                da = da.isel({dim: 0})
+
+        values = da.values.tolist()
+        if not isinstance(values, list):
+            values = [values]
+        times = da[time_dim].values.tolist()
+        if not isinstance(times, list):
+            times = [times]
+
+        rows = []
+        for t, value in zip(times, values):
+            try:
+                temp = float(value)
+                if math.isnan(temp):
+                    continue
+                # ERA5 temperatures are normally Kelvin.
+                if temp > 150:
+                    temp -= 273.15
+                day = str(t)[:10]
+                if len(day) < 10:
+                    continue
+                rows.append((day, temp))
+            except (TypeError, ValueError):
+                continue
+        return rows
+    finally:
+        ds.close()
+
+
+def fetch_historical_heat_context(lat, lon):
+    """Institutional historical-heat baseline derived directly from Copernicus ERA5-Land."""
+    if not CDS_API_KEY:
         return {
             "status": "not_configured",
-            "reason": "OPEN_METEO_API_KEY is not configured for commercial historical-weather access.",
+            "reason": "CDS_API_KEY is not configured for Copernicus Climate Data Store access.",
             "dataset": "ERA5-Land",
             "baseline_period": "1991-2020",
         }
 
-    endpoint = "https://customer-archive-api.open-meteo.com/v1/archive"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "start_date": "1991-01-01",
-        "end_date": "2025-12-31",
-        "daily": "temperature_2m_max,temperature_2m_min",
-        "models": "era5_land",
-        "timezone": "UTC",
-        "cell_selection": "land",
-        "apikey": OPEN_METEO_API_KEY,
-    }
-
     try:
-        r = requests.get(endpoint, params=params, timeout=45)
-        if r.status_code != 200:
-            return {
-                "status": "error",
-                "reason": f"Historical heat source returned HTTP {r.status_code}.",
-                "dataset": "ERA5-Land",
-                "baseline_period": "1991-2020",
-            }
-        payload = r.json()
+        maxima = _cds_daily_temperature(lat, lon, "daily_maximum")
+        minima = _cds_daily_temperature(lat, lon, "daily_minimum")
     except Exception as exc:
         return {
             "status": "error",
-            "reason": f"Historical heat retrieval failed: {str(exc)[:220]}",
+            "reason": f"Copernicus ERA5-Land retrieval failed: {str(exc)[:260]}",
             "dataset": "ERA5-Land",
             "baseline_period": "1991-2020",
         }
 
-    daily = payload.get("daily") or {}
-    dates = daily.get("time") or []
-    tmax = daily.get("temperature_2m_max") or []
-    tmin = daily.get("temperature_2m_min") or []
-    n = min(len(dates), len(tmax), len(tmin))
-    if n < 365:
+    max_by_day = dict(maxima)
+    min_by_day = dict(minima)
+    shared_days = sorted(set(max_by_day) & set(min_by_day))
+    if len(shared_days) < 365:
         return {
             "status": "error",
-            "reason": "Historical heat source returned insufficient daily data.",
+            "reason": "Copernicus ERA5-Land returned insufficient daily data.",
             "dataset": "ERA5-Land",
             "baseline_period": "1991-2020",
         }
 
     baseline_max = []
     baseline_min = []
-    recent_max = []
-    recent_min = []
-    hottest = None
     annual = {}
+    hottest = None
+    recent_year_counts = {}
 
-    for i in range(n):
-        day = str(dates[i])
+    for day in shared_days:
         try:
             year = int(day[:4])
-            tx = float(tmax[i]) if tmax[i] is not None else None
-            tn = float(tmin[i]) if tmin[i] is not None else None
+            tx = float(max_by_day[day])
+            tn = float(min_by_day[day])
         except (TypeError, ValueError):
             continue
 
-        if tx is not None and (hottest is None or tx > hottest["temperature_c"]):
+        if hottest is None or tx > hottest["temperature_c"]:
             hottest = {"date": day, "temperature_c": tx}
 
         if 1991 <= year <= 2020:
-            if tx is not None:
-                baseline_max.append(tx)
-            if tn is not None:
-                baseline_min.append(tn)
+            baseline_max.append(tx)
+            baseline_min.append(tn)
             yr = annual.setdefault(year, {"days_ge_35": 0, "days_ge_40": 0, "nights_ge_25": 0})
-            if tx is not None and tx >= 35.0:
+            if tx >= 35.0:
                 yr["days_ge_35"] += 1
-            if tx is not None and tx >= 40.0:
+            if tx >= 40.0:
                 yr["days_ge_40"] += 1
-            if tn is not None and tn >= 25.0:
+            if tn >= 25.0:
                 yr["nights_ge_25"] += 1
         elif 2021 <= year <= 2025:
-            if tx is not None:
-                recent_max.append(tx)
-            if tn is not None:
-                recent_min.append(tn)
+            recent_year_counts.setdefault(year, 0)
+            if tx >= 35.0:
+                recent_year_counts[year] += 1
 
     years = sorted(annual)
     if not baseline_max or not years:
         return {
             "status": "error",
-            "reason": "Could not calculate the 1991-2020 historical heat baseline.",
+            "reason": "Could not calculate the 1991-2020 ERA5-Land heat baseline.",
             "dataset": "ERA5-Land",
             "baseline_period": "1991-2020",
         }
@@ -344,31 +397,19 @@ def fetch_historical_heat_context(lat, lon):
     mean_days_35 = sum(annual[y]["days_ge_35"] for y in years) / len(years)
     mean_days_40 = sum(annual[y]["days_ge_40"] for y in years) / len(years)
     mean_nights_25 = sum(annual[y]["nights_ge_25"] for y in years) / len(years)
-
-    recent_days_35 = None
-    if recent_max:
-        recent_year_counts = {}
-        for i in range(n):
-            day = str(dates[i])
-            try:
-                year = int(day[:4])
-                tx = float(tmax[i]) if tmax[i] is not None else None
-            except (TypeError, ValueError):
-                continue
-            if 2021 <= year <= 2025 and tx is not None:
-                recent_year_counts.setdefault(year, 0)
-                if tx >= 35.0:
-                    recent_year_counts[year] += 1
-        if recent_year_counts:
-            recent_days_35 = sum(recent_year_counts.values()) / len(recent_year_counts)
+    recent_days_35 = (
+        sum(recent_year_counts.values()) / len(recent_year_counts)
+        if recent_year_counts else None
+    )
 
     return {
         "status": "ok",
         "dataset": "ERA5-Land",
-        "access": "Open-Meteo Historical Weather API (commercial endpoint)",
+        "access": "Copernicus Climate Data Store — derived ERA5-Land daily statistics",
         "baseline_period": "1991-2020",
         "recent_period": "2021-2025",
-        "spatial_resolution": "0.1 degree grid; ERA5-Land native resolution approximately 9 km",
+        "daily_time_zone": "UTC+00:00",
+        "spatial_resolution": "0.1° grid; ERA5-Land native resolution approximately 9 km",
         "p95_tmax_c": round(_percentile(baseline_max, 0.95), 1),
         "p99_tmax_c": round(_percentile(baseline_max, 0.99), 1),
         "mean_annual_days_ge_35c": round(mean_days_35, 1),
@@ -377,8 +418,10 @@ def fetch_historical_heat_context(lat, lon):
         "recent_mean_annual_days_ge_35c": round(recent_days_35, 1) if recent_days_35 is not None else None,
         "hottest_day": hottest,
         "baseline_years": len(years),
+        "doi": "10.24381/cds.e9c9c792",
+        "licence": "CC-BY",
         "limitations": (
-            "Gridded reanalysis, not an on-site thermometer record. "
+            "Gridded reanalysis, not an on-site thermometer record. Daily statistics are aggregated in UTC. "
             "Building-scale urban heat, shade, ventilation and microclimate are not resolved."
         ),
     }
@@ -502,6 +545,7 @@ def fetch_telemetry(lat, lon, context=None):
         )[0]
 
     osm = fetch_osm_operational_context(lat, lon)
+    historical_heat = fetch_historical_heat_context(lat, lon)
     wx_summary = forecast_summary(days)
     purpose_details = context.get("purpose_details") or {}
     purpose = str(context.get("occupancy") or context.get("purpose") or "").lower()
@@ -527,7 +571,8 @@ def fetch_telemetry(lat, lon, context=None):
             "wind_kmh": current.get("wind_speed_10m"),
         },
         "forecast_days": days,
-        "forecast_summary": wx_summary,\n        "historical_heat": historical_heat,
+        "forecast_summary": wx_summary,
+        "historical_heat": historical_heat,
         "recent_quakes": recent_events,
         "quake_count_30d_350km": len(quakes_data.get("features", [])),
         "live_hazards_300km": local_300,
@@ -561,6 +606,11 @@ def fetch_telemetry(lat, lon, context=None):
                 "type": "Modelled / forecast",
                 "note": "Current atmospheric conditions, seven-day forecast and elevation returned for the analysed coordinates."
             },
+            {
+                "name": "Copernicus Climate Change Service (C3S) — ERA5-Land",
+                "type": "Reanalysis / historical climate",
+                "note": "Historical heat baseline derived from ERA5-Land daily statistics via the Copernicus Climate Data Store; CC-BY; DOI 10.24381/cds.e9c9c792."
+            } if historical_heat.get("status") == "ok" else None,
             {
                 "name": "OpenStreetMap / Overpass",
                 "type": "Mapped infrastructure",
