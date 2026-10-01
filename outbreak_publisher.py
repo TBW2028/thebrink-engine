@@ -342,11 +342,11 @@ CDC_LANDING = "https://www.cdc.gov/nwss/"
 # Run `--probe cdc` once and edit these lists if a column is not detected.
 COLS = {
     "date": ["week_end", "week_ending", "date_end", "end_date", "week_end_date", "date"],
-    "geo": ["geography", "state_territory", "state", "jurisdiction", "location", "geo_name"],
+    "geo": ["site", "geography", "state_territory", "state", "jurisdiction", "location", "geo_name"],
     "geo_type": ["geography_type", "geo_type", "geography_level", "geolevel"],
-    "pathogen": ["pathogen", "virus", "target", "disease"],
-    "wval": ["wval", "wastewater_viral_activity_level_value", "viral_activity_level_value", "value"],
-    "category": ["category", "wval_category", "viral_activity_level", "activity_level", "level"],
+    "pathogen": ["pathogen_target", "pathogen", "virus", "target", "disease"],
+    "wval": ["site_wval", "wval", "wastewater_viral_activity_level_value", "viral_activity_level_value", "value"],
+    "category": ["site_wval_category", "category", "wval_category", "viral_activity_level", "activity_level", "level"],
 }
 LEVELS = ["Minimal", "Low", "Moderate", "High", "Very High"]
 # CDC's published WVAL bands (as documented for the SARS-CoV-2 map); verify against cdc.gov/nwss
@@ -418,6 +418,10 @@ def normalize_cdc(rows: list[dict]) -> list[dict]:
     for r in rows:
         d = parse_iso(r.get(dcol))
         geo = (r.get(gcol) or "").strip()
+        if gcol == "site" and r.get("state_territory"):
+            state = str(r.get("state_territory") or "").strip()
+            if state and state.lower() not in geo.lower():
+                geo = f"{state} · {geo}"
         if not (d and geo):
             continue
         is_nat = geo.lower() in NATIONAL_NAMES or (tcol and str(r.get(tcol, "")).lower() == "national")
