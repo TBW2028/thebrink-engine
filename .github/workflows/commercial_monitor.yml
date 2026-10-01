@@ -38,5 +38,5 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPEN_METEO_API_KEY: ${{ secrets.OPEN_METEO_API_KEY }}
+          CDS_API_KEY: ${{ secrets.CDS_API_KEY }}
         run: python commercial_monitor.py
