@@ -32,6 +32,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Cache WRI Aqueduct data
+        uses: actions/cache@v4
+        with:
+          path: |
+            .brink_cache/aqueduct4
+          key: aqueduct4-water-risk-v4-2026-09
+
       - name: Process due active subscriptions
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
