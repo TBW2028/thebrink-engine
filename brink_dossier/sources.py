@@ -22,6 +22,7 @@ CDS_API_KEY = os.environ.get("CDS_API_KEY")
 JRC_FLOOD_BASE = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/flood_hazard"
 WRI_AQUEDUCT_ZIP = "https://files.wri.org/aqueduct/aqueduct-4-0-water-risk-data.zip"
 COPERNICUS_DEM_30M_BASE = "https://copernicus-dem-30m.s3.amazonaws.com"
+IBTRACS_SINCE1980_CSV = "https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r01/access/csv/ibtracs.since1980.list.v04r01.csv"
 
 
 def _cached_get(url, params=None, ttl_seconds=1800, headers=None):
@@ -1264,6 +1265,204 @@ def fetch_terrain_context(lat, lon):
         }
 
 
+def _download_ibtracs_since1980():
+    """Download/cache NOAA IBTrACS v04r01 modern-era CSV."""
+    root = CACHE_DIR / "ibtracs"
+    root.mkdir(exist_ok=True)
+    csv_path = root / "ibtracs.since1980.list.v04r01.csv"
+
+    if csv_path.exists() and csv_path.stat().st_size > 100000:
+        return csv_path
+
+    tmp_path = csv_path.with_suffix(".part")
+    headers = {"User-Agent": "TheBrinkWorld/1.0 physical-risk-intelligence"}
+    with requests.get(IBTRACS_SINCE1980_CSV, headers=headers, stream=True, timeout=180) as r:
+        r.raise_for_status()
+        with open(tmp_path, "wb") as out:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    out.write(chunk)
+    tmp_path.replace(csv_path)
+    return csv_path
+
+
+def _safe_float(value):
+    try:
+        if value is None or pd.isna(value):
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        val = float(text)
+        return val if math.isfinite(val) else None
+    except Exception:
+        return None
+
+
+def fetch_cyclone_history_context(lat, lon):
+    """Historical tropical-cyclone proximity/intensity context from NOAA IBTrACS since 1980."""
+    try:
+        csv_path = _download_ibtracs_since1980()
+        usecols = [
+            "SID", "SEASON", "BASIN", "SUBBASIN", "NAME", "ISO_TIME",
+            "NATURE", "LAT", "LON", "WMO_WIND", "WMO_PRES",
+        ]
+        frame = pd.read_csv(
+            csv_path,
+            skiprows=[1],
+            usecols=lambda c: c in usecols,
+            low_memory=False,
+        )
+    except Exception as exc:
+        return {
+            "status": "error",
+            "reason": f"NOAA IBTrACS retrieval/read failed: {str(exc)[:280]}",
+            "dataset": "IBTrACS v04r01 since1980",
+        }
+
+    required = {"SID", "LAT", "LON"}
+    if not required.issubset(frame.columns):
+        return {
+            "status": "error",
+            "reason": "IBTrACS CSV did not contain the required storm identifier and coordinate columns.",
+            "dataset": "IBTrACS v04r01 since1980",
+        }
+
+    # Coarse bounding-box filter first, then great-circle distance.
+    lat_span = 6.0
+    lon_span = 8.0 / max(0.25, math.cos(math.radians(lat)))
+    lats = pd.to_numeric(frame["LAT"], errors="coerce")
+    lons = pd.to_numeric(frame["LON"], errors="coerce")
+
+    # Handle dateline by calculating a wrapped longitude delta.
+    lon_delta = ((lons - lon + 180.0) % 360.0) - 180.0
+    mask = (
+        lats.between(lat - lat_span, lat + lat_span)
+        & lon_delta.between(-lon_span, lon_span)
+    )
+    subset = frame.loc[mask].copy()
+
+    if subset.empty:
+        return {
+            "status": "ok",
+            "dataset": "IBTrACS v04r01 since1980",
+            "publisher": "NOAA National Centers for Environmental Information",
+            "period": "1980-present",
+            "storm_count_within_100km": 0,
+            "storm_count_within_250km": 0,
+            "storm_count_within_500km": 0,
+            "nearest_storm": None,
+            "recent_storms": [],
+            "max_reported_wmo_wind_within_250km_kt": None,
+            "max_reported_wmo_wind_storm": None,
+            "doi": "10.25921/82ty-9e16",
+            "limitations": (
+                "IBTrACS is a historical tropical-cyclone best-track archive. Absence of a track near a site since 1980 "
+                "does not prove future cyclone absence and does not characterize non-tropical severe wind. Track-point "
+                "wind values are storm intensity observations, not site wind speeds or structural design loads."
+            ),
+        }
+
+    distances = []
+    for idx, row in subset.iterrows():
+        rlat = _safe_float(row.get("LAT"))
+        rlon = _safe_float(row.get("LON"))
+        if rlat is None or rlon is None:
+            distances.append(None)
+            continue
+        distances.append(haversine(lat, lon, rlat, rlon))
+    subset["_distance_km"] = distances
+    subset = subset[pd.notna(subset["_distance_km"])].copy()
+
+    if subset.empty:
+        return {
+            "status": "error",
+            "reason": "IBTrACS candidate tracks could not be distance-resolved.",
+            "dataset": "IBTrACS v04r01 since1980",
+        }
+
+    storm_summaries = []
+    for sid, group in subset.groupby("SID", dropna=True):
+        group = group.sort_values("_distance_km")
+        nearest = group.iloc[0]
+        min_dist = float(nearest["_distance_km"])
+
+        nearby = group[group["_distance_km"] <= 500.0].copy()
+        if nearby.empty:
+            continue
+
+        winds = pd.to_numeric(nearby.get("WMO_WIND"), errors="coerce") if "WMO_WIND" in nearby else pd.Series(dtype=float)
+        max_wind = float(winds.max()) if not winds.empty and pd.notna(winds.max()) else None
+
+        times = pd.to_datetime(nearby.get("ISO_TIME"), errors="coerce", utc=True) if "ISO_TIME" in nearby else pd.Series(dtype="datetime64[ns, UTC]")
+        last_time = times.max() if not times.empty else None
+
+        storm_summaries.append({
+            "sid": str(sid),
+            "season": int(nearest["SEASON"]) if "SEASON" in nearest and pd.notna(nearest["SEASON"]) else None,
+            "name": str(nearest.get("NAME") or "").strip() or "Unnamed tropical cyclone",
+            "basin": str(nearest.get("BASIN") or "").strip() or None,
+            "subbasin": str(nearest.get("SUBBASIN") or "").strip() or None,
+            "nearest_distance_km": round(min_dist, 1),
+            "nearest_time": str(nearest.get("ISO_TIME") or "").strip() or None,
+            "max_wmo_wind_within_500km_kt": round(max_wind, 1) if max_wind is not None else None,
+            "last_time_within_500km": last_time.isoformat() if last_time is not None and pd.notna(last_time) else None,
+        })
+
+    storm_summaries.sort(key=lambda x: x["nearest_distance_km"])
+    nearest_storm = storm_summaries[0] if storm_summaries else None
+
+    counts = {}
+    for radius in (100, 250, 500):
+        counts[radius] = sum(1 for storm in storm_summaries if storm["nearest_distance_km"] <= radius)
+
+    within250 = subset[subset["_distance_km"] <= 250.0].copy()
+    max_wind = None
+    max_wind_storm = None
+    if not within250.empty and "WMO_WIND" in within250.columns:
+        within250["_wmo_wind"] = pd.to_numeric(within250["WMO_WIND"], errors="coerce")
+        usable = within250[pd.notna(within250["_wmo_wind"])]
+        if not usable.empty:
+            peak = usable.sort_values("_wmo_wind", ascending=False).iloc[0]
+            max_wind = float(peak["_wmo_wind"])
+            max_wind_storm = {
+                "sid": str(peak.get("SID") or ""),
+                "name": str(peak.get("NAME") or "").strip() or "Unnamed tropical cyclone",
+                "time": str(peak.get("ISO_TIME") or "").strip() or None,
+                "distance_km": round(float(peak["_distance_km"]), 1),
+                "wmo_wind_kt": round(max_wind, 1),
+                "basin": str(peak.get("BASIN") or "").strip() or None,
+            }
+
+    recent = sorted(
+        storm_summaries,
+        key=lambda x: x.get("last_time_within_500km") or "",
+        reverse=True,
+    )[:10]
+
+    return {
+        "status": "ok",
+        "dataset": "IBTrACS v04r01 since1980",
+        "publisher": "NOAA National Centers for Environmental Information",
+        "period": "1980-present",
+        "storm_count_within_100km": counts[100],
+        "storm_count_within_250km": counts[250],
+        "storm_count_within_500km": counts[500],
+        "nearest_storm": nearest_storm,
+        "recent_storms": recent,
+        "max_reported_wmo_wind_within_250km_kt": round(max_wind, 1) if max_wind is not None else None,
+        "max_reported_wmo_wind_storm": max_wind_storm,
+        "doi": "10.25921/82ty-9e16",
+        "limitations": (
+            "IBTrACS is a historical tropical-cyclone best-track archive. The since-1980 subset is used as the modern "
+            "satellite-era screening baseline. Historical track proximity does not predict future occurrence. WMO wind "
+            "values can use different agency averaging periods and are not adjusted by IBTrACS; they describe storm "
+            "intensity at a reported track point, not the wind speed experienced at the facility. This module does not "
+            "characterize non-tropical severe wind, convective gusts or structural design wind loads."
+        ),
+    }
+
+
 def agriculture_context(now, country_code, purpose_details, wx_summary):
     details = purpose_details or {}
     crop = str(details.get("crop") or "").strip() or None
@@ -1387,6 +1586,7 @@ def fetch_telemetry(lat, lon, context=None):
     river_flood = fetch_jrc_river_flood_context(lat, lon)
     water_risk = fetch_aqueduct_water_risk_context(lat, lon)
     terrain = fetch_terrain_context(lat, lon)
+    cyclone_history = fetch_cyclone_history_context(lat, lon)
     wx_summary = forecast_summary(days)
     purpose_details = context.get("purpose_details") or {}
     purpose = str(context.get("occupancy") or context.get("purpose") or "").lower()
@@ -1418,6 +1618,7 @@ def fetch_telemetry(lat, lon, context=None):
         "river_flood": river_flood,
         "water_risk": water_risk,
         "terrain": terrain,
+        "cyclone_history": cyclone_history,
         "recent_quakes": recent_events,
         "quake_count_30d_350km": len(quakes_data.get("features", [])),
         "live_hazards_300km": local_300,
@@ -1476,6 +1677,11 @@ def fetch_telemetry(lat, lon, context=None):
                 "type": "Digital surface model / terrain screening",
                 "note": "Public ~30 m Copernicus DEM 2021 COG used to derive point elevation, local slope and relief metrics. DSM values may include buildings and vegetation; not a geotechnical assessment."
             } if terrain.get("status") == "ok" else None,
+            {
+                "name": "NOAA NCEI — IBTrACS v04r01",
+                "type": "Historical tropical-cyclone best-track archive",
+                "note": "Modern satellite-era (since 1980) storm-track proximity and reported WMO storm intensity context. Track-point winds are not site wind speeds or structural design loads; DOI 10.25921/82ty-9e16."
+            } if cyclone_history.get("status") == "ok" else None,
             {
                 "name": "OpenStreetMap / Overpass",
                 "type": "Mapped infrastructure",
