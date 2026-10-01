@@ -93,6 +93,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
     historical_rainfall = telemetry.get("historical_rainfall") or {}
     river_flood = telemetry.get("river_flood") or {}
     water_risk = telemetry.get("water_risk") or {}
+    terrain_ctx = telemetry.get("terrain") or {}
 
     items.append(_evidence(
         report_run_id, facility_id, "multi_hazard_operational",
@@ -462,6 +463,50 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             confidence="unresolved",
             confidence_reason=water_risk.get("reason") or "Aqueduct 4.0 evidence was not available.",
             limitations="Water-stress materiality must remain unresolved until basin-level evidence is available.",
+        ))
+
+    if terrain_ctx.get("status") == "ok":
+        t250 = terrain_ctx.get("metrics_250m") or {}
+        t1k = terrain_ctx.get("metrics_1km") or {}
+        terrain_specs = [
+            ("terrain_point_elevation_m", "Copernicus DEM point elevation", terrain_ctx.get("point_elevation_m"), "m"),
+            ("terrain_slope_mean_250m_deg", "Mean derived slope in ~250 m neighbourhood", t250.get("slope_mean_deg"), "degrees"),
+            ("terrain_slope_p95_250m_deg", "95th percentile derived slope in ~250 m neighbourhood", t250.get("slope_p95_deg"), "degrees"),
+            ("terrain_relief_250m_m", "Local elevation relief in ~250 m neighbourhood", t250.get("relief_m"), "m"),
+            ("terrain_slope_mean_1km_deg", "Mean derived slope in ~1 km neighbourhood", t1k.get("slope_mean_deg"), "degrees"),
+            ("terrain_slope_p95_1km_deg", "95th percentile derived slope in ~1 km neighbourhood", t1k.get("slope_p95_deg"), "degrees"),
+            ("terrain_slope_max_1km_deg", "Maximum derived slope in ~1 km neighbourhood", t1k.get("slope_max_deg"), "degrees"),
+            ("terrain_relief_1km_m", "Local elevation relief in ~1 km neighbourhood", t1k.get("relief_m"), "m"),
+            ("terrain_elevation_std_1km_m", "Elevation standard deviation in ~1 km neighbourhood", t1k.get("elevation_std_m"), "m"),
+        ]
+        for code, name, value, unit in terrain_specs:
+            if value is None:
+                continue
+            items.append(_evidence(
+                report_run_id, facility_id, "terrain",
+                code, name,
+                "Copernicus DEM GLO-30 Public", "modelled",
+                value_numeric=value, unit=unit,
+                source_dataset="Copernicus DEM GLO-30 Public 2021",
+                source_reference=terrain_ctx.get("url"),
+                source_version=terrain_ctx.get("release"),
+                retrieved_at=retrieved,
+                spatial_resolution=terrain_ctx.get("resolution"),
+                confidence="medium",
+                confidence_reason="Derived from the public Copernicus ~30 m digital surface model at and around the assessed coordinate.",
+                limitations=terrain_ctx.get("limitations"),
+                raw_evidence={"tile": terrain_ctx.get("tile")},
+            ))
+    else:
+        items.append(_evidence(
+            report_run_id, facility_id, "terrain",
+            "terrain_dem_status", "Copernicus DEM terrain evidence availability",
+            "Copernicus DEM GLO-30 Public", "modelled",
+            value_text=str(terrain_ctx.get("status") or "not_available"),
+            retrieved_at=retrieved,
+            confidence="unresolved",
+            confidence_reason=terrain_ctx.get("reason") or "Terrain evidence was not available.",
+            limitations="Terrain and landslide-related screening remain unresolved without a suitable terrain model.",
         ))
 
     if telemetry.get("elevation_m") is not None:
@@ -987,16 +1032,73 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
         action="Screen wildfire exposure using appropriate fire-history and land-context evidence.",
     )
 
-    add(
-        "landslide", "evidence_gap",
-        "Landslide and terrain susceptibility have not yet been characterised.",
-        reasoning="Point elevation alone does not establish slope, terrain instability or rainfall-triggered landslide susceptibility.",
-        confidence="unresolved",
-        confidence_reason="Slope/terrain susceptibility evidence has not yet been added.",
-        action_type="verify",
-        action="Add DEM-derived slope and appropriate landslide susceptibility evidence.",
-        support=["elevation_m"],
-    )
+    terrain = telemetry.get("terrain") or {}
+    if terrain.get("status") == "ok":
+        t250 = terrain.get("metrics_250m") or {}
+        t1k = terrain.get("metrics_1km") or {}
+        slope95 = t1k.get("slope_p95_deg")
+        relief = t1k.get("relief_m")
+        terrain_support = [
+            "terrain_point_elevation_m",
+            "terrain_slope_mean_250m_deg",
+            "terrain_slope_p95_250m_deg",
+            "terrain_relief_250m_m",
+            "terrain_slope_mean_1km_deg",
+            "terrain_slope_p95_1km_deg",
+            "terrain_slope_max_1km_deg",
+            "terrain_relief_1km_m",
+            "terrain_elevation_std_1km_m",
+            "client_practical_access_routes",
+        ]
+
+        if (slope95 or 0) >= 30 or (relief or 0) >= 250:
+            add(
+                "landslide", "monitor",
+                "Copernicus DEM screening indicates steep and/or high-relief terrain around the assessed facility; landslide susceptibility itself remains unresolved.",
+                sensitivity="high" if str(profile.get("practical_access_routes") or "").lower() == "1" else "unresolved",
+                reasoning="Steep/high-relief terrain can increase the relevance of slope-instability and access-disruption pathways, but DEM-derived slope is not a landslide model.",
+                consequence="Potential slope-related access disruption or site-adjacent instability warrants dedicated susceptibility and local/geotechnical verification where material.",
+                confidence="medium",
+                confidence_reason="Terrain metrics are traceable at ~30 m resolution, but geology, soils, faults, land cover and rainfall-triggered landslide susceptibility are not yet integrated.",
+                action_type="verify",
+                action="Add a dedicated landslide susceptibility/nowcast layer and verify site geology, cut slopes, retaining structures and critical access routes where applicable.",
+                support=terrain_support,
+            )
+        elif (slope95 or 0) >= 15 or (relief or 0) >= 100:
+            add(
+                "landslide", "monitor",
+                "Terrain screening indicates moderate slope or relief around the assessed facility; dedicated landslide susceptibility remains unresolved.",
+                sensitivity="unresolved",
+                reasoning="The terrain context is relevant enough to retain monitoring, but DEM slope alone does not establish slope instability.",
+                confidence="medium",
+                confidence_reason="Copernicus DEM supports terrain characterization, not landslide probability.",
+                action_type="verify",
+                action="Add dedicated landslide susceptibility evidence before classifying landslide materiality.",
+                support=terrain_support,
+            )
+        else:
+            add(
+                "landslide", "evidence_gap",
+                "Terrain around the assessed site is not strongly steep in the current DEM screen, but landslide susceptibility remains unresolved.",
+                sensitivity="unresolved",
+                reasoning="Low-to-moderate DEM slope does not by itself rule out landslide mechanisms, cut-slope failure, local geology or route-level exposure.",
+                confidence="unresolved",
+                confidence_reason="A dedicated landslide susceptibility model has not yet been integrated.",
+                action_type="verify",
+                action="Add landslide susceptibility evidence where the decision or local terrain warrants it.",
+                support=terrain_support,
+            )
+    else:
+        add(
+            "landslide", "evidence_gap",
+            "Landslide and terrain susceptibility have not yet been characterised.",
+            reasoning="A suitable terrain model was unavailable and point elevation alone cannot establish slope instability.",
+            confidence="unresolved",
+            confidence_reason=terrain.get("reason") or "Terrain evidence is unavailable.",
+            action_type="verify",
+            action="Resolve DEM-derived terrain evidence and add an appropriate landslide susceptibility source.",
+            support=["terrain_dem_status", "elevation_m"],
+        )
 
     access_routes = str(profile.get("practical_access_routes") or "unknown").lower()
     if access_routes == "1":
