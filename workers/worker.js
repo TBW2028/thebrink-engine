@@ -1444,6 +1444,34 @@ export default {
         const criticalFunction = String(body.critical_function || "").trim();
         const notes = String(body.notes || "").trim();
 
+        const termsVersion = "TBW-TOS-2026-10-01";
+        const privacyVersion = "TBW-PRIVACY-2026-10-01";
+        const authorityConfirmed = body.authority_confirmed === true;
+        const clientDeclarationConfirmed = body.client_declaration_confirmed === true;
+        const termsAccepted = body.terms_accepted === true;
+        const privacyAccepted = body.privacy_accepted === true;
+
+        const safeInt = value => {
+          const text = String(value ?? "").trim();
+          if (!text) return null;
+          const parsed = Number.parseInt(text, 10);
+          return Number.isFinite(parsed) ? parsed : null;
+        };
+
+        const constructionType = String(body.construction_type || "unknown").trim() || "unknown";
+        const yearBuilt = safeInt(body.year_built);
+        const floorsAboveGround = safeInt(body.floors_above_ground);
+        const basementPresent = String(body.basement_present || "unknown").trim().toLowerCase();
+        const criticalEquipmentLevel = String(body.critical_equipment_level || "unknown").trim().toLowerCase();
+        const backupPower = String(body.backup_power || "unknown").trim().toLowerCase();
+        const waterDependency = String(body.water_dependency || "unknown").trim().toLowerCase();
+        const coolingDependency = String(body.cooling_dependency || "unknown").trim().toLowerCase();
+        const practicalAccessRoutes = String(body.practical_access_routes || "unknown").trim().toLowerCase();
+        const drainageProtection = String(body.drainage_protection || "").trim();
+        const previousDisruptions = String(body.previous_disruptions || "").trim();
+        const criticalDependencies = String(body.critical_dependencies || "").trim();
+        const resilienceMeasures = String(body.resilience_measures || "").trim();
+
         const allowedProducts = new Set([
           "facility_risk_passport",
           "physical_risk_evidence_pack",
@@ -1458,6 +1486,22 @@ export default {
         }
         if (!allowedProducts.has(productType)) return jsonResponse({ error: "Choose a valid commercial product." }, 400, corsHeaders);
         if (!allowedCadence.has(cadence)) return jsonResponse({ error: "Choose a valid reporting cadence." }, 400, corsHeaders);
+        if (!authorityConfirmed || !clientDeclarationConfirmed || !termsAccepted || !privacyAccepted) {
+          return jsonResponse({ error: "Commercial Terms, Privacy Notice, authority and information declaration must be accepted." }, 400, corsHeaders);
+        }
+
+        const allowedBasement = new Set(["yes","no","unknown"]);
+        const allowedDependency = new Set(["low","moderate","high","critical","unknown"]);
+        if (!allowedBasement.has(basementPresent)) return jsonResponse({ error: "Choose a valid basement status." }, 400, corsHeaders);
+        if (!allowedDependency.has(waterDependency) || !allowedDependency.has(coolingDependency)) {
+          return jsonResponse({ error: "Choose valid water and cooling dependency levels." }, 400, corsHeaders);
+        }
+        if (yearBuilt !== null && (yearBuilt < 1800 || yearBuilt > 2100)) {
+          return jsonResponse({ error: "Enter a plausible construction year or leave it unknown." }, 400, corsHeaders);
+        }
+        if (floorsAboveGround !== null && (floorsAboveGround < 0 || floorsAboveGround > 300)) {
+          return jsonResponse({ error: "Enter a plausible number of floors or leave it unknown." }, 400, corsHeaders);
+        }
 
         const sbUrl = env.SUPABASE_URL;
         const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
@@ -1512,7 +1556,10 @@ export default {
             notes: notes || null,
             requested_product: productType,
             requested_cadence: cadence,
-            source: "facility-risk.html"
+            source: "facility-risk.html",
+            terms_version: termsVersion,
+            privacy_version: privacyVersion,
+            facility_profile_schema: "TBW-FACILITY-PROFILE-v1"
           },
           created_at: now
         };
@@ -1529,6 +1576,75 @@ export default {
             headers: sbHeaders(sbKey, "return=minimal")
           }).catch(() => {});
           throw new Error(`Subscription save failed: ${await subRes.text()}`);
+        }
+
+        const profilePayload = {
+          facility_id: facility.id,
+          profile_version: 1,
+          construction_type: constructionType,
+          year_built: yearBuilt,
+          floors_above_ground: floorsAboveGround,
+          basement_present: basementPresent,
+          critical_equipment_level: criticalEquipmentLevel,
+          backup_power: backupPower,
+          water_dependency: waterDependency,
+          cooling_dependency: coolingDependency,
+          practical_access_routes: practicalAccessRoutes,
+          drainage_protection: drainageProtection || null,
+          previous_disruptions: previousDisruptions ? [{ description: previousDisruptions }] : [],
+          critical_dependencies: criticalDependencies ? { client_notes: criticalDependencies } : {},
+          resilience_measures: resilienceMeasures ? { client_notes: resilienceMeasures } : {},
+          source: "client_declared",
+          declared_by: contactName,
+          declared_at: now,
+          valid_from: now,
+          is_current: true,
+          notes: notes || null
+        };
+
+        const profileRes = await fetch(`${sbUrl}/rest/v1/brink_facility_profiles`, {
+          method: "POST",
+          headers: sbHeaders(sbKey, "return=representation"),
+          body: JSON.stringify(profilePayload)
+        });
+        if (!profileRes.ok) {
+          await fetch(`${sbUrl}/rest/v1/brink_facilities?id=eq.${encodeURIComponent(facility.id)}`, {
+            method: "DELETE",
+            headers: sbHeaders(sbKey, "return=minimal")
+          }).catch(() => {});
+          throw new Error(`Facility profile save failed: ${await profileRes.text()}`);
+        }
+
+        const acceptancePayload = {
+          facility_id: facility.id,
+          subscription_id: subscriptionId,
+          contact_name: contactName,
+          contact_email: email,
+          organization_name: organization,
+          terms_version: termsVersion,
+          privacy_version: privacyVersion,
+          authority_confirmed: true,
+          client_declaration_confirmed: true,
+          accepted_at: now,
+          acceptance_context: {
+            source: "facility-risk.html",
+            product_type: productType,
+            cadence,
+            facility_profile_schema: "TBW-FACILITY-PROFILE-v1"
+          }
+        };
+
+        const acceptanceRes = await fetch(`${sbUrl}/rest/v1/brink_contract_acceptances`, {
+          method: "POST",
+          headers: sbHeaders(sbKey, "return=representation"),
+          body: JSON.stringify(acceptancePayload)
+        });
+        if (!acceptanceRes.ok) {
+          await fetch(`${sbUrl}/rest/v1/brink_facilities?id=eq.${encodeURIComponent(facility.id)}`, {
+            method: "DELETE",
+            headers: sbHeaders(sbKey, "return=minimal")
+          }).catch(() => {});
+          throw new Error(`Contract acceptance save failed: ${await acceptanceRes.text()}`);
         }
 
         const reviewUrl = new URL("/api/commercial/review", url.origin);
@@ -1564,6 +1680,8 @@ export default {
                     <tr><td style="padding:6px;color:#666">Product</td><td>${safe(productLabels[productType])}</td></tr>
                     <tr><td style="padding:6px;color:#666">Cadence</td><td>${safe(cadence)}</td></tr>
                     <tr><td style="padding:6px;color:#666">Critical function</td><td>${safe(criticalFunction || "—")}</td></tr>
+                    <tr><td style="padding:6px;color:#666">Facility profile</td><td>Client-declared V2 profile captured</td></tr>
+                    <tr><td style="padding:6px;color:#666">Terms accepted</td><td>${safe(termsVersion)} · ${safe(privacyVersion)}</td></tr>
                   </table>
                   <p><strong>Requested workflow:</strong> ${safe(notes || "Not supplied")}</p>
                   <p><a href="${reviewUrl.toString()}" style="display:inline-block;background:#0b0d11;color:#fff;padding:12px 18px;text-decoration:none">Review & activate</a></p>
@@ -1602,7 +1720,10 @@ export default {
         return jsonResponse({
           ok: true,
           reference: subscriptionId.slice(0,8).toUpperCase(),
-          status: "pending_review"
+          status: "pending_review",
+          terms_version: termsVersion,
+          privacy_version: privacyVersion,
+          facility_profile_saved: true
         }, 200, corsHeaders);
       } catch (err) {
         return jsonResponse({ error: err.message }, 500, corsHeaders);
