@@ -47,4 +47,5 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CDS_API_KEY: ${{ secrets.CDS_API_KEY }}
+          NASA_FIRMS_MAP_KEY: ${{ secrets.NASA_FIRMS_MAP_KEY }}
         run: python commercial_monitor.py
