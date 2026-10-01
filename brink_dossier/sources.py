@@ -457,6 +457,266 @@ def fetch_historical_heat_context(lat, lon):
     }
 
 
+def _cds_hourly_point_series(lat, lon, variable, start_date, end_date, cache_tag):
+    """Retrieve a long ERA5-Land hourly point time series through the CDS ARCO endpoint."""
+    if not CDS_API_KEY:
+        raise RuntimeError("CDS_API_KEY is not configured.")
+
+    cache_stem = (
+        f"era5land_timeseries_{cache_tag}_{round(lat, 2)}_{round(lon, 2)}_"
+        f"{start_date.replace('-', '')}_{end_date.replace('-', '')}"
+    )
+    zip_path = CACHE_DIR / f"{cache_stem}.zip"
+    extract_dir = CACHE_DIR / cache_stem
+
+    if not zip_path.exists():
+        client = cdsapi.Client(
+            url="https://cds.climate.copernicus.eu/api",
+            key=CDS_API_KEY,
+            quiet=True,
+            progress=False,
+        )
+        request = {
+            "variable": [variable],
+            "location": {"longitude": lon, "latitude": lat},
+            "date": [f"{start_date}/{end_date}"],
+            "data_format": "netcdf",
+        }
+        client.retrieve(
+            "reanalysis-era5-land-timeseries",
+            request,
+            str(zip_path),
+        )
+
+    extract_dir.mkdir(exist_ok=True)
+    nc_files = sorted(extract_dir.glob("*.nc"))
+    if not nc_files:
+        if zipfile.is_zipfile(zip_path):
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                safe_members = [
+                    name for name in zf.namelist()
+                    if name.lower().endswith(".nc")
+                    and ".." not in Path(name).parts
+                    and not Path(name).is_absolute()
+                ]
+                if not safe_members:
+                    raise RuntimeError("CDS ERA5-Land time-series ZIP contained no NetCDF file.")
+                for name in safe_members:
+                    target = extract_dir / Path(name).name
+                    with zf.open(name) as source, open(target, "wb") as dest:
+                        dest.write(source.read())
+            nc_files = sorted(extract_dir.glob("*.nc"))
+        else:
+            direct_nc = extract_dir / f"{cache_stem}.nc"
+            direct_nc.write_bytes(zip_path.read_bytes())
+            nc_files = [direct_nc]
+
+    rows = []
+    units = None
+    for nc_file in nc_files:
+        ds = xr.open_dataset(nc_file)
+        try:
+            if not ds.data_vars:
+                continue
+            preferred = [
+                variable,
+                "tp" if variable == "total_precipitation" else None,
+            ]
+            var_name = next((name for name in preferred if name and name in ds.data_vars), None)
+            if not var_name:
+                var_name = next(iter(ds.data_vars))
+            da = ds[var_name]
+            units = units or da.attrs.get("units")
+
+            time_dim = next(
+                (d for d in da.dims if d in ("valid_time", "time", "date")),
+                None,
+            )
+            if not time_dim:
+                time_dim = next((d for d in da.dims if "time" in d.lower()), None)
+            if not time_dim:
+                raise RuntimeError("Could not identify the ERA5-Land time dimension.")
+
+            for dim in list(da.dims):
+                if dim != time_dim:
+                    da = da.isel({dim: 0})
+
+            values = list(da.values)
+            times = list(da[time_dim].values)
+            for t, value in zip(times, values):
+                try:
+                    val = float(value)
+                    if math.isnan(val):
+                        continue
+                    ts = str(t)
+                    if len(ts) < 10:
+                        continue
+                    rows.append((ts, val))
+                except (TypeError, ValueError):
+                    continue
+        finally:
+            ds.close()
+
+    rows.sort(key=lambda x: x[0])
+    if not rows:
+        raise RuntimeError(f"ERA5-Land returned no usable values for {variable}.")
+    return rows, units
+
+
+def fetch_historical_rainfall_context(lat, lon):
+    """Historical extreme-rainfall baseline derived from ERA5-Land hourly precipitation."""
+    if not CDS_API_KEY:
+        return {
+            "status": "not_configured",
+            "reason": "CDS_API_KEY is not configured for Copernicus Climate Data Store access.",
+            "dataset": "ERA5-Land",
+            "baseline_period": "1991-2020",
+        }
+
+    try:
+        hourly, units = _cds_hourly_point_series(
+            lat, lon,
+            "total_precipitation",
+            "1991-01-01",
+            "2025-12-31",
+            "precipitation",
+        )
+    except Exception as exc:
+        return {
+            "status": "error",
+            "reason": f"Copernicus ERA5-Land precipitation retrieval failed: {str(exc)[:260]}",
+            "dataset": "ERA5-Land",
+            "baseline_period": "1991-2020",
+        }
+
+    unit_text = str(units or "").strip().lower()
+    multiplier = 1000.0 if unit_text in {"m", "metre", "meter", "m of water equivalent"} or "metre" in unit_text else 1.0
+
+    daily = {}
+    hourly_counts = {}
+    for ts, raw_value in hourly:
+        day = ts[:10]
+        try:
+            value_mm = max(0.0, float(raw_value) * multiplier)
+        except (TypeError, ValueError):
+            continue
+        daily[day] = daily.get(day, 0.0) + value_mm
+        hourly_counts[day] = hourly_counts.get(day, 0) + 1
+
+    # Exclude clearly incomplete days so partial retrievals do not masquerade as low rainfall.
+    daily = {
+        day: total
+        for day, total in daily.items()
+        if hourly_counts.get(day, 0) >= 23
+    }
+    if len(daily) < 365:
+        return {
+            "status": "error",
+            "reason": "Copernicus ERA5-Land returned insufficient complete daily precipitation data.",
+            "dataset": "ERA5-Land",
+            "baseline_period": "1991-2020",
+        }
+
+    annual = {}
+    wet_day_values = []
+    recent = {}
+    wettest = None
+
+    for day in sorted(daily):
+        try:
+            year = int(day[:4])
+            rain = float(daily[day])
+        except (TypeError, ValueError):
+            continue
+
+        if wettest is None or rain > wettest["precipitation_mm"]:
+            wettest = {"date": day, "precipitation_mm": rain}
+
+        if 1991 <= year <= 2020:
+            yr = annual.setdefault(year, {
+                "total_mm": 0.0,
+                "wet_days": 0,
+                "days_ge_20": 0,
+                "days_ge_50": 0,
+                "daily": [],
+            })
+            yr["total_mm"] += rain
+            yr["daily"].append((day, rain))
+            if rain >= 1.0:
+                yr["wet_days"] += 1
+                wet_day_values.append(rain)
+            if rain >= 20.0:
+                yr["days_ge_20"] += 1
+            if rain >= 50.0:
+                yr["days_ge_50"] += 1
+        elif 2021 <= year <= 2025:
+            yr = recent.setdefault(year, {"days_ge_20": 0, "daily": []})
+            yr["daily"].append((day, rain))
+            if rain >= 20.0:
+                yr["days_ge_20"] += 1
+
+    years = sorted(annual)
+    if not years:
+        return {
+            "status": "error",
+            "reason": "Could not calculate the 1991-2020 ERA5-Land rainfall baseline.",
+            "dataset": "ERA5-Land",
+            "baseline_period": "1991-2020",
+        }
+
+    annual_rx1 = []
+    annual_rx5 = []
+    for year in years:
+        vals = [rain for _, rain in sorted(annual[year]["daily"])]
+        if vals:
+            annual_rx1.append(max(vals))
+        if len(vals) >= 5:
+            annual_rx5.append(max(sum(vals[i:i+5]) for i in range(len(vals) - 4)))
+
+    recent_rx1 = []
+    for year in sorted(recent):
+        vals = [rain for _, rain in sorted(recent[year]["daily"])]
+        if vals:
+            recent_rx1.append(max(vals))
+
+    return {
+        "status": "ok",
+        "dataset": "ERA5-Land",
+        "access": "Copernicus Climate Data Store — ERA5-Land hourly time-series",
+        "baseline_period": "1991-2020",
+        "recent_period": "2021-2025",
+        "daily_time_zone": "UTC+00:00",
+        "spatial_resolution": "0.1° grid; ERA5-Land native resolution approximately 9 km",
+        "mean_annual_precip_mm": round(sum(annual[y]["total_mm"] for y in years) / len(years), 1),
+        "mean_annual_wet_days": round(sum(annual[y]["wet_days"] for y in years) / len(years), 1),
+        "mean_annual_days_ge_20mm": round(sum(annual[y]["days_ge_20"] for y in years) / len(years), 1),
+        "mean_annual_days_ge_50mm": round(sum(annual[y]["days_ge_50"] for y in years) / len(years), 1),
+        "p95_wet_day_mm": round(_percentile(wet_day_values, 0.95), 1) if wet_day_values else None,
+        "mean_annual_rx1day_mm": round(sum(annual_rx1) / len(annual_rx1), 1) if annual_rx1 else None,
+        "mean_annual_rx5day_mm": round(sum(annual_rx5) / len(annual_rx5), 1) if annual_rx5 else None,
+        "recent_mean_annual_days_ge_20mm": (
+            round(sum(recent[y]["days_ge_20"] for y in recent) / len(recent), 1)
+            if recent else None
+        ),
+        "recent_mean_annual_rx1day_mm": (
+            round(sum(recent_rx1) / len(recent_rx1), 1)
+            if recent_rx1 else None
+        ),
+        "wettest_day": (
+            {"date": wettest["date"], "precipitation_mm": round(wettest["precipitation_mm"], 1)}
+            if wettest else None
+        ),
+        "baseline_years": len(years),
+        "doi": "10.24381/ee82e357",
+        "licence": "CC-BY-4.0",
+        "limitations": (
+            "Gridded reanalysis at the nearest ERA5-Land grid point, not a site rain gauge. "
+            "Daily totals are aggregated from hourly time-series in UTC. Historical rainfall intensity "
+            "does not establish riverine/pluvial flood depth, return period, drainage capacity or building inundation."
+        ),
+    }
+
+
 def agriculture_context(now, country_code, purpose_details, wx_summary):
     details = purpose_details or {}
     crop = str(details.get("crop") or "").strip() or None
@@ -576,6 +836,7 @@ def fetch_telemetry(lat, lon, context=None):
 
     osm = fetch_osm_operational_context(lat, lon)
     historical_heat = fetch_historical_heat_context(lat, lon)
+    historical_rainfall = fetch_historical_rainfall_context(lat, lon)
     wx_summary = forecast_summary(days)
     purpose_details = context.get("purpose_details") or {}
     purpose = str(context.get("occupancy") or context.get("purpose") or "").lower()
@@ -603,6 +864,7 @@ def fetch_telemetry(lat, lon, context=None):
         "forecast_days": days,
         "forecast_summary": wx_summary,
         "historical_heat": historical_heat,
+        "historical_rainfall": historical_rainfall,
         "recent_quakes": recent_events,
         "quake_count_30d_350km": len(quakes_data.get("features", [])),
         "live_hazards_300km": local_300,
@@ -641,6 +903,11 @@ def fetch_telemetry(lat, lon, context=None):
                 "type": "Reanalysis / historical climate",
                 "note": "Historical heat baseline derived from ERA5-Land daily statistics via the Copernicus Climate Data Store; CC-BY; DOI 10.24381/cds.e9c9c792."
             } if historical_heat.get("status") == "ok" else None,
+            {
+                "name": "Copernicus Climate Change Service (C3S) — ERA5-Land precipitation",
+                "type": "Reanalysis / historical precipitation",
+                "note": "Historical rainfall baseline derived from ERA5-Land hourly point time-series; CC-BY-4.0; DOI 10.24381/ee82e357. This is rainfall evidence, not a flood-depth map."
+            } if historical_rainfall.get("status") == "ok" else None,
             {
                 "name": "OpenStreetMap / Overpass",
                 "type": "Mapped infrastructure",
