@@ -90,6 +90,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
     current = telemetry.get("weather_current") or {}
     strongest = telemetry.get("strongest_local_signal")
     historical_heat = telemetry.get("historical_heat") or {}
+    historical_rainfall = telemetry.get("historical_rainfall") or {}
 
     items.append(_evidence(
         report_run_id, facility_id, "multi_hazard_operational",
@@ -216,6 +217,66 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             confidence="unresolved",
             confidence_reason=historical_heat.get("reason") or "Historical heat baseline was not available.",
             limitations="Heat materiality must remain unresolved until historical heat evidence is available.",
+        ))
+
+    if historical_rainfall.get("status") == "ok":
+        rainfall_specs = [
+            ("baseline_mean_annual_precip_mm", "Historical mean annual precipitation", historical_rainfall.get("mean_annual_precip_mm"), "mm/year"),
+            ("baseline_mean_annual_wet_days", "Historical mean annual wet days ≥1 mm", historical_rainfall.get("mean_annual_wet_days"), "days/year"),
+            ("baseline_days_ge_20mm", "Historical mean annual days with precipitation ≥20 mm", historical_rainfall.get("mean_annual_days_ge_20mm"), "days/year"),
+            ("baseline_days_ge_50mm", "Historical mean annual days with precipitation ≥50 mm", historical_rainfall.get("mean_annual_days_ge_50mm"), "days/year"),
+            ("baseline_p95_wet_day_mm", "Historical 95th percentile wet-day precipitation", historical_rainfall.get("p95_wet_day_mm"), "mm/day"),
+            ("baseline_rx1day_mm", "Historical mean annual maximum 1-day precipitation", historical_rainfall.get("mean_annual_rx1day_mm"), "mm/day"),
+            ("baseline_rx5day_mm", "Historical mean annual maximum consecutive 5-day precipitation", historical_rainfall.get("mean_annual_rx5day_mm"), "mm/5 days"),
+            ("recent_days_ge_20mm", "Recent mean annual days with precipitation ≥20 mm", historical_rainfall.get("recent_mean_annual_days_ge_20mm"), "days/year"),
+            ("recent_rx1day_mm", "Recent mean annual maximum 1-day precipitation", historical_rainfall.get("recent_mean_annual_rx1day_mm"), "mm/day"),
+        ]
+        for code, name, value, unit in rainfall_specs:
+            if value is None:
+                continue
+            items.append(_evidence(
+                report_run_id, facility_id, "extreme_rainfall",
+                code, name,
+                "Copernicus Climate Change Service (C3S) — ERA5-Land precipitation", "modelled",
+                value_numeric=value, unit=unit,
+                source_dataset="ERA5-Land",
+                source_reference="Copernicus Climate Data Store",
+                source_version="ERA5-Land",
+                retrieved_at=retrieved,
+                observation_start="1991-01-01T00:00:00+00:00" if code.startswith("baseline_") else "2021-01-01T00:00:00+00:00",
+                observation_end="2020-12-31T23:59:59+00:00" if code.startswith("baseline_") else "2025-12-31T23:59:59+00:00",
+                spatial_resolution=historical_rainfall.get("spatial_resolution"),
+                temporal_resolution="daily statistics derived from hourly reanalysis",
+                confidence="medium",
+                confidence_reason="ERA5-Land provides a consistent gridded historical rainfall baseline; it is not an on-site rain gauge or flood-depth model.",
+                limitations=historical_rainfall.get("limitations"),
+            ))
+
+        wettest = historical_rainfall.get("wettest_day") or {}
+        if wettest.get("precipitation_mm") is not None:
+            items.append(_evidence(
+                report_run_id, facility_id, "extreme_rainfall",
+                "historical_wettest_day", "Highest daily precipitation in retrieved historical series",
+                "Copernicus Climate Change Service (C3S) — ERA5-Land precipitation", "modelled",
+                value_numeric=wettest.get("precipitation_mm"), unit="mm/day",
+                value_text=wettest.get("date"),
+                source_dataset="ERA5-Land", retrieved_at=retrieved,
+                spatial_resolution=historical_rainfall.get("spatial_resolution"),
+                temporal_resolution="daily total derived from hourly reanalysis",
+                confidence="medium",
+                confidence_reason="Grid-cell reanalysis extreme, not an on-site rain-gauge observation.",
+                limitations=historical_rainfall.get("limitations"),
+            ))
+    else:
+        items.append(_evidence(
+            report_run_id, facility_id, "extreme_rainfall",
+            "historical_rainfall_baseline_status", "Historical rainfall baseline availability",
+            "Copernicus Climate Change Service (C3S) — ERA5-Land precipitation", "modelled",
+            value_text=str(historical_rainfall.get("status") or "not_available"),
+            retrieved_at=retrieved,
+            confidence="unresolved",
+            confidence_reason=historical_rainfall.get("reason") or "Historical rainfall baseline was not available.",
+            limitations="Extreme-rainfall materiality remains unresolved until historical rainfall evidence is available.",
         ))
 
     if telemetry.get("elevation_m") is not None:
@@ -478,20 +539,92 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             support=["historical_heat_baseline_status", "current_temperature_c", "client_cooling_dependency"],
         )
 
+    rainfall_ctx = telemetry.get("historical_rainfall") or {}
+    flood_sensitivity = (
+        "high" if profile.get("basement_present") == "yes"
+        or profile.get("critical_equipment_level") in ("basement", "ground_floor")
+        else "unresolved"
+    )
+
+    if rainfall_ctx.get("status") == "ok":
+        rx1 = rainfall_ctx.get("mean_annual_rx1day_mm")
+        days50 = rainfall_ctx.get("mean_annual_days_ge_50mm")
+        p95wet = rainfall_ctx.get("p95_wet_day_mm")
+        rainfall_support = [
+            "baseline_mean_annual_precip_mm",
+            "baseline_mean_annual_wet_days",
+            "baseline_days_ge_20mm",
+            "baseline_days_ge_50mm",
+            "baseline_p95_wet_day_mm",
+            "baseline_rx1day_mm",
+            "baseline_rx5day_mm",
+            "recent_days_ge_20mm",
+            "recent_rx1day_mm",
+            "client_drainage_protection",
+            "client_basement_present",
+            "client_critical_equipment_level",
+        ]
+        if flood_sensitivity == "high" and ((rx1 or 0) >= 75 or (days50 or 0) >= 1):
+            add(
+                "extreme_rainfall", "material",
+                "Historical reanalysis indicates substantial heavy-rainfall exposure and the facility has client-declared ground/below-ground sensitivity.",
+                sensitivity=flood_sensitivity,
+                reasoning="Historical rainfall intensity combines with facility vulnerability, creating a plausible rainfall-to-ingress or drainage-stress pathway.",
+                consequence="Heavy rainfall may contribute to drainage overload, water ingress, access disruption or ground-level equipment exposure; mapped flood depth is not yet established.",
+                confidence="medium",
+                confidence_reason="ERA5-Land provides established historical rainfall evidence, while facility sensitivity is client-declared and parcel-scale drainage is unresolved.",
+                action_type="verify",
+                action="Verify site drainage, finished-floor elevation and water-entry pathways; add mapped riverine/pluvial flood evidence before treating this as a flood-depth conclusion.",
+                support=rainfall_support,
+            )
+        elif (rx1 or 0) >= 50 or (days50 or 0) >= 0.25 or (p95wet or 0) >= 20:
+            add(
+                "extreme_rainfall", "monitor",
+                "Historical reanalysis indicates meaningful heavy-rainfall exposure at the assessed grid cell.",
+                sensitivity=flood_sensitivity,
+                reasoning="The historical baseline supports rainfall relevance, but parcel-scale drainage and mapped inundation remain unresolved.",
+                confidence="medium",
+                confidence_reason="ERA5-Land supports historical rainfall screening but does not resolve local drainage or flood depth.",
+                action_type="verify",
+                action="Verify site drainage and add mapped riverine/pluvial flood evidence before classifying flood materiality.",
+                support=rainfall_support,
+            )
+        else:
+            add(
+                "extreme_rainfall", "monitor",
+                "Historical rainfall has been characterised at screening level; site-specific inundation susceptibility remains unresolved.",
+                sensitivity=flood_sensitivity,
+                reasoning="A historical rainfall baseline is available, but flood depth and drainage capacity require separate evidence.",
+                confidence="medium",
+                confidence_reason="Historical reanalysis is available; parcel-scale hydrology is outside this finding.",
+                action_type="monitor",
+                action="Retain the historical rainfall baseline and add site-appropriate flood-hazard evidence.",
+                support=rainfall_support,
+            )
+    else:
+        add(
+            "extreme_rainfall", "evidence_gap",
+            "Historical extreme-rainfall exposure has not yet been characterised.",
+            sensitivity=flood_sensitivity,
+            reasoning="Current precipitation and short-range forecasts do not establish historical heavy-rainfall frequency or intensity.",
+            confidence="unresolved",
+            confidence_reason=rainfall_ctx.get("reason") or "Historical rainfall evidence is unavailable.",
+            action_type="verify",
+            action="Resolve the ERA5-Land historical rainfall baseline before classifying rainfall materiality.",
+            support=["historical_rainfall_baseline_status", "current_precipitation_mm"],
+        )
+
     add(
         "flood", "evidence_gap",
-        "Riverine and surface-water flood exposure have not yet been characterised to institutional screening standard.",
-        sensitivity=(
-            "high" if profile.get("basement_present") == "yes" or profile.get("critical_equipment_level") in ("basement", "ground_floor")
-            else "unresolved"
-        ),
-        reasoning="Current precipitation and elevation do not establish flood depth, return period, drainage performance or finished-floor exposure.",
+        "Riverine and surface-water inundation depth, extent and return-period exposure remain unresolved.",
+        sensitivity=flood_sensitivity,
+        reasoning="Historical rainfall intensity does not establish riverine or pluvial flood depth, drainage performance, finished-floor exposure or return period.",
         confidence="unresolved",
-        confidence_reason="A defensible flood-hazard layer has not yet been added.",
+        confidence_reason="A defensible mapped flood-hazard layer has not yet been added.",
         action_type="verify",
-        action="Add flood-hazard evidence and verify finished-floor/drainage characteristics.",
+        action="Add mapped riverine/pluvial flood evidence and verify finished-floor/drainage characteristics.",
         specialist=False,
-        support=["current_precipitation_mm", "elevation_m", "client_basement_present", "client_critical_equipment_level", "client_drainage_protection"],
+        support=["baseline_rx1day_mm", "baseline_rx5day_mm", "elevation_m", "client_basement_present", "client_critical_equipment_level", "client_drainage_protection"],
     )
 
     add(
