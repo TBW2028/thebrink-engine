@@ -10,7 +10,7 @@
 create extension if not exists pgcrypto;
 
 -- ---------------------------------------------------------------------------
--- 1. Versioned facility profile
+-- 1. Versioned facility profile 
 -- ---------------------------------------------------------------------------
 
 create table if not exists public.brink_facility_profiles (
