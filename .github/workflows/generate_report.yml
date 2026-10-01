@@ -4,6 +4,39 @@ on:
   repository_dispatch:
     types: [order_paid]
   workflow_dispatch:
+    inputs:
+      product_type:
+        description: Commercial report type
+        required: true
+        type: choice
+        options:
+          - facility_risk_passport
+          - physical_risk_evidence_pack
+          - pre_underwriting_site_intelligence
+          - business_continuity_threat_register
+          - location_dossier
+        default: facility_risk_passport
+      location:
+        description: Location or coordinates to analyse
+        required: true
+        type: string
+      site_name:
+        description: Facility / site name
+        required: true
+        type: string
+      customer_email:
+        description: Report delivery email
+        required: true
+        type: string
+      customer_name:
+        description: Client/contact name
+        required: false
+        type: string
+      occupancy:
+        description: Site use / purpose
+        required: false
+        type: string
+        default: Commercial property / facility
 
 jobs:
   build-and-send:
@@ -33,13 +66,27 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          WORKFLOW_INPUTS: ${{ toJson(github.event.inputs) }}
         run: |
           python -c '
           import os, json
           from brink_dossier.render import produce
 
           payload = json.loads(os.environ.get("PAYLOAD", "{}"))
-          print(f"[*] Fulfilling incoming order: {payload}")
+          event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+          if event_name == "workflow_dispatch":
+              inputs = json.loads(os.environ.get("WORKFLOW_INPUTS", "{}"))
+              payload = {
+                  "product_type": inputs.get("product_type", "facility_risk_passport"),
+                  "location": inputs.get("location"),
+                  "site_name": inputs.get("site_name"),
+                  "customer_email": inputs.get("customer_email"),
+                  "answers": {
+                      "customer_name": inputs.get("customer_name") or "Operations Lead",
+                      "occupancy": inputs.get("occupancy") or "Commercial property / facility"
+                  }
+              }
+          print(f"[*] Fulfilling report request: {payload}")
 
           order_code = payload.get("order_code")
           sb_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
