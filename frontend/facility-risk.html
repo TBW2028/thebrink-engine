@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Facility Risk Intelligence · The Brink World</title>
+<meta name="description" content="Register a facility for external-risk monitoring, evidence packs, underwriting intelligence or business-continuity threat tracking.">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#06090e;--panel:#0c121b;--panel2:#111a26;--line:#243143;--text:#edf2f7;--muted:#94a3b8;--soft:#cbd5e1;--accent:#00f3ff;--ok:#10b981;--warn:#f59e0b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,rgba(0,243,255,.08),transparent 44%),var(--bg);color:var(--text);font-family:"Space Grotesk",sans-serif;line-height:1.55}
+a{color:var(--accent)}header{padding:18px 6%;border-bottom:1px solid var(--line);background:rgba(6,9,14,.97)}.brand{font-family:"Archivo Black";font-size:24px;color:#fff;text-decoration:none}.brand span{color:#ef4444}
+main{max-width:1120px;margin:auto;padding:46px 18px 72px}.eyebrow{font:700 11px "JetBrains Mono";letter-spacing:.11em;color:var(--accent);text-transform:uppercase}
+h1{font-family:"Archivo Black";font-size:clamp(2rem,5vw,3.7rem);line-height:1.03;margin:10px 0 14px;max-width:900px}.lead{font-size:1.08rem;color:var(--soft);max-width:820px}
+.product-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:26px 0 22px}.product{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px}.product b{display:block;color:#fff;margin-bottom:5px}.product span{font-size:12.5px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:22px}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}.card h2{margin:0 0 12px;font-size:1.12rem}
+label{display:block;font:700 10.5px "JetBrains Mono";letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:#fff;padding:11px 12px;font:14px inherit;outline:none}textarea{min-height:88px;resize:vertical}input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.btn{width:100%;border:0;border-radius:6px;padding:12px 15px;margin-top:18px;background:var(--accent);color:#061018;font:800 11px "JetBrains Mono";text-transform:uppercase;letter-spacing:.05em;cursor:pointer}.btn:disabled{opacity:.5;cursor:not-allowed}
+.note{font-size:12.5px;color:var(--muted);margin-top:10px}.notice{display:none;margin-top:13px;padding:11px;border-radius:6px;font-size:13px}.notice.ok{display:block;border:1px solid var(--ok);background:rgba(16,185,129,.08);color:#bcf6de}.notice.err{display:block;border:1px solid #ef4444;background:rgba(239,68,68,.07);color:#ffcaca}
+.feature{border-bottom:1px solid rgba(36,49,67,.65);padding:11px 0;color:var(--soft);font-size:13.5px}.feature b{color:#fff}.boundary{margin-top:18px;padding:11px;border:1px solid rgba(245,158,11,.3);border-radius:7px;background:rgba(245,158,11,.05);color:#decfab;font-size:12px}
+@media(max-width:900px){.product-grid{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}}
+@media(max-width:540px){main{padding-top:32px}.product-grid{grid-template-columns:1fr}.two{grid-template-columns:1fr}.card{padding:17px}}
+</style>
+</head>
+<body>
+<header><a class="brand" href="/">THE BRINK <span>WORLD</span></a></header>
+<main>
+<div class="eyebrow">// FACILITY & ENTERPRISE RISK INTELLIGENCE</div>
+<h1>Turn a location into a monitored risk record.</h1>
+<p class="lead">Register a facility once. The Brink World can maintain sourced external-risk evidence for facility management, physical-risk assessment, underwriting review or business-continuity workflows.</p>
+
+<div class="product-grid">
+  <div class="product"><b>Facility Risk Passport</b><span>Recurring monitoring and material-change evidence for one site.</span></div>
+  <div class="product"><b>Physical Risk Evidence Pack</b><span>Structured evidence for climate, sustainability and enterprise-risk workflows.</span></div>
+  <div class="product"><b>Pre-Underwriting Site Intelligence</b><span>External-hazard evidence for commercial property and broker review.</span></div>
+  <div class="product"><b>External Threat Register</b><span>Maintained external-threat input for business-continuity programmes.</span></div>
+</div>
+
+<div class="grid">
+<section class="card">
+<h2>Request a facility pilot / proposal</h2>
+<div class="two">
+  <div><label>Contact name *</label><input id="contactName" placeholder="Name"></div>
+  <div><label>Business email *</label><input id="email" type="email" placeholder="name@company.com"></div>
+</div>
+<label>Organisation *</label><input id="organization" placeholder="Company / institution">
+<label>Facility / site name *</label><input id="facilityName" placeholder="e.g. Pune Distribution Centre">
+<label>Location *</label><input id="location" placeholder="Address, town, postcode or coordinates">
+<div class="two">
+  <div>
+    <label>Facility type</label>
+    <select id="facilityType">
+      <option>Commercial property / facility</option>
+      <option>Manufacturing plant</option>
+      <option>Warehouse / distribution centre</option>
+      <option>Hospital / healthcare facility</option>
+      <option>Hotel / hospitality</option>
+      <option>School / campus</option>
+      <option>Agriculture / land</option>
+      <option>Infrastructure / construction</option>
+      <option>Other</option>
+    </select>
+  </div>
+  <div>
+    <label>Product *</label>
+    <select id="productType" onchange="syncCadence()">
+      <option value="facility_risk_passport">Facility Risk Passport</option>
+      <option value="physical_risk_evidence_pack">Physical Risk Evidence Pack</option>
+      <option value="pre_underwriting_site_intelligence">Pre-Underwriting Site Intelligence</option>
+      <option value="business_continuity_threat_register">External Threat Register</option>
+    </select>
+  </div>
+</div>
+<div class="two">
+  <div><label>Critical function</label><input id="criticalFunction" placeholder="e.g. cold storage, surgery, dispatch"></div>
+  <div>
+    <label>Requested cadence</label>
+    <select id="cadence">
+      <option value="monthly">Monthly</option>
+      <option value="quarterly">Quarterly</option>
+      <option value="annual">Annual</option>
+      <option value="one_off">One-off</option>
+    </select>
+  </div>
+</div>
+<label>What decision or workflow should this support?</label>
+<textarea id="notes" placeholder="Insurance renewal, facility risk review, ESG evidence, ISO 22301 register, site acquisition, board risk review, etc."></textarea>
+<button class="btn" id="submitBtn" onclick="submitRequest()">Submit facility for review</button>
+<div class="note">Submitting this form does not start paid monitoring automatically. The Brink World reviews the requested scope before activation.</div>
+<div id="notice" class="notice"></div>
+</section>
+
+<aside class="card">
+<div class="eyebrow">// WHAT CHANGES</div>
+<div class="feature"><b>One facility record</b><br>Location, purpose, critical function and monitoring context are retained together.</div>
+<div class="feature"><b>Evidence, not mystery scoring</b><br>Observed, official, modelled and interpreted evidence remain identifiable.</div>
+<div class="feature"><b>Recurring where useful</b><br>Passports and threat registers can be refreshed on an agreed cadence.</div>
+<div class="feature"><b>Workflow-specific output</b><br>The same engine produces a facility passport, evidence pack, underwriting report or continuity register.</div>
+<div class="feature"><b>Material-change ready</b><br>The data model supports recording significant external changes against a monitored facility.</div>
+<div class="boundary">Brink supplies decision-support and external-risk evidence. It does not provide engineering certification, insurance pricing, audit assurance or regulatory certification.</div>
+</aside>
+</div>
+</main>
+<script>
+const API=window.BACKEND_API||"https://thebrink-engine.thebrink2028.workers.dev";
+function syncCadence(){
+  const p=document.getElementById("productType").value;
+  const c=document.getElementById("cadence");
+  if(p==="pre_underwriting_site_intelligence") c.value="one_off";
+  else if(p==="physical_risk_evidence_pack" && c.value==="monthly") c.value="annual";
+  else if(p==="facility_risk_passport" && c.value==="one_off") c.value="monthly";
+}
+async function submitRequest(){
+  const n=document.getElementById("notice"),b=document.getElementById("submitBtn");
+  const body={
+    contact_name:document.getElementById("contactName").value.trim(),
+    email:document.getElementById("email").value.trim(),
+    organization:document.getElementById("organization").value.trim(),
+    facility_name:document.getElementById("facilityName").value.trim(),
+    location:document.getElementById("location").value.trim(),
+    facility_type:document.getElementById("facilityType").value,
+    product_type:document.getElementById("productType").value,
+    cadence:document.getElementById("cadence").value,
+    critical_function:document.getElementById("criticalFunction").value.trim(),
+    notes:document.getElementById("notes").value.trim()
+  };
+  if(!body.contact_name||!body.email.includes("@")||!body.organization||!body.facility_name||!body.location){
+    n.className="notice err";n.textContent="Complete contact name, business email, organisation, facility name and location.";return;
+  }
+  b.disabled=true;b.textContent="SUBMITTING…";n.className="notice";n.textContent="";
+  try{
+    const r=await fetch(API+"/api/commercial/request",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const t=await r.text();let d={};try{d=t?JSON.parse(t):{}}catch{}
+    if(!r.ok) throw new Error(d.error||"Could not submit facility.");
+    n.className="notice ok";
+    n.innerHTML="<strong>Facility request received.</strong><br>Reference: "+d.reference+". The Brink World will review the scope before activation.";
+    b.textContent="REQUEST RECEIVED";
+  }catch(e){
+    n.className="notice err";n.textContent=e.message;b.disabled=false;b.textContent="Submit facility for review";
+  }
+}
+syncCadence();
+</script>
+</body>
+</html>
