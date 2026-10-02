@@ -1,4 +1,5 @@
 import os
+import base64
 import calendar
 from datetime import datetime, timezone, timedelta
 import requests
@@ -15,6 +16,9 @@ from brink_dossier.evidence import (
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+TARGET_SUBSCRIPTION_ID = os.environ.get("TARGET_SUBSCRIPTION_ID", "").strip()
+ADMIN_EMAIL = os.environ.get("COMMERCIAL_REVIEW_EMAIL", "thebrink2028@gmail.com")
 
 
 def headers(prefer=None):
@@ -93,21 +97,61 @@ def sb_insert_rows(path, values):
     return rows if isinstance(rows, list) else []
 
 
+def send_admin_draft(pdf_path, ref, facility, subscription):
+    if not RESEND_API_KEY:
+        raise RuntimeError("RESEND_API_KEY is required for internal draft review delivery.")
+
+    with open(pdf_path, "rb") as handle:
+        pdf_b64 = base64.b64encode(handle.read()).decode("utf-8")
+
+    product_label = str(subscription.get("product_type") or "commercial report").replace("_", " ").title()
+    site_name = facility.get("facility_name") or facility.get("location_label") or "Monitored Facility"
+    client_email = facility.get("contact_email") or "Not supplied"
+    payload = {
+        "from": os.environ.get("DOSSIER_FROM_EMAIL", "The Brink World <intel@thebrinkworld.com>"),
+        "to": [ADMIN_EMAIL],
+        "reply_to": client_email if "@" in client_email else ADMIN_EMAIL,
+        "subject": f"[DRAFT REVIEW REQUIRED] {product_label} · {site_name} · {ref}",
+        "html": (
+            "<h3>The Brink World — Commercial Report Draft</h3>"
+            f"<p><strong>Reference:</strong> {ref}</p>"
+            f"<p><strong>Facility:</strong> {site_name}</p>"
+            f"<p><strong>Client recipient after approval:</strong> {client_email}</p>"
+            f"<p><strong>Location:</strong> {facility.get('location_label') or 'Not supplied'}</p>"
+            "<p><strong>The client has NOT been emailed this report.</strong></p>"
+            "<p>Review the attached PDF for facility details, coordinates, evidence and wording. "
+            "Client delivery remains a separate approval step.</p>"
+        ),
+        "attachments": [{"filename": f"DRAFT_{ref}.pdf", "content": pdf_b64}],
+    }
+    response = requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=30,
+    )
+    if response.status_code not in (200, 201):
+        raise RuntimeError(f"Internal draft email failed ({response.status_code}): {response.text[:500]}")
+
+
 def main():
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise RuntimeError("Missing Supabase service credentials.")
 
     now = datetime.now(timezone.utc)
-    due = sb_get(
-        "brink_monitoring_subscriptions",
-        {
-            "select": "id,facility_id,product_type,cadence,next_report_at,status",
-            "status": "eq.active",
-            "next_report_at": f"lte.{now.isoformat()}",
-            "order": "next_report_at.asc",
-            "limit": "25",
-        },
-    )
+    due_params = {
+        "select": "id,facility_id,product_type,cadence,next_report_at,status",
+        "status": "eq.active",
+        "order": "next_report_at.asc",
+        "limit": "25",
+    }
+    if TARGET_SUBSCRIPTION_ID:
+        due_params["id"] = f"eq.{TARGET_SUBSCRIPTION_ID}"
+        due_params["limit"] = "1"
+    else:
+        due_params["next_report_at"] = f"lte.{now.isoformat()}"
+
+    due = sb_get("brink_monitoring_subscriptions", due_params)
 
     if not due:
         print("No active commercial subscriptions due.")
@@ -255,8 +299,10 @@ def main():
             if ledger_error:
                 evidence_summary["ledger_error"] = ledger_error
 
+            send_admin_draft(pdf_path, ref, f, sub)
+
             sb_patch("brink_report_runs", {"id": run["id"]}, {
-                "report_status": "delivered",
+                "report_status": "awaiting_approval",
                 "report_ref": ref,
                 "output_location": pdf_path,
                 "completed_at": finished.isoformat(),
@@ -269,11 +315,11 @@ def main():
                 "next_report_at": following.isoformat() if following else None,
             }
             if str(sub.get("cadence") or "").lower() == "one_off":
-                sub_update["status"] = "completed"
+                sub_update["status"] = "awaiting_report_approval"
             sb_patch("brink_monitoring_subscriptions", {"id": sub["id"]}, sub_update)
             print(
-                f"[OK] {sub['product_type']} delivered for {f['facility_name']} · {ref} "
-                f"· evidence={evidence_count} findings={finding_count}"
+                f"[DRAFT] {sub['product_type']} generated for {f['facility_name']} · {ref} "
+                f"· admin review required · evidence={evidence_count} findings={finding_count}"
             )
         except Exception as exc:
             if run:
