@@ -8,6 +8,7 @@ import numpy as np
 import rasterio
 from rasterio.windows import Window
 from rasterio.warp import transform as rio_transform
+from rasterio.transform import xy as raster_xy
 import pandas as pd
 import pyogrio
 from shapely.geometry import Point
@@ -223,6 +224,124 @@ def emergency_contacts(country_code):
     return []
 
 
+def fetch_met_no_weather(lat, lon):
+    """Global current/short-range weather from MET Norway Locationforecast 2.0."""
+    url = "https://api.met.no/weatherapi/locationforecast/2.0/compact"
+    headers = {
+        "User-Agent": "TheBrinkWorld/1.0 thebrink2028@gmail.com",
+        "Accept": "application/json",
+    }
+    payload = _cached_get(
+        url,
+        {"lat": round(float(lat), 5), "lon": round(float(lon), 5)},
+        ttl_seconds=1800,
+        headers=headers,
+    )
+    timeseries = ((payload.get("properties") or {}).get("timeseries") or [])
+    if not timeseries:
+        return {
+            "status": "error",
+            "reason": "MET Norway Locationforecast did not return a usable time series.",
+            "current": {},
+            "days": [],
+            "timezone": "UTC",
+        }
+
+    first = timeseries[0]
+    first_data = first.get("data") or {}
+    instant = ((first_data.get("instant") or {}).get("details") or {})
+
+    precip_amount = None
+    precip_period_hours = None
+    for key, hours in (("next_1_hours", 1), ("next_6_hours", 6), ("next_12_hours", 12)):
+        details = ((first_data.get(key) or {}).get("details") or {})
+        if details.get("precipitation_amount") is not None:
+            precip_amount = details.get("precipitation_amount")
+            precip_period_hours = hours
+            break
+
+    daily = {}
+    last_precip_end = None
+    for entry in timeseries:
+        ts_text = str(entry.get("time") or "")
+        if len(ts_text) < 10:
+            continue
+        try:
+            ts = datetime.fromisoformat(ts_text.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        day = ts.date().isoformat()
+        rec = daily.setdefault(day, {"temps": [], "winds": [], "precip_mm": 0.0, "has_precip": False})
+        data = entry.get("data") or {}
+        details = ((data.get("instant") or {}).get("details") or {})
+        temp = details.get("air_temperature")
+        wind_ms = details.get("wind_speed")
+        try:
+            if temp is not None:
+                rec["temps"].append(float(temp))
+        except Exception:
+            pass
+        try:
+            if wind_ms is not None:
+                rec["winds"].append(float(wind_ms) * 3.6)
+        except Exception:
+            pass
+
+        selected = None
+        for key, hours in (("next_1_hours", 1), ("next_6_hours", 6), ("next_12_hours", 12)):
+            p = ((data.get(key) or {}).get("details") or {}).get("precipitation_amount")
+            if p is not None:
+                selected = (hours, p)
+                break
+        if selected:
+            hours, amount = selected
+            interval_end = ts + timedelta(hours=hours)
+            if last_precip_end is None or ts >= last_precip_end:
+                try:
+                    rec["precip_mm"] += max(0.0, float(amount))
+                    rec["has_precip"] = True
+                    last_precip_end = interval_end
+                except Exception:
+                    pass
+
+    days = []
+    for day in sorted(daily)[:7]:
+        rec = daily[day]
+        days.append({
+            "date": day,
+            "tmax_c": round(max(rec["temps"]), 1) if rec["temps"] else None,
+            "tmin_c": round(min(rec["temps"]), 1) if rec["temps"] else None,
+            "precip_mm": round(rec["precip_mm"], 1) if rec["has_precip"] else None,
+            "wind_max_kmh": round(max(rec["winds"]), 1) if rec["winds"] else None,
+        })
+
+    current_temp = instant.get("air_temperature")
+    current_wind_ms = instant.get("wind_speed")
+    try:
+        current_wind_kmh = round(float(current_wind_ms) * 3.6, 1) if current_wind_ms is not None else None
+    except Exception:
+        current_wind_kmh = None
+
+    return {
+        "status": "ok",
+        "current": {
+            "temperature_c": current_temp,
+            "precipitation_mm": precip_amount,
+            "precipitation_period_hours": precip_period_hours,
+            "wind_kmh": current_wind_kmh,
+        },
+        "days": days,
+        "timezone": "UTC",
+        "source": "MET Norway Locationforecast 2.0",
+        "licence": "CC BY 4.0",
+        "limitations": (
+            "Point forecast from MET Norway Locationforecast. Forecast skill and available parameters vary by location "
+            "and lead time. Daily summaries are derived by The Brink World from the returned time series and should be "
+            "used as operational weather context, not as climatology or engineering design data."
+        ),
+    }
+
+
 def forecast_summary(days):
     vals = [d for d in days if isinstance(d, dict)]
     rain = [float(d.get("precip_mm") or 0) for d in vals]
@@ -253,110 +372,100 @@ def _percentile(values, q):
 
 
 def _cds_daily_temperature(lat, lon, statistic):
-    """Download ERA5-Land daily 2 m temperature statistics for one small area."""
+    """Download ERA5-Land daily 2 m temperature statistics in bounded five-year chunks."""
     if not CDS_API_KEY:
         raise RuntimeError("CDS_API_KEY is not configured.")
 
-    cache_stem = f"era5land_{statistic}_{round(lat, 2)}_{round(lon, 2)}_1991_2025"
-    zip_path = CACHE_DIR / f"{cache_stem}.zip"
-    extract_dir = CACHE_DIR / cache_stem
-
-    if not zip_path.exists():
-        client = cdsapi.Client(
-            url="https://cds.climate.copernicus.eu/api",
-            key=CDS_API_KEY,
-            quiet=True,
-            progress=False,
-        )
-        request = {
-            "variable": ["2m_temperature"],
-            "year": [str(y) for y in range(1991, 2026)],
-            "month": [f"{m:02d}" for m in range(1, 13)],
-            "day": [f"{d:02d}" for d in range(1, 32)],
-            "daily_statistic": statistic,
-            "time_zone": "utc+00:00",
-            "frequency": "1_hourly",
-            "area": [
-                min(90.0, lat + 0.06),
-                max(-180.0, lon - 0.06),
-                max(-90.0, lat - 0.06),
-                min(180.0, lon + 0.06),
-            ],
-        }
-        client.retrieve(
-            "derived-era5-land-daily-statistics",
-            request,
-            str(zip_path),
-        )
-
-    extract_dir.mkdir(exist_ok=True)
-
-    # CDS daily-statistics downloads are normally ZIP archives containing NetCDF.
-    nc_files = sorted(extract_dir.glob("*.nc"))
-    if not nc_files:
-        if zipfile.is_zipfile(zip_path):
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                safe_members = [
-                    name for name in zf.namelist()
-                    if name.lower().endswith(".nc")
-                    and ".." not in Path(name).parts
-                    and not Path(name).is_absolute()
-                ]
-                if not safe_members:
-                    raise RuntimeError("CDS ERA5-Land ZIP contained no NetCDF file.")
-                for name in safe_members:
-                    target = extract_dir / Path(name).name
-                    with zf.open(name) as source, open(target, "wb") as dest:
-                        dest.write(source.read())
-            nc_files = sorted(extract_dir.glob("*.nc"))
-        else:
-            # Defensive fallback in case CDS returns a direct NetCDF payload.
-            direct_nc = extract_dir / f"{cache_stem}.nc"
-            direct_nc.write_bytes(zip_path.read_bytes())
-            nc_files = [direct_nc]
-
-    if not nc_files:
-        raise RuntimeError("Could not resolve an ERA5-Land NetCDF payload.")
-
+    client = cdsapi.Client(
+        url="https://cds.climate.copernicus.eu/api",
+        key=CDS_API_KEY,
+        quiet=True,
+        progress=False,
+    )
     rows = []
-    for nc_file in nc_files:
-        ds = xr.open_dataset(nc_file)
-        try:
-            if not ds.data_vars:
-                continue
-            da = ds[next(iter(ds.data_vars))]
 
-            time_dim = next(
-                (d for d in da.dims if d in ("valid_time", "time", "date")),
-                None,
+    for chunk_start in range(1991, 2026, 5):
+        chunk_end = min(chunk_start + 4, 2025)
+        cache_stem = (
+            f"era5land_{statistic}_{round(lat, 2)}_{round(lon, 2)}_"
+            f"{chunk_start}_{chunk_end}"
+        )
+        zip_path = CACHE_DIR / f"{cache_stem}.zip"
+        extract_dir = CACHE_DIR / cache_stem
+
+        if not zip_path.exists():
+            request = {
+                "variable": ["2m_temperature"],
+                "year": [str(y) for y in range(chunk_start, chunk_end + 1)],
+                "month": [f"{m:02d}" for m in range(1, 13)],
+                "day": [f"{d:02d}" for d in range(1, 32)],
+                "daily_statistic": statistic,
+                "time_zone": "utc+00:00",
+                "frequency": "1_hourly",
+                "area": [
+                    min(90.0, lat + 0.06),
+                    max(-180.0, lon - 0.06),
+                    max(-90.0, lat - 0.06),
+                    min(180.0, lon + 0.06),
+                ],
+            }
+            client.retrieve(
+                "derived-era5-land-daily-statistics",
+                request,
+                str(zip_path),
             )
-            if not time_dim:
-                time_dim = next((d for d in da.dims if "time" in d.lower()), None)
-            if not time_dim:
-                raise RuntimeError("Could not identify the time dimension in ERA5-Land data.")
 
-            for dim in list(da.dims):
-                if dim != time_dim:
-                    da = da.isel({dim: 0})
+        extract_dir.mkdir(exist_ok=True)
+        nc_files = sorted(extract_dir.glob("*.nc"))
+        if not nc_files:
+            if zipfile.is_zipfile(zip_path):
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    safe_members = [
+                        name for name in zf.namelist()
+                        if name.lower().endswith(".nc")
+                        and ".." not in Path(name).parts
+                        and not Path(name).is_absolute()
+                    ]
+                    if not safe_members:
+                        raise RuntimeError("CDS ERA5-Land ZIP contained no NetCDF file.")
+                    for name in safe_members:
+                        target = extract_dir / Path(name).name
+                        with zf.open(name) as source, open(target, "wb") as dest:
+                            dest.write(source.read())
+                nc_files = sorted(extract_dir.glob("*.nc"))
+            else:
+                direct_nc = extract_dir / f"{cache_stem}.nc"
+                direct_nc.write_bytes(zip_path.read_bytes())
+                nc_files = [direct_nc]
 
-            values = list(da.values)
-            times = list(da[time_dim].values)
-
-            for t, value in zip(times, values):
-                try:
-                    temp = float(value)
-                    if math.isnan(temp):
-                        continue
-                    if temp > 150:
-                        temp -= 273.15
-                    day = str(t)[:10]
-                    if len(day) != 10 or day[4] != "-" or day[7] != "-":
-                        continue
-                    rows.append((day, temp))
-                except (TypeError, ValueError):
+        for nc_file in nc_files:
+            ds = xr.open_dataset(nc_file)
+            try:
+                if not ds.data_vars:
                     continue
-        finally:
-            ds.close()
+                da = ds[next(iter(ds.data_vars))]
+                time_dim = next((d for d in da.dims if d in ("valid_time", "time", "date")), None)
+                if not time_dim:
+                    time_dim = next((d for d in da.dims if "time" in d.lower()), None)
+                if not time_dim:
+                    raise RuntimeError("Could not identify the time dimension in ERA5-Land data.")
+                for dim in list(da.dims):
+                    if dim != time_dim:
+                        da = da.isel({dim: 0})
+                for t, value in zip(list(da[time_dim].values), list(da.values)):
+                    try:
+                        temp = float(value)
+                        if math.isnan(temp):
+                            continue
+                        if temp > 150:
+                            temp -= 273.15
+                        day = str(t)[:10]
+                        if len(day) == 10 and day[4] == "-" and day[7] == "-":
+                            rows.append((day, temp))
+                    except (TypeError, ValueError):
+                        continue
+            finally:
+                ds.close()
 
     rows.sort(key=lambda x: x[0])
     if not rows:
@@ -471,104 +580,103 @@ def fetch_historical_heat_context(lat, lon):
 
 
 def _cds_hourly_point_series(lat, lon, variable, start_date, end_date, cache_tag):
-    """Retrieve a long ERA5-Land hourly point time series through the CDS ARCO endpoint."""
+    """Retrieve ERA5-Land hourly point data in bounded five-year chunks."""
     if not CDS_API_KEY:
         raise RuntimeError("CDS_API_KEY is not configured.")
 
-    cache_stem = (
-        f"era5land_timeseries_{cache_tag}_{round(lat, 2)}_{round(lon, 2)}_"
-        f"{start_date.replace('-', '')}_{end_date.replace('-', '')}"
+    start_dt = datetime.fromisoformat(start_date)
+    end_dt = datetime.fromisoformat(end_date)
+    client = cdsapi.Client(
+        url="https://cds.climate.copernicus.eu/api",
+        key=CDS_API_KEY,
+        quiet=True,
+        progress=False,
     )
-    zip_path = CACHE_DIR / f"{cache_stem}.zip"
-    extract_dir = CACHE_DIR / cache_stem
-
-    if not zip_path.exists():
-        client = cdsapi.Client(
-            url="https://cds.climate.copernicus.eu/api",
-            key=CDS_API_KEY,
-            quiet=True,
-            progress=False,
-        )
-        request = {
-            "variable": [variable],
-            "location": {"longitude": lon, "latitude": lat},
-            "date": [f"{start_date}/{end_date}"],
-            "data_format": "netcdf",
-        }
-        client.retrieve(
-            "reanalysis-era5-land-timeseries",
-            request,
-            str(zip_path),
-        )
-
-    extract_dir.mkdir(exist_ok=True)
-    nc_files = sorted(extract_dir.glob("*.nc"))
-    if not nc_files:
-        if zipfile.is_zipfile(zip_path):
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                safe_members = [
-                    name for name in zf.namelist()
-                    if name.lower().endswith(".nc")
-                    and ".." not in Path(name).parts
-                    and not Path(name).is_absolute()
-                ]
-                if not safe_members:
-                    raise RuntimeError("CDS ERA5-Land time-series ZIP contained no NetCDF file.")
-                for name in safe_members:
-                    target = extract_dir / Path(name).name
-                    with zf.open(name) as source, open(target, "wb") as dest:
-                        dest.write(source.read())
-            nc_files = sorted(extract_dir.glob("*.nc"))
-        else:
-            direct_nc = extract_dir / f"{cache_stem}.nc"
-            direct_nc.write_bytes(zip_path.read_bytes())
-            nc_files = [direct_nc]
 
     rows = []
     units = None
-    for nc_file in nc_files:
-        ds = xr.open_dataset(nc_file)
-        try:
-            if not ds.data_vars:
-                continue
-            preferred = [
-                variable,
-                "tp" if variable == "total_precipitation" else None,
-            ]
-            var_name = next((name for name in preferred if name and name in ds.data_vars), None)
-            if not var_name:
-                var_name = next(iter(ds.data_vars))
-            da = ds[var_name]
-            units = units or da.attrs.get("units")
+    cursor_year = start_dt.year
+    while cursor_year <= end_dt.year:
+        chunk_end_year = min(cursor_year + 4, end_dt.year)
+        chunk_start = start_date if cursor_year == start_dt.year else f"{cursor_year}-01-01"
+        chunk_end = end_date if chunk_end_year == end_dt.year else f"{chunk_end_year}-12-31"
 
-            time_dim = next(
-                (d for d in da.dims if d in ("valid_time", "time", "date")),
-                None,
+        cache_stem = (
+            f"era5land_timeseries_{cache_tag}_{round(lat, 2)}_{round(lon, 2)}_"
+            f"{chunk_start.replace('-', '')}_{chunk_end.replace('-', '')}"
+        )
+        zip_path = CACHE_DIR / f"{cache_stem}.zip"
+        extract_dir = CACHE_DIR / cache_stem
+
+        if not zip_path.exists():
+            request = {
+                "variable": [variable],
+                "location": {"longitude": lon, "latitude": lat},
+                "date": [f"{chunk_start}/{chunk_end}"],
+                "data_format": "netcdf",
+            }
+            client.retrieve(
+                "reanalysis-era5-land-timeseries",
+                request,
+                str(zip_path),
             )
-            if not time_dim:
-                time_dim = next((d for d in da.dims if "time" in d.lower()), None)
-            if not time_dim:
-                raise RuntimeError("Could not identify the ERA5-Land time dimension.")
 
-            for dim in list(da.dims):
-                if dim != time_dim:
-                    da = da.isel({dim: 0})
+        extract_dir.mkdir(exist_ok=True)
+        nc_files = sorted(extract_dir.glob("*.nc"))
+        if not nc_files:
+            if zipfile.is_zipfile(zip_path):
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    safe_members = [
+                        name for name in zf.namelist()
+                        if name.lower().endswith(".nc")
+                        and ".." not in Path(name).parts
+                        and not Path(name).is_absolute()
+                    ]
+                    if not safe_members:
+                        raise RuntimeError("CDS ERA5-Land time-series ZIP contained no NetCDF file.")
+                    for name in safe_members:
+                        target = extract_dir / Path(name).name
+                        with zf.open(name) as source, open(target, "wb") as dest:
+                            dest.write(source.read())
+                nc_files = sorted(extract_dir.glob("*.nc"))
+            else:
+                direct_nc = extract_dir / f"{cache_stem}.nc"
+                direct_nc.write_bytes(zip_path.read_bytes())
+                nc_files = [direct_nc]
 
-            values = list(da.values)
-            times = list(da[time_dim].values)
-            for t, value in zip(times, values):
-                try:
-                    val = float(value)
-                    if math.isnan(val):
-                        continue
-                    ts = str(t)
-                    if len(ts) < 10:
-                        continue
-                    rows.append((ts, val))
-                except (TypeError, ValueError):
+        for nc_file in nc_files:
+            ds = xr.open_dataset(nc_file)
+            try:
+                if not ds.data_vars:
                     continue
-        finally:
-            ds.close()
+                preferred = [variable, "tp" if variable == "total_precipitation" else None]
+                var_name = next((name for name in preferred if name and name in ds.data_vars), None)
+                if not var_name:
+                    var_name = next(iter(ds.data_vars))
+                da = ds[var_name]
+                units = units or da.attrs.get("units")
+                time_dim = next((d for d in da.dims if d in ("valid_time", "time", "date")), None)
+                if not time_dim:
+                    time_dim = next((d for d in da.dims if "time" in d.lower()), None)
+                if not time_dim:
+                    raise RuntimeError("Could not identify the ERA5-Land time dimension.")
+                for dim in list(da.dims):
+                    if dim != time_dim:
+                        da = da.isel({dim: 0})
+                for t, value in zip(list(da[time_dim].values), list(da.values)):
+                    try:
+                        val = float(value)
+                        if math.isnan(val):
+                            continue
+                        ts = str(t)
+                        if len(ts) >= 10:
+                            rows.append((ts, val))
+                    except (TypeError, ValueError):
+                        continue
+            finally:
+                ds.close()
+
+        cursor_year = chunk_end_year + 1
 
     rows.sort(key=lambda x: x[0])
     if not rows:
@@ -788,6 +896,8 @@ def _jrc_sample_remote_depth(url, lat, lon):
             except Exception:
                 point_value = None
 
+            nearby_max = None
+            nearest_inundated_km = None
             try:
                 row, col = src.index(x, y)
                 radius_px = 3
@@ -802,12 +912,29 @@ def _jrc_sample_remote_depth(url, lat, lon):
                 nearby_max = float(vals.max()) if vals.size else None
                 if nearby_max is not None and (math.isnan(nearby_max) or nearby_max < 0):
                     nearby_max = None
+
+                filled = arr.filled(np.nan)
+                flooded = np.argwhere(np.isfinite(filled) & (filled >= 0.1))
+                if flooded.size:
+                    window_transform = src.window_transform(window)
+                    distances = []
+                    for rr, cc in flooded:
+                        px, py = raster_xy(window_transform, int(rr), int(cc), offset="center")
+                        if src.crs and str(src.crs).upper() not in ("EPSG:4326", "OGC:CRS84"):
+                            lons, lats = rio_transform(src.crs, "EPSG:4326", [px], [py])
+                            plon, plat = lons[0], lats[0]
+                        else:
+                            plon, plat = px, py
+                        distances.append(haversine(lat, lon, float(plat), float(plon)))
+                    if distances:
+                        nearest_inundated_km = min(distances)
             except Exception:
-                nearby_max = None
+                nearby_max = nearby_max
 
             return {
                 "point_depth_m": round(point_value, 2) if point_value is not None else None,
                 "nearby_max_depth_m": round(nearby_max, 2) if nearby_max is not None else None,
+                "nearest_inundated_cell_distance_km": round(nearest_inundated_km, 3) if nearest_inundated_km is not None else None,
                 "crs": str(src.crs) if src.crs else None,
                 "pixel_size": [abs(src.transform.a), abs(src.transform.e)],
             }
@@ -954,28 +1081,47 @@ def _vector_point_row(path, layer, lon, lat):
 
 
 def _aqueduct_assets(root):
-    """Find baseline/future Aqueduct tables by schema, not filename assumptions."""
+    """Find Aqueduct 4.0 baseline/future layers by schema, including the official FileGDB."""
     baseline_spatial = None
     future_spatial = None
     future_csv = None
 
-    vector_files = list(root.rglob("*.gpkg")) + list(root.rglob("*.shp"))
+    vector_files = (
+        list(root.rglob("*.gpkg"))
+        + list(root.rglob("*.shp"))
+        + [p for p in root.rglob("*.gdb") if p.is_dir()]
+    )
+    # Prefer the canonical Aqueduct layer names when present.
+    preferred = {"baseline_annual": 0, "future_annual": 1}
+
     for path in vector_files:
         try:
             layers = pyogrio.list_layers(path)
         except Exception:
             continue
-        for layer_name, _geom_type in layers:
+
+        ordered_layers = sorted(
+            [(str(name), geom) for name, geom in layers],
+            key=lambda item: preferred.get(item[0].lower(), 10),
+        )
+        for layer_name, _geom_type in ordered_layers:
             try:
                 info = pyogrio.read_info(path, layer=layer_name)
                 fields = set(str(x) for x in info.get("fields", []))
             except Exception:
                 continue
-            if baseline_spatial is None and {"bws_raw", "bws_score", "bws_label"}.issubset(fields):
+
+            is_baseline = (
+                layer_name.lower() == "baseline_annual"
+                or {"bws_raw", "bws_score", "bws_label"}.issubset(fields)
+            )
+            is_future = (
+                layer_name.lower() == "future_annual"
+                or any(key in fields for key in ("bau30_ws_x_r", "bau50_ws_x_r", "opt30_ws_x_r", "pes30_ws_x_r"))
+            )
+            if baseline_spatial is None and is_baseline:
                 baseline_spatial = (path, layer_name)
-            if future_spatial is None and any(
-                key in fields for key in ("bau30_ws_x_r", "bau50_ws_x_r", "opt30_ws_x_r", "pes30_ws_x_r")
-            ):
+            if future_spatial is None and is_future:
                 future_spatial = (path, layer_name)
 
     for path in root.rglob("*.csv"):
@@ -1656,32 +1802,10 @@ def fetch_telemetry(lat, lon, context=None):
             "source": "USGS"
         })
 
-    # Open-Meteo: modelled/current atmospheric context and elevation.
-    om_url = "https://api.open-meteo.com/v1/forecast"
-    weather = _cached_get(om_url, {
-        "latitude": lat,
-        "longitude": lon,
-        "current": "temperature_2m,precipitation,wind_speed_10m",
-        "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
-        "forecast_days": 7,
-        "timezone": "auto"
-    }, ttl_seconds=900)
-
+    # MET Norway Locationforecast: global modelled current/short-range weather.
+    weather = fetch_met_no_weather(lat, lon)
     current = weather.get("current") or {}
-    daily = weather.get("daily") or {}
-    days = []
-    dates = daily.get("time") or []
-    for i, day in enumerate(dates):
-        try:
-            days.append({
-                "date": day,
-                "tmax_c": daily.get("temperature_2m_max", [])[i],
-                "tmin_c": daily.get("temperature_2m_min", [])[i],
-                "precip_mm": daily.get("precipitation_sum", [])[i],
-                "wind_max_kmh": daily.get("wind_speed_10m_max", [])[i],
-            })
-        except Exception:
-            continue
+    days = weather.get("days") or []
 
     live = fetch_live_hazards(lat, lon)
     local_300 = [h for h in live if h["distance_km"] <= 300]
@@ -1719,14 +1843,15 @@ def fetch_telemetry(lat, lon, context=None):
 
     return {
         "retrieved_at": now.isoformat(),
-        "elevation_m": weather.get("elevation"),
-        "timezone": weather.get("timezone"),
+        "elevation_m": terrain.get("point_elevation_m"),
+        "timezone": weather.get("timezone") or "UTC",
         "country": context.get("country"),
         "country_code": context.get("country_code"),
         "weather_current": {
-            "temperature_c": current.get("temperature_2m"),
-            "precipitation_mm": current.get("precipitation"),
-            "wind_kmh": current.get("wind_speed_10m"),
+            "temperature_c": current.get("temperature_c"),
+            "precipitation_mm": current.get("precipitation_mm"),
+            "precipitation_period_hours": current.get("precipitation_period_hours"),
+            "wind_kmh": current.get("wind_kmh"),
         },
         "forecast_days": days,
         "forecast_summary": wx_summary,
@@ -1766,10 +1891,10 @@ def fetch_telemetry(lat, lon, context=None):
                 "note": "30-day earthquakes within 350 km, magnitude 2.5+ for regional context."
             },
             {
-                "name": "Open-Meteo",
+                "name": "MET Norway Locationforecast 2.0",
                 "type": "Modelled / forecast",
-                "note": "Current atmospheric conditions, seven-day forecast and elevation returned for the analysed coordinates."
-            },
+                "note": "Global short-range point forecast used for current/near-term temperature, precipitation and wind context. Data are provided under CC BY 4.0; daily summaries are derived by The Brink World."
+            } if weather.get("status") == "ok" else None,
             {
                 "name": "Copernicus Climate Change Service (C3S) — ERA5-Land",
                 "type": "Reanalysis / historical climate",
