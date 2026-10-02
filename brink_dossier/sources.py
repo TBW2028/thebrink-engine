@@ -1,3 +1,4 @@
+import io
 import os, math, json, time, requests, tempfile, zipfile, re
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -1644,7 +1645,7 @@ def fetch_firms_fire_context(lat, lon):
             lines = r.text.strip().splitlines()
             if len(lines) < 2:
                 continue
-            reader = pd.read_csv(pd.io.common.StringIO(r.text))
+            reader = pd.read_csv(io.StringIO(r.text))
             for _, row in reader.iterrows():
                 dlat = _safe_float(row.get("latitude"))
                 dlon = _safe_float(row.get("longitude"))
