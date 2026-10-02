@@ -2060,7 +2060,9 @@ export default {
         fUrl.searchParams.set("limit", "1");
         const facilityRes = await fetch(fUrl.toString(), { headers: sbHeaders(sbKey) });
         const facility = facilityRes.ok ? (await facilityRes.json())[0] : null;
-        if (!facility || !facility.contact_email) throw new Error("Client delivery address is unavailable.");
+        const deliveryEmail = String(summary.client_email || facility?.contact_email || "");
+        const deliveryName = String(summary.client_name || facility?.contact_name || "");
+        if (!facility || !deliveryEmail.includes("@")) throw new Error("Client delivery address is unavailable.");
 
         const subUrl = new URL(`${sbUrl}/rest/v1/brink_monitoring_subscriptions`);
         subUrl.searchParams.set("id", `eq.${reportRun.subscription_id}`);
@@ -2121,7 +2123,7 @@ export default {
 
         const customerPayload = {
           from: sender,
-          to: [facility.contact_email],
+          to: [deliveryEmail],
           reply_to: "thebrink2028@gmail.com",
           subject: `Your ${productTitle} — ${siteName} (${reportRun.report_ref})`,
           html: `
@@ -2154,11 +2156,11 @@ export default {
           body: JSON.stringify({
             from: sender,
             to: ["thebrink2028@gmail.com"],
-            reply_to: facility.contact_email,
+            reply_to: deliveryEmail,
             subject: `[REPORT DELIVERED] ${productTitle} · ${siteName} · ${reportRun.report_ref}`,
             html: `
               <h3>The Brink World — Delivery Record</h3>
-              <p><strong>Client:</strong> ${facility.contact_name || "—"} · ${facility.contact_email}</p>
+              <p><strong>Client:</strong> ${deliveryName || "—"} · ${deliveryEmail}</p>
               <p><strong>Facility:</strong> ${siteName}</p>
               <p><strong>Location:</strong> ${facility.location_label || "—"}</p>
               <p><strong>Reference:</strong> ${reportRun.report_ref}</p>
