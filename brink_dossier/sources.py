@@ -24,6 +24,7 @@ CDS_API_KEY = os.environ.get("CDS_API_KEY")
 NASA_FIRMS_MAP_KEY = os.environ.get("NASA_FIRMS_MAP_KEY")
 JRC_FLOOD_BASE = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/flood_hazard"
 WRI_AQUEDUCT_ZIP = "https://files.wri.org/aqueduct/aqueduct-4-0-water-risk-data.zip"
+WRI_AQUEDUCT_FEATURESERVER = "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/aqueduct_water_risk/FeatureServer"
 COPERNICUS_DEM_30M_BASE = "https://copernicus-dem-30m.s3.amazonaws.com"
 IBTRACS_SINCE1980_CSV = "https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r01/access/csv/ibtracs.since1980.list.v04r01.csv"
 
@@ -1177,94 +1178,84 @@ def _clean_aqueduct_value(value):
     return text
 
 
-def fetch_aqueduct_water_risk_context(lat, lon):
-    """Site-level basin screening using WRI Aqueduct 4.0 baseline and future data."""
-    try:
-        root = _download_aqueduct4()
-        baseline_asset, future_asset, future_csv = _aqueduct_assets(root)
-    except Exception as exc:
-        return {
-            "status": "error",
-            "reason": f"WRI Aqueduct 4.0 data preparation failed: {str(exc)[:280]}",
-            "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
-        }
+def _aqueduct_arcgis_point(layer_id, lat, lon, out_fields):
+    """Resolve the Aqueduct polygon intersecting a point from the public ArcGIS Feature Service."""
+    url = f"{WRI_AQUEDUCT_FEATURESERVER}/{layer_id}/query"
+    params = {
+        "f": "json",
+        "where": "1=1",
+        "geometry": f"{lon},{lat}",
+        "geometryType": "esriGeometryPoint",
+        "inSR": "4326",
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": ",".join(out_fields),
+        "returnGeometry": "false",
+        "resultRecordCount": "1",
+    }
+    response = requests.get(
+        url,
+        params=params,
+        headers={"User-Agent": "TheBrinkWorld/1.0 physical-risk-intelligence"},
+        timeout=30,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if payload.get("error"):
+        raise RuntimeError(str(payload["error"])[:300])
+    features = payload.get("features") or []
+    if not features:
+        return None
+    return (features[0] or {}).get("attributes") or {}
 
-    if not baseline_asset:
-        return {
-            "status": "error",
-            "reason": "Aqueduct 4.0 baseline annual spatial layer could not be identified in the official download.",
-            "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
-        }
 
-    try:
-        baseline_row = _vector_point_row(
-            str(baseline_asset[0]),
-            baseline_asset[1],
-            lon,
-            lat,
-        )
-    except Exception as exc:
-        return {
-            "status": "error",
-            "reason": f"Aqueduct 4.0 baseline point lookup failed: {str(exc)[:260]}",
-            "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
-        }
+def _aqueduct_from_arcgis(lat, lon):
+    baseline_fields = [
+        "pfaf_id", "name_0", "name_1",
+        "bws_raw", "bws_score", "bws_cat", "bws_label",
+        "bwd_raw", "bwd_score", "bwd_cat", "bwd_label",
+        "iav_raw", "iav_score", "iav_cat", "iav_label",
+        "sev_raw", "sev_score", "sev_cat", "sev_label",
+        "drr_raw", "drr_score", "drr_cat", "drr_label",
+    ]
+    future_fields = ["pfaf_id"]
+    for scenario in ("opt", "bau", "pes"):
+        for year_code in ("30", "50", "80"):
+            for suffix in ("r", "s", "c", "l"):
+                future_fields.append(f"{scenario}{year_code}_ws_x_{suffix}")
 
-    if baseline_row is None:
-        return {
-            "status": "not_covered",
-            "reason": "Aqueduct 4.0 did not resolve a baseline annual feature at the assessed coordinate.",
-            "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
-        }
+    baseline_row = _aqueduct_arcgis_point(1, lat, lon, baseline_fields)
+    if not baseline_row:
+        return None
 
-    def field(row, name):
-        return _clean_aqueduct_value(row.get(name)) if name in row.index else None
+    future_row = _aqueduct_arcgis_point(0, lat, lon, future_fields)
+
+    def val(row, key):
+        if not row:
+            return None
+        return _clean_aqueduct_value(row.get(key))
 
     baseline = {
-        "pfaf_id": field(baseline_row, "pfaf_id"),
-        "name_0": field(baseline_row, "name_0"),
-        "name_1": field(baseline_row, "name_1"),
-        "water_stress_raw": field(baseline_row, "bws_raw"),
-        "water_stress_score": field(baseline_row, "bws_score"),
-        "water_stress_label": field(baseline_row, "bws_label"),
-        "water_stress_category": field(baseline_row, "bws_cat"),
-        "water_depletion_raw": field(baseline_row, "bwd_raw"),
-        "water_depletion_score": field(baseline_row, "bwd_score"),
-        "water_depletion_label": field(baseline_row, "bwd_label"),
-        "interannual_variability_raw": field(baseline_row, "iav_raw"),
-        "interannual_variability_label": field(baseline_row, "iav_label"),
-        "seasonal_variability_raw": field(baseline_row, "sev_raw"),
-        "seasonal_variability_label": field(baseline_row, "sev_label"),
-        "drought_risk_raw": field(baseline_row, "drr_raw"),
-        "drought_risk_score": field(baseline_row, "drr_score"),
-        "drought_risk_label": field(baseline_row, "drr_label"),
+        "pfaf_id": val(baseline_row, "pfaf_id"),
+        "name_0": val(baseline_row, "name_0"),
+        "name_1": val(baseline_row, "name_1"),
+        "water_stress_raw": val(baseline_row, "bws_raw"),
+        "water_stress_score": val(baseline_row, "bws_score"),
+        "water_stress_label": val(baseline_row, "bws_label"),
+        "water_stress_category": val(baseline_row, "bws_cat"),
+        "water_depletion_raw": val(baseline_row, "bwd_raw"),
+        "water_depletion_score": val(baseline_row, "bwd_score"),
+        "water_depletion_label": val(baseline_row, "bwd_label"),
+        "interannual_variability_raw": val(baseline_row, "iav_raw"),
+        "interannual_variability_label": val(baseline_row, "iav_label"),
+        "seasonal_variability_raw": val(baseline_row, "sev_raw"),
+        "seasonal_variability_label": val(baseline_row, "sev_label"),
+        "drought_risk_raw": val(baseline_row, "drr_raw"),
+        "drought_risk_score": val(baseline_row, "drr_score"),
+        "drought_risk_label": val(baseline_row, "drr_label"),
     }
 
-    future_row = None
-    if future_asset:
-        try:
-            future_row = _vector_point_row(
-                str(future_asset[0]),
-                future_asset[1],
-                lon,
-                lat,
-            )
-        except Exception:
-            future_row = None
-
-    if future_row is None and future_csv and baseline.get("pfaf_id") is not None:
-        try:
-            table = pd.read_csv(future_csv)
-            pfaf_numeric = pd.to_numeric(table.get("pfaf_id"), errors="coerce")
-            target = float(baseline["pfaf_id"])
-            rows = table[pfaf_numeric == target]
-            if not rows.empty:
-                future_row = rows.iloc[0]
-        except Exception:
-            future_row = None
-
     future = {}
-    if future_row is not None:
+    if future_row:
         for scenario in ("opt", "bau", "pes"):
             scenario_name = {
                 "opt": "optimistic",
@@ -1275,16 +1266,130 @@ def fetch_aqueduct_water_risk_context(lat, lon):
             for year_code, year in (("30", 2030), ("50", 2050), ("80", 2080)):
                 prefix = f"{scenario}{year_code}_ws_x_"
                 future[scenario_name][str(year)] = {
-                    "raw": field(future_row, prefix + "r"),
-                    "score": field(future_row, prefix + "s"),
-                    "label": field(future_row, prefix + "l"),
-                    "category": field(future_row, prefix + "c"),
+                    "raw": val(future_row, prefix + "r"),
+                    "score": val(future_row, prefix + "s"),
+                    "label": val(future_row, prefix + "l"),
+                    "category": val(future_row, prefix + "c"),
                 }
+
+    return baseline, future
+
+
+def fetch_aqueduct_water_risk_context(lat, lon):
+    """Site-level basin screening using WRI Aqueduct 4.0 baseline and future data."""
+    baseline = None
+    future = {}
+    access_note = None
+
+    # Primary path: WRI/ArcGIS-hosted public feature service. This avoids
+    # downloading the full global geodatabase for each ephemeral report runner.
+    try:
+        resolved = _aqueduct_from_arcgis(lat, lon)
+        if resolved:
+            baseline, future = resolved
+            access_note = "WRI Aqueduct 4.0 public ArcGIS Feature Service"
+    except Exception as arc_exc:
+        access_note = f"ArcGIS lookup unavailable: {str(arc_exc)[:180]}"
+
+    # Fallback: official WRI global download package.
+    if baseline is None:
+        try:
+            root = _download_aqueduct4()
+            baseline_asset, future_asset, future_csv = _aqueduct_assets(root)
+            if not baseline_asset:
+                raise RuntimeError("baseline annual spatial layer was not identified")
+
+            baseline_row = _vector_point_row(
+                str(baseline_asset[0]),
+                baseline_asset[1],
+                lon,
+                lat,
+            )
+            if baseline_row is None:
+                return {
+                    "status": "not_covered",
+                    "reason": "Aqueduct 4.0 did not resolve a baseline annual feature at the assessed coordinate.",
+                    "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
+                }
+
+            def field(row, name):
+                return _clean_aqueduct_value(row.get(name)) if row is not None and name in row.index else None
+
+            baseline = {
+                "pfaf_id": field(baseline_row, "pfaf_id"),
+                "name_0": field(baseline_row, "name_0"),
+                "name_1": field(baseline_row, "name_1"),
+                "water_stress_raw": field(baseline_row, "bws_raw"),
+                "water_stress_score": field(baseline_row, "bws_score"),
+                "water_stress_label": field(baseline_row, "bws_label"),
+                "water_stress_category": field(baseline_row, "bws_cat"),
+                "water_depletion_raw": field(baseline_row, "bwd_raw"),
+                "water_depletion_score": field(baseline_row, "bwd_score"),
+                "water_depletion_label": field(baseline_row, "bwd_label"),
+                "interannual_variability_raw": field(baseline_row, "iav_raw"),
+                "interannual_variability_label": field(baseline_row, "iav_label"),
+                "seasonal_variability_raw": field(baseline_row, "sev_raw"),
+                "seasonal_variability_label": field(baseline_row, "sev_label"),
+                "drought_risk_raw": field(baseline_row, "drr_raw"),
+                "drought_risk_score": field(baseline_row, "drr_score"),
+                "drought_risk_label": field(baseline_row, "drr_label"),
+            }
+
+            future_row = None
+            if future_asset:
+                try:
+                    future_row = _vector_point_row(
+                        str(future_asset[0]),
+                        future_asset[1],
+                        lon,
+                        lat,
+                    )
+                except Exception:
+                    future_row = None
+
+            if future_row is None and future_csv and baseline.get("pfaf_id") is not None:
+                try:
+                    table = pd.read_csv(future_csv)
+                    pfaf_numeric = pd.to_numeric(table.get("pfaf_id"), errors="coerce")
+                    target = float(baseline["pfaf_id"])
+                    rows = table[pfaf_numeric == target]
+                    if not rows.empty:
+                        future_row = rows.iloc[0]
+                except Exception:
+                    future_row = None
+
+            if future_row is not None:
+                for scenario in ("opt", "bau", "pes"):
+                    scenario_name = {
+                        "opt": "optimistic",
+                        "bau": "business_as_usual",
+                        "pes": "pessimistic",
+                    }[scenario]
+                    future[scenario_name] = {}
+                    for year_code, year in (("30", 2030), ("50", 2050), ("80", 2080)):
+                        prefix = f"{scenario}{year_code}_ws_x_"
+                        future[scenario_name][str(year)] = {
+                            "raw": field(future_row, prefix + "r"),
+                            "score": field(future_row, prefix + "s"),
+                            "label": field(future_row, prefix + "l"),
+                            "category": field(future_row, prefix + "c"),
+                        }
+            access_note = "WRI Aqueduct 4.0 official download package"
+        except Exception as exc:
+            return {
+                "status": "error",
+                "reason": (
+                    "WRI Aqueduct 4.0 could not be resolved through either the public feature service "
+                    f"or official download package: {str(exc)[:220]}"
+                ),
+                "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
+            }
 
     return {
         "status": "ok",
         "dataset": "Aqueduct 4.0 Current and Future Global Maps Data",
         "publisher": "World Resources Institute",
+        "access_path": access_note,
         "baseline": baseline,
         "future_water_stress": future,
         "future_scenarios": {
