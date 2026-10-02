@@ -131,7 +131,8 @@ def _commercial_product_section(meta, data, answers):
         rows = [
             ["Official warnings ≤300 km", str(len(official)), "Current authoritative-warning environment resolved by the configured feeds."],
             ["Resolved live signals ≤300 km", str(len(local)), "Current geolocated monitored events/warnings around the facility."],
-            ["Regional earthquakes · 30d / 350 km", str(quake_count), "Observed seismic context, not a structural-damage estimate."],
+            ["Earthquakes · 24h / 350 km / M1.0+", str(data.get("quake_count_24h_350km_m1", 0)), "Primary live seismic screen; includes small catalogued events."],
+            ["Earthquakes · 30d / 350 km / M2.5+", str(quake_count), "Broader regional seismic context; not a structural-damage estimate."],
             ["7-day forecast rainfall", _fmt(summary.get("rain_total_7d_mm"), " mm"), "Near-term interruption and drainage context."],
             ["Peak forecast wind", _fmt(summary.get("max_wind_7d_kmh"), " km/h"), "Near-term exposed-operations context."],
             ["Mapped major roads ≤5 km", str(len(data.get("mapped_primary_roads_5km") or [])), "Access-context indicator; does not confirm current route passability."],
@@ -583,7 +584,7 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
             "rows": [
                 ["Official warnings within 300 km", str(len(official)), "A warning count describes what participating authorities currently publish and what the system can geolocate; zero does not prove zero hazard."],
                 ["Resolved live signals within 300 km", str(len(local)), "Includes monitored event and warning feeds with usable coordinates."],
-                ["Regional earthquakes, 30 days / 350 km", str(data.get("quake_count_30d_350km", 0)), "Observed USGS catalog events at M2.5+ used for regional context; this is not a site-specific engineering hazard model."],
+                ["Earthquakes, last 24 hours / 350 km", str(data.get("quake_count_24h_350km_m1", 0)), "All USGS catalog events returned at M1.0+ in the latest 24 hours within 350 km. A separate 30-day M2.5+ count is retained for broader context."],
             ],
         },
     ]
@@ -643,16 +644,16 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
 
     seismic_blocks = [{
         "kind": "trio",
-        "figure": str(data.get("quake_count_30d_350km", 0)),
+        "figure": str(data.get("quake_count_24h_350km_m1", 0)),
         "conf": "OBSERVED",
         "conf_class": "c-obs",
-        "label": "USGS earthquakes in 30 days within 350 km (M2.5+)",
-        "what": "A count of catalogued earthquakes around the selected point during the stated observation window.",
-        "why": "It describes recent regional seismic activity. It does not by itself estimate building damage, recurrence probability or future earthquake likelihood.",
+        "label": "USGS earthquakes in the last 24 hours within 350 km (M1.0+)",
+        "what": "All USGS events returned within 350 km during the latest 24 hours at magnitude 1.0 and above.",
+        "why": "This is the live operational seismic picture. Small events are included for awareness; magnitude, distance, depth and site vulnerability must be considered separately.",
     }]
     if quakes:
         seismic_blocks.append({
-            "kind": "table", "title": "Recent Regional Earthquakes",
+            "kind": "table", "title": "Earthquakes in the Last 24 Hours (M1.0+)",
             "headers": ["LOCATION", "MAGNITUDE", "DEPTH", "DISTANCE", "OBSERVED"],
             "rows": [[q.get("place"), f"M{q.get('mag')}", f"{q.get('depth_km')} km", f"{q.get('distance_km')} km", _when(q.get("observed_at"))] for q in quakes[:12]],
         })
