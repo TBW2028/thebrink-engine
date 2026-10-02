@@ -7,6 +7,22 @@ def _fmt(value, suffix=""):
     return f"{value}{suffix}"
 
 
+def _flood_cell_text(rec, field, suffix=""):
+    """Client-facing wording for a successfully sampled flood raster cell."""
+    value = (rec or {}).get(field)
+    if value is not None:
+        return f"{value}{suffix}"
+    if not rec:
+        return "Source retrieval unavailable"
+    if field == "point_depth_m":
+        return "No mapped inundation depth at site cell"
+    if field == "nearby_max_depth_m":
+        return "No mapped inundation depth in ~300 m screen"
+    if field == "nearest_inundated_cell_distance_km":
+        return "No ≥0.1 m inundation cell in ~300 m screen"
+    return "No mapped value returned"
+
+
 def _when(value):
     if not value:
         return "Recent"
@@ -322,17 +338,28 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
     })
 
     flood_rows = []
+    flood_has_numeric = False
+    flood_successful_samples = 0
     if flood.get("status") == "ok":
+        depth_map = flood.get("depths") or {}
         for rp in ("10","20","50","75","100","200","500"):
-            rec = (flood.get("depths") or {}).get(rp) or {}
+            rec = depth_map.get(rp)
+            if rec:
+                flood_successful_samples += 1
+                if any(rec.get(key) is not None for key in (
+                    "point_depth_m",
+                    "nearby_max_depth_m",
+                    "nearest_inundated_cell_distance_km",
+                )):
+                    flood_has_numeric = True
             flood_rows.append([
                 f"{rp}-year",
-                _fmt(rec.get("point_depth_m"), " m"),
-                _fmt(rec.get("nearby_max_depth_m"), " m"),
-                _fmt(rec.get("nearest_inundated_cell_distance_km"), " km"),
+                _flood_cell_text(rec, "point_depth_m", " m"),
+                _flood_cell_text(rec, "nearby_max_depth_m", " m"),
+                _flood_cell_text(rec, "nearest_inundated_cell_distance_km", " km"),
             ])
     else:
-        flood_rows = [["—", "Unavailable", "Unavailable", "Unavailable"]]
+        flood_rows = [["—", "Source unavailable", "Source unavailable", "Source unavailable"]]
 
     flood_blocks = []
     if rain.get("status") == "ok":
@@ -355,19 +382,36 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
             "text": _public_gap_reason("extreme rainfall", rain.get("reason")),
         })
 
-    if flood.get("status") == "ok":
+    if flood.get("status") == "ok" and flood_has_numeric:
         flood_blocks.append({
             "kind": "table",
             "title": "Riverine Flood Depth Screen",
             "headers": ["RETURN PERIOD", "SITE GRID CELL", "NEIGHBOURHOOD MAX", "NEAREST ≥0.1 M CELL"],
             "rows": flood_rows,
         })
+    elif flood.get("status") == "ok" and flood_successful_samples:
+        flood_blocks.append({
+            "kind": "flag",
+            "title": "RIVERINE FLOOD MAP READING",
+            "severe": False,
+            "text": (
+                "The JRC/CEMS riverine flood rasters were successfully sampled for the assessed location, "
+                "but no modelled inundation depth was returned at the site grid cell or within the small "
+                "~300 m neighbourhood screen for the tested 10- to 500-year return periods. "
+                "This should be read as 'outside the mapped inundation footprint in this global riverine model', "
+                "not as 'no flood risk'. Local drainage, pluvial flooding, finished-floor level and smaller watercourses "
+                "remain outside this screen."
+            ),
+        })
     else:
         flood_blocks.append({
             "kind": "flag",
-            "title": "RIVERINE-FLOOD EVIDENCE STATUS — UNRESOLVED",
+            "title": "RIVERINE FLOOD SOURCE STATUS",
             "severe": False,
-            "text": _public_gap_reason("flood", flood.get("reason")),
+            "text": (
+                "A site-level riverine flood-depth result could not be produced from the configured global raster source "
+                "for this reporting cycle. No flood-depth conclusion has been inferred from the missing source response."
+            ),
         })
     flood_blocks.append({
         "kind": "flag",
@@ -385,11 +429,11 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
         wb = water.get("baseline") or {}
         future = water.get("future_water_stress") or {}
         water_rows = [
-            ["Baseline water stress", wb.get("water_stress_label") or "Not available"],
-            ["Baseline water depletion", wb.get("water_depletion_label") or "Not available"],
-            ["Interannual variability", wb.get("interannual_variability_label") or "Not available"],
-            ["Seasonal variability", wb.get("seasonal_variability_label") or "Not available"],
-            ["Drought risk", wb.get("drought_risk_label") or "Not available"],
+            ["Baseline water stress", wb.get("water_stress_label") or (_fmt(wb.get("water_stress_score"), " / 5") if wb.get("water_stress_score") is not None else "Indicator not returned for this basin")],
+            ["Baseline water depletion", wb.get("water_depletion_label") or (_fmt(wb.get("water_depletion_score"), " / 5") if wb.get("water_depletion_score") is not None else "Indicator not returned for this basin")],
+            ["Interannual variability", wb.get("interannual_variability_label") or "Indicator not returned for this basin"],
+            ["Seasonal variability", wb.get("seasonal_variability_label") or "Indicator not returned for this basin"],
+            ["Drought risk", wb.get("drought_risk_label") or (_fmt(wb.get("drought_risk_score"), " / 5") if wb.get("drought_risk_score") is not None else "Indicator not returned for this basin")],
         ]
         future_rows = []
         for scenario, years in future.items():
@@ -403,15 +447,19 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
                     ])
         water_blocks = [
             {"kind": "kvtable", "title": "Baseline Water-Risk Context", "rows": water_rows},
-            {"kind": "table", "title": "Future Water-Stress Scenarios", "headers": ["SCENARIO", "HORIZON", "PROJECTED CATEGORY"], "rows": future_rows or [["—","—","Future values not resolved."]]},
+            {"kind": "table", "title": "Future Water-Stress Scenarios", "headers": ["SCENARIO", "HORIZON", "PROJECTED CATEGORY"], "rows": future_rows or [["—","—","No future basin projection was returned by the source query."]]},
             {"kind": "flag", "title": "WATER-RISK BOUNDARY", "severe": False, "text": water.get("limitations") or "Aqueduct evidence is unavailable."},
         ]
     else:
         water_blocks = [{
             "kind": "flag",
-            "title": "WATER-RISK EVIDENCE STATUS — UNRESOLVED",
+            "title": "WATER-STRESS SOURCE STATUS",
             "severe": False,
-            "text": _public_gap_reason("water stress", water.get("reason")),
+            "text": (
+                "The automated WRI Aqueduct 4.0 basin lookup did not return a defensible site-level classification "
+                "for this reporting cycle. The Brink World has therefore made no water-stress classification from "
+                "that source. This is a source-availability limitation, not evidence of low or high water stress."
+            ),
         }]
     sections.append({
         "title": "Water Stress & Drought",
