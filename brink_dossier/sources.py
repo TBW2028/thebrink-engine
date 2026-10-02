@@ -475,33 +475,53 @@ def _cds_daily_temperature(lat, lon, statistic):
 
 
 def fetch_historical_heat_context(lat, lon):
-    """Institutional historical-heat baseline derived directly from Copernicus ERA5-Land."""
+    """Historical heat baseline derived from ERA5-Land hourly point time-series."""
     if not CDS_API_KEY:
         return {
             "status": "not_configured",
-            "reason": "CDS_API_KEY is not configured for Copernicus Climate Data Store access.",
+            "reason": "CDS API access is not configured.",
             "dataset": "ERA5-Land",
             "baseline_period": "1991-2020",
         }
 
     try:
-        maxima = _cds_daily_temperature(lat, lon, "daily_maximum")
-        minima = _cds_daily_temperature(lat, lon, "daily_minimum")
+        hourly, units = _cds_hourly_point_series(
+            lat,
+            lon,
+            "2m_temperature",
+            "1991-01-01",
+            "2025-12-31",
+            "temperature",
+        )
     except Exception as exc:
         return {
             "status": "error",
-            "reason": f"Copernicus ERA5-Land retrieval failed: {str(exc)[:260]}",
+            "reason": f"Copernicus ERA5-Land heat retrieval failed: {str(exc)[:260]}",
             "dataset": "ERA5-Land",
             "baseline_period": "1991-2020",
         }
 
-    max_by_day = dict(maxima)
-    min_by_day = dict(minima)
-    shared_days = sorted(set(max_by_day) & set(min_by_day))
-    if len(shared_days) < 365:
+    daily = {}
+    for ts, value in hourly:
+        try:
+            temp = float(value)
+            if math.isnan(temp):
+                continue
+            if temp > 150:
+                temp -= 273.15
+            day = str(ts)[:10]
+            if len(day) != 10:
+                continue
+        except Exception:
+            continue
+        rec = daily.setdefault(day, {"min": temp, "max": temp})
+        rec["min"] = min(rec["min"], temp)
+        rec["max"] = max(rec["max"], temp)
+
+    if len(daily) < 365:
         return {
             "status": "error",
-            "reason": "Copernicus ERA5-Land returned insufficient daily data.",
+            "reason": "ERA5-Land returned insufficient hourly temperature data to derive a heat baseline.",
             "dataset": "ERA5-Land",
             "baseline_period": "1991-2020",
         }
@@ -512,12 +532,12 @@ def fetch_historical_heat_context(lat, lon):
     hottest = None
     recent_year_counts = {}
 
-    for day in shared_days:
+    for day, rec in sorted(daily.items()):
         try:
             year = int(day[:4])
-            tx = float(max_by_day[day])
-            tn = float(min_by_day[day])
-        except (TypeError, ValueError):
+            tx = float(rec["max"])
+            tn = float(rec["min"])
+        except Exception:
             continue
 
         if hottest is None or tx > hottest["temperature_c"]:
@@ -550,32 +570,33 @@ def fetch_historical_heat_context(lat, lon):
     mean_days_35 = sum(annual[y]["days_ge_35"] for y in years) / len(years)
     mean_days_40 = sum(annual[y]["days_ge_40"] for y in years) / len(years)
     mean_nights_25 = sum(annual[y]["nights_ge_25"] for y in years) / len(years)
-    recent_days_35 = (
-        sum(recent_year_counts.values()) / len(recent_year_counts)
-        if recent_year_counts else None
+
+    recent_years = sorted(recent_year_counts)
+    recent_mean_days_35 = (
+        sum(recent_year_counts[y] for y in recent_years) / len(recent_years)
+        if recent_years else None
     )
 
     return {
         "status": "ok",
-        "dataset": "ERA5-Land",
-        "access": "Copernicus Climate Data Store — derived ERA5-Land daily statistics",
+        "dataset": "ERA5-Land hourly time-series",
+        "publisher": "Copernicus Climate Change Service (C3S)",
         "baseline_period": "1991-2020",
         "recent_period": "2021-2025",
-        "daily_time_zone": "UTC+00:00",
-        "spatial_resolution": "0.1° grid; ERA5-Land native resolution approximately 9 km",
         "p95_tmax_c": round(_percentile(baseline_max, 0.95), 1),
         "p99_tmax_c": round(_percentile(baseline_max, 0.99), 1),
         "mean_annual_days_ge_35c": round(mean_days_35, 1),
         "mean_annual_days_ge_40c": round(mean_days_40, 1),
         "mean_annual_nights_ge_25c": round(mean_nights_25, 1),
-        "recent_mean_annual_days_ge_35c": round(recent_days_35, 1) if recent_days_35 is not None else None,
+        "recent_mean_annual_days_ge_35c": round(recent_mean_days_35, 1) if recent_mean_days_35 is not None else None,
         "hottest_day": hottest,
-        "baseline_years": len(years),
-        "doi": "10.24381/cds.e9c9c792",
-        "licence": "CC-BY",
+        "spatial_resolution": "ERA5-Land point time-series (~0.1° native grid)",
+        "temporal_resolution": "hourly source aggregated by The Brink World to daily extrema",
+        "units_source": units,
         "limitations": (
-            "Gridded reanalysis, not an on-site thermometer record. Daily statistics are aggregated in UTC. "
-            "Building-scale urban heat, shade, ventilation and microclimate are not resolved."
+            "ERA5-Land is gridded reanalysis rather than an on-site thermometer. The Brink World derives daily maximum "
+            "and minimum temperatures from hourly point time-series for screening. Local microclimate, urban heat, "
+            "indoor conditions and future climate change require separate evidence."
         ),
     }
 
@@ -1391,7 +1412,7 @@ def fetch_terrain_context(lat, lon):
                     "release": "2021",
                     "tile": tile,
                     "url": url,
-                    "point_elevation_m": round(point_elevation, 1) if point_elevation is not None else None,
+                    "point_elevation_m": round(point_elevation, 1) if point_elevation is not None else ((metrics_250m or {}).get("elevation_mean_m")),
                     "metrics_250m": metrics_250m,
                     "metrics_1km": metrics_1km,
                     "resolution": "1 arc-second (~30 m)",
@@ -1770,9 +1791,21 @@ def fetch_telemetry(lat, lon, context=None):
     context = context or {}
     now = datetime.now(timezone.utc)
 
-    # USGS: observed earthquakes, 30-day regional context.
+    # USGS: primary operational seismic window = last 24h, M1.0+, within 350 km.
     usgs_url = "https://earthquake.usgs.gov/fdsnws/event/1/query"
-    quakes_data = _cached_get(usgs_url, {
+    quakes_24h_data = _cached_get(usgs_url, {
+        "format": "geojson",
+        "latitude": lat,
+        "longitude": lon,
+        "maxradiuskm": 350,
+        "minmagnitude": 1.0,
+        "starttime": (now - timedelta(hours=24)).isoformat().replace("+00:00", "Z"),
+        "endtime": now.isoformat().replace("+00:00", "Z"),
+        "orderby": "time",
+        "limit": 1000
+    }, ttl_seconds=600)
+
+    quakes_30d_data = _cached_get(usgs_url, {
         "format": "geojson",
         "latitude": lat,
         "longitude": lon,
@@ -1784,24 +1817,27 @@ def fetch_telemetry(lat, lon, context=None):
         "limit": 1000
     }, ttl_seconds=900)
 
-    recent_events = []
-    for f in quakes_data.get("features", [])[:12]:
-        props = f.get("properties", {})
-        coords = f.get("geometry", {}).get("coordinates", [])
+    recent_events_24h = []
+    for feature in quakes_24h_data.get("features", []):
+        props = feature.get("properties", {})
+        coords = feature.get("geometry", {}).get("coordinates", [])
         if len(coords) < 3:
             continue
         try:
             dist = haversine(lat, lon, float(coords[1]), float(coords[0]))
+            mag = float(props.get("mag"))
         except Exception:
             continue
-        recent_events.append({
+        recent_events_24h.append({
             "place": props.get("place", "Regional event"),
-            "mag": round(float(props.get("mag") or 0), 1),
+            "mag": round(mag, 1),
             "depth_km": round(float(coords[2]), 1),
             "distance_km": round(dist),
             "observed_at": _iso_from_ms(props.get("time") or 0),
             "source": "USGS"
         })
+
+    recent_events_24h.sort(key=lambda q: q.get("observed_at") or "", reverse=True)
 
     # MET Norway Locationforecast: global modelled current/short-range weather.
     weather = fetch_met_no_weather(lat, lon)
@@ -1863,8 +1899,10 @@ def fetch_telemetry(lat, lon, context=None):
         "terrain": terrain,
         "cyclone_history": cyclone_history,
         "fire_context": fire_context,
-        "recent_quakes": recent_events,
-        "quake_count_30d_350km": len(quakes_data.get("features", [])),
+        "recent_quakes": recent_events_24h,
+        "recent_quakes_24h": recent_events_24h,
+        "quake_count_24h_350km_m1": len(recent_events_24h),
+        "quake_count_30d_350km": len(quakes_30d_data.get("features", [])),
         "live_hazards_300km": local_300,
         "live_hazards_1000km": nearby_1000,
         "official_warnings_300km": official_local,
@@ -1889,7 +1927,7 @@ def fetch_telemetry(lat, lon, context=None):
             {
                 "name": "USGS Earthquake Catalog",
                 "type": "Observed",
-                "note": "30-day earthquakes within 350 km, magnitude 2.5+ for regional context."
+                "note": "Primary operational seismic table: all USGS events returned within 350 km in the latest 24 hours at magnitude 1.0+. A separate 30-day M2.5+ count is retained for broader regional context."
             },
             {
                 "name": "MET Norway Locationforecast 2.0",
