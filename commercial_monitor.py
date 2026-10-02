@@ -377,6 +377,10 @@ def main():
                 "delivery_approval_hash": approval_hash,
                 "delivery_approval_expires_at": approval_expires.isoformat(),
                 "client_delivery_status": "awaiting_approval",
+                "client_email": f.get("contact_email"),
+                "client_name": f.get("contact_name"),
+                "facility_name": f.get("facility_name"),
+                "location_label": f.get("location_label"),
             }
             if ledger_error:
                 evidence_summary["ledger_error"] = ledger_error
