@@ -39,6 +39,7 @@ def produce(location, answers, site_name, customer_email=None, out_dir="reports"
         "product_limitation": product["limitation"],
         "ref": ref_code,
         "site_name": site_name,
+        "location_label": answers.get("location_label") or str(location),
         "customer_name": answers.get("customer_name", "Operations Lead"),
         "occupancy_label": answers.get("occupancy", "General location intelligence").title(),
         "coords_str": coords_formatted,
