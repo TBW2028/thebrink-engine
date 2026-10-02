@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: commercial-facility-monitoring
+  cancel-in-progress: false
+
 jobs:
   monitor:
     runs-on: ubuntu-latest
@@ -48,4 +52,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CDS_API_KEY: ${{ secrets.CDS_API_KEY }}
           NASA_FIRMS_MAP_KEY: ${{ secrets.NASA_FIRMS_MAP_KEY }}
+          TARGET_SUBSCRIPTION_ID: ${{ github.event.client_payload.subscription_id }}
         run: python commercial_monitor.py
