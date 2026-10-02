@@ -244,6 +244,8 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
     sections = []
 
     profile_rows = [
+        ["Submitted location", meta.get("location_label") or "Not supplied"],
+        ["Assessed coordinates", meta.get("coords_str") or "Not resolved"],
         ["Construction", profile.get("construction_type") or "Not supplied"],
         ["Year built", profile.get("year_built") or "Not supplied"],
         ["Floors above ground", profile.get("floors_above_ground") or "Not supplied"],
