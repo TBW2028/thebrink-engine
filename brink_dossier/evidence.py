@@ -137,6 +137,20 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
 
     items.append(_evidence(
         report_run_id, facility_id, "seismic",
+        "usgs_quake_count_24h_350km_m1", "USGS earthquakes M1.0+ within 350 km over the latest 24 hours",
+        "USGS Earthquake Catalog", "observed",
+        value_numeric=telemetry.get("quake_count_24h_350km_m1") or 0, unit="count",
+        source_dataset="USGS FDSN Event Web Service", retrieved_at=retrieved,
+        observation_start=None, observation_end=retrieved,
+        spatial_resolution="350 km radial screen", temporal_resolution="24 hours",
+        confidence="high",
+        confidence_reason="Authoritative catalog query for the defined magnitude, radius and latest 24-hour observation window.",
+        limitations="Small-event occurrence is operational context and does not estimate long-term ground-shaking hazard, recurrence or building damage.",
+        raw_evidence={"events": quakes[:100]},
+    ))
+
+    items.append(_evidence(
+        report_run_id, facility_id, "seismic",
         "usgs_quake_count_30d_350km", "USGS earthquakes M2.5+ within 350 km over 30 days",
         "USGS Earthquake Catalog", "observed",
         value_numeric=telemetry.get("quake_count_30d_350km") or 0, unit="count",
@@ -146,7 +160,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
         confidence="high",
         confidence_reason="Authoritative catalog query for the defined magnitude, radius and observation window.",
         limitations="Recent earthquake count does not estimate long-term ground-shaking hazard, recurrence or building damage.",
-        raw_evidence={"events": quakes[:12]},
+        raw_evidence={"note": "30-day M2.5+ count retained as broader regional context; event detail table uses the latest 24-hour M1.0+ window."},
     ))
 
     weather_specs = [
@@ -746,7 +760,9 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
     facility_id = facility["id"]
     warnings = telemetry.get("official_warnings_300km") or []
     signals = telemetry.get("live_hazards_300km") or []
-    quake_count = telemetry.get("quake_count_30d_350km") or 0
+    quake_count_24h = telemetry.get("quake_count_24h_350km_m1") or 0
+    quake_count_30d = telemetry.get("quake_count_30d_350km") or 0
+    quake_count = quake_count_24h or quake_count_30d
     profile = profile or {}
     findings = []
 
@@ -821,7 +837,7 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             action_type="verify",
             action="Add probabilistic seismic-hazard evidence and verify construction/design information before making structural or loss inferences.",
             specialist=True,
-            support=["usgs_quake_count_30d_350km", "strongest_live_signal_300km"],
+            support=["usgs_quake_count_24h_350km_m1", "usgs_quake_count_30d_350km", "strongest_live_signal_300km"],
         )
     else:
         add(
@@ -834,7 +850,7 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             action_type="verify",
             action="Add probabilistic seismic-hazard evidence before classifying long-term seismic materiality.",
             specialist=True,
-            support=["usgs_quake_count_30d_350km"],
+            support=["usgs_quake_count_24h_350km_m1", "usgs_quake_count_30d_350km"],
         )
 
     heat_ctx = telemetry.get("historical_heat") or {}
