@@ -87,6 +87,8 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
     warnings = telemetry.get("official_warnings_300km") or []
     signals = telemetry.get("live_hazards_300km") or []
     quakes = telemetry.get("recent_quakes") or []
+    quake_sources = sorted({str(q.get("source") or "Unknown") for q in quakes})
+    quake_source_name = " / ".join(quake_sources) if quake_sources else "USGS Earthquake Catalog"
     current = telemetry.get("weather_current") or {}
     strongest = telemetry.get("strongest_local_signal")
     historical_heat = telemetry.get("historical_heat") or {}
@@ -137,14 +139,14 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
 
     items.append(_evidence(
         report_run_id, facility_id, "seismic",
-        "usgs_quake_count_24h_350km_m1", "USGS earthquakes M1.0+ within 350 km over the latest 24 hours",
-        "USGS Earthquake Catalog", "observed",
+        "quake_count_24h_350km_m1", "Catalogued earthquakes M1.0+ within 350 km over the latest 24 hours",
+        quake_source_name, "observed",
         value_numeric=telemetry.get("quake_count_24h_350km_m1") or 0, unit="count",
-        source_dataset="USGS FDSN Event Web Service", retrieved_at=retrieved,
+        source_dataset="NCS India operational feed and/or USGS FDSN Event Web Service", retrieved_at=retrieved,
         observation_start=None, observation_end=retrieved,
         spatial_resolution="350 km radial screen", temporal_resolution="24 hours",
         confidence="high",
-        confidence_reason="Authoritative catalog query for the defined magnitude, radius and latest 24-hour observation window.",
+        confidence_reason="Catalogued seismic events are source-traceable; NCS India is preferred for matching India-facing events and USGS provides global coverage.",
         limitations="Small-event occurrence is operational context and does not estimate long-term ground-shaking hazard, recurrence or building damage.",
         raw_evidence={"events": quakes[:100]},
     ))
@@ -205,7 +207,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
                 observation_start="1991-01-01T00:00:00+00:00" if code.startswith("baseline_") else "2021-01-01T00:00:00+00:00",
                 observation_end="2020-12-31T23:59:59+00:00" if code.startswith("baseline_") else "2025-12-31T23:59:59+00:00",
                 spatial_resolution=historical_heat.get("spatial_resolution"),
-                temporal_resolution="daily statistics derived from reanalysis",
+                temporal_resolution="hourly reanalysis aggregated to daily extrema",
                 confidence="medium",
                 confidence_reason="Established ERA5-Land reanalysis provides a consistent historical gridded baseline; it is not an on-site observation.",
                 limitations=historical_heat.get("limitations"),
@@ -230,7 +232,7 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
         items.append(_evidence(
             report_run_id, facility_id, "heat",
             "historical_heat_baseline_status", "Historical heat baseline availability",
-            "ERA5-Land / Open-Meteo", "modelled",
+            "Copernicus Climate Change Service (C3S) — ERA5-Land", "modelled",
             value_text=str(historical_heat.get("status") or "not_available"),
             retrieved_at=retrieved,
             confidence="unresolved",
@@ -837,7 +839,7 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             action_type="verify",
             action="Add probabilistic seismic-hazard evidence and verify construction/design information before making structural or loss inferences.",
             specialist=True,
-            support=["usgs_quake_count_24h_350km_m1", "usgs_quake_count_30d_350km", "strongest_live_signal_300km"],
+            support=["quake_count_24h_350km_m1", "usgs_quake_count_30d_350km", "strongest_live_signal_300km"],
         )
     else:
         add(
@@ -850,7 +852,7 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             action_type="verify",
             action="Add probabilistic seismic-hazard evidence before classifying long-term seismic materiality.",
             specialist=True,
-            support=["usgs_quake_count_24h_350km_m1", "usgs_quake_count_30d_350km"],
+            support=["quake_count_24h_350km_m1", "usgs_quake_count_30d_350km"],
         )
 
     heat_ctx = telemetry.get("historical_heat") or {}
