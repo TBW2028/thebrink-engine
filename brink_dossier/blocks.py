@@ -205,6 +205,25 @@ def _titleize(value):
     return str(value or "").replace("_", " ").title()
 
 
+def _public_gap_reason(hazard, reason):
+    """Translate internal source/API failures into client-safe evidence-status language."""
+    text = str(reason or "").lower()
+    hazard_label = _titleize(hazard)
+    if not reason:
+        return "Required evidence was not available for this reporting cycle."
+    if "licen" in text or "required licences" in text:
+        return "The required source entitlement/terms were not active for this reporting cycle; the evidence remains unresolved."
+    if "cost limits exceeded" in text or "request is too large" in text:
+        return "The historical source request could not be completed within provider retrieval limits; the evidence remains unresolved."
+    if "aqueduct" in text and ("could not be identified" in text or "baseline" in text):
+        return "The water-risk source package could not be resolved into a defensible site-level result for this reporting cycle."
+    if "firms" in text or "map_key" in text:
+        return "Operational satellite fire data were not available to the reporting pipeline for this cycle."
+    if "403" in text or "forbidden" in text or "http" in text or "api/" in text:
+        return "The external source could not be retrieved successfully for this reporting cycle."
+    return f"{hazard_label} evidence remains unresolved from the current source set."
+
+
 def _risk_finding_rows(risk_findings):
     rows = []
     for spec in risk_findings or []:
@@ -262,34 +281,33 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
     cyclone = data.get("cyclone_history") or {}
     fire = data.get("fire_context") or {}
 
-    heat_rows = [
-        ["Historical baseline", heat.get("baseline_period") or "Not available"],
-        ["P95 daily maximum temperature", _fmt(heat.get("p95_tmax_c"), "°C")],
-        ["P99 daily maximum temperature", _fmt(heat.get("p99_tmax_c"), "°C")],
-        ["Mean annual days ≥35°C", _fmt(heat.get("mean_annual_days_ge_35c"), " days/year")],
-        ["Mean annual days ≥40°C", _fmt(heat.get("mean_annual_days_ge_40c"), " days/year")],
-        ["Mean annual nights ≥25°C", _fmt(heat.get("mean_annual_nights_ge_25c"), " nights/year")],
-        ["Recent mean annual days ≥35°C", _fmt(heat.get("recent_mean_annual_days_ge_35c"), " days/year")],
-    ]
+    if heat.get("status") == "ok":
+        heat_rows = [
+            ["Historical baseline", heat.get("baseline_period") or "Not available"],
+            ["P95 daily maximum temperature", _fmt(heat.get("p95_tmax_c"), "°C")],
+            ["P99 daily maximum temperature", _fmt(heat.get("p99_tmax_c"), "°C")],
+            ["Mean annual days ≥35°C", _fmt(heat.get("mean_annual_days_ge_35c"), " days/year")],
+            ["Mean annual days ≥40°C", _fmt(heat.get("mean_annual_days_ge_40c"), " days/year")],
+            ["Mean annual nights ≥25°C", _fmt(heat.get("mean_annual_nights_ge_25c"), " nights/year")],
+            ["Recent mean annual days ≥35°C", _fmt(heat.get("recent_mean_annual_days_ge_35c"), " days/year")],
+        ]
+        heat_blocks = [
+            {"kind": "kvtable", "title": "Heat Evidence", "rows": heat_rows},
+            {"kind": "flag", "title": "HEAT LIMITATION", "severe": False, "text": heat.get("limitations") or "Historical heat evidence is unavailable."},
+        ]
+    else:
+        heat_blocks = [{
+            "kind": "flag",
+            "title": "HEAT EVIDENCE STATUS — UNRESOLVED",
+            "severe": False,
+            "text": _public_gap_reason("heat", heat.get("reason")),
+        }]
     sections.append({
         "title": "Extreme Heat",
         "subtitle": "Historical heat baseline from ERA5-Land with facility-sensitivity interpretation.",
-        "blocks": [
-            {"kind": "kvtable", "title": "Heat Evidence", "rows": heat_rows},
-            {"kind": "flag", "title": "HEAT LIMITATION", "severe": False, "text": heat.get("limitations") or "Historical heat evidence is not available for this run."},
-        ],
+        "blocks": heat_blocks,
     })
 
-    rain_rows = [
-        ["Historical baseline", rain.get("baseline_period") or "Not available"],
-        ["Mean annual precipitation", _fmt(rain.get("mean_annual_precip_mm"), " mm/year")],
-        ["Mean annual wet days", _fmt(rain.get("mean_annual_wet_days"), " days/year")],
-        ["Mean annual days ≥20 mm", _fmt(rain.get("mean_annual_days_ge_20mm"), " days/year")],
-        ["Mean annual days ≥50 mm", _fmt(rain.get("mean_annual_days_ge_50mm"), " days/year")],
-        ["P95 wet-day precipitation", _fmt(rain.get("p95_wet_day_mm"), " mm/day")],
-        ["Mean annual Rx1day", _fmt(rain.get("mean_annual_rx1day_mm"), " mm/day")],
-        ["Mean annual Rx5day", _fmt(rain.get("mean_annual_rx5day_mm"), " mm/5 days")],
-    ]
     flood_rows = []
     if flood.get("status") == "ok":
         for rp in ("10","20","50","75","100","200","500"):
@@ -298,47 +316,94 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
                 f"{rp}-year",
                 _fmt(rec.get("point_depth_m"), " m"),
                 _fmt(rec.get("nearby_max_depth_m"), " m"),
+                _fmt(rec.get("nearest_inundated_cell_distance_km"), " km"),
             ])
     else:
-        flood_rows = [["—", flood.get("reason") or "Mapped riverine flood evidence unavailable", "—"]]
+        flood_rows = [["—", "Unavailable", "Unavailable", "Unavailable"]]
 
+    flood_blocks = []
+    if rain.get("status") == "ok":
+        rain_rows = [
+            ["Historical baseline", rain.get("baseline_period") or "Not available"],
+            ["Mean annual precipitation", _fmt(rain.get("mean_annual_precip_mm"), " mm/year")],
+            ["Mean annual wet days", _fmt(rain.get("mean_annual_wet_days"), " days/year")],
+            ["Mean annual days ≥20 mm", _fmt(rain.get("mean_annual_days_ge_20mm"), " days/year")],
+            ["Mean annual days ≥50 mm", _fmt(rain.get("mean_annual_days_ge_50mm"), " days/year")],
+            ["P95 wet-day precipitation", _fmt(rain.get("p95_wet_day_mm"), " mm/day")],
+            ["Mean annual Rx1day", _fmt(rain.get("mean_annual_rx1day_mm"), " mm/day")],
+            ["Mean annual Rx5day", _fmt(rain.get("mean_annual_rx5day_mm"), " mm/5 days")],
+        ]
+        flood_blocks.append({"kind": "kvtable", "title": "Extreme Rainfall Evidence", "rows": rain_rows})
+    else:
+        flood_blocks.append({
+            "kind": "flag",
+            "title": "EXTREME-RAINFALL EVIDENCE STATUS — UNRESOLVED",
+            "severe": False,
+            "text": _public_gap_reason("extreme rainfall", rain.get("reason")),
+        })
+
+    if flood.get("status") == "ok":
+        flood_blocks.append({
+            "kind": "table",
+            "title": "Riverine Flood Depth Screen",
+            "headers": ["RETURN PERIOD", "SITE GRID CELL", "NEIGHBOURHOOD MAX", "NEAREST ≥0.1 M CELL"],
+            "rows": flood_rows,
+        })
+    else:
+        flood_blocks.append({
+            "kind": "flag",
+            "title": "RIVERINE-FLOOD EVIDENCE STATUS — UNRESOLVED",
+            "severe": False,
+            "text": _public_gap_reason("flood", flood.get("reason")),
+        })
+    flood_blocks.append({
+        "kind": "flag",
+        "title": "FLOOD BOUNDARY",
+        "severe": False,
+        "text": "Riverine flood mapping does not establish pluvial drainage flooding, finished-floor elevation, building ingress or local drainage performance. Neighbourhood maximum depth is not an on-site depth; the nearest-inundated-cell distance is provided to make that distinction explicit.",
+    })
     sections.append({
         "title": "Flood & Extreme Rainfall",
         "subtitle": "Historical rainfall intensity plus modelled riverine inundation screening.",
-        "blocks": [
-            {"kind": "kvtable", "title": "Extreme Rainfall Evidence", "rows": rain_rows},
-            {"kind": "table", "title": "Riverine Flood Depth Screen", "headers": ["RETURN PERIOD", "SITE GRID CELL", "SMALL NEIGHBOURHOOD MAX"], "rows": flood_rows},
-            {"kind": "flag", "title": "FLOOD BOUNDARY", "severe": False, "text": "Riverine flood mapping does not establish pluvial drainage flooding, finished-floor elevation, building ingress or local drainage performance. Neighbourhood depth is not an on-site depth."},
-        ],
+        "blocks": flood_blocks,
     })
 
-    wb = water.get("baseline") or {}
-    future = water.get("future_water_stress") or {}
-    water_rows = [
-        ["Baseline water stress", wb.get("water_stress_label") or "Not available"],
-        ["Baseline water depletion", wb.get("water_depletion_label") or "Not available"],
-        ["Interannual variability", wb.get("interannual_variability_label") or "Not available"],
-        ["Seasonal variability", wb.get("seasonal_variability_label") or "Not available"],
-        ["Drought risk", wb.get("drought_risk_label") or "Not available"],
-    ]
-    future_rows = []
-    for scenario, years in future.items():
-        for year in ("2030","2050","2080"):
-            rec = (years or {}).get(year) or {}
-            if rec:
-                future_rows.append([
-                    scenario.replace("_"," ").title(),
-                    year,
-                    rec.get("label") or rec.get("category") or _fmt(rec.get("score")),
-                ])
+    if water.get("status") == "ok":
+        wb = water.get("baseline") or {}
+        future = water.get("future_water_stress") or {}
+        water_rows = [
+            ["Baseline water stress", wb.get("water_stress_label") or "Not available"],
+            ["Baseline water depletion", wb.get("water_depletion_label") or "Not available"],
+            ["Interannual variability", wb.get("interannual_variability_label") or "Not available"],
+            ["Seasonal variability", wb.get("seasonal_variability_label") or "Not available"],
+            ["Drought risk", wb.get("drought_risk_label") or "Not available"],
+        ]
+        future_rows = []
+        for scenario, years in future.items():
+            for year in ("2030","2050","2080"):
+                rec = (years or {}).get(year) or {}
+                if rec:
+                    future_rows.append([
+                        scenario.replace("_"," ").title(),
+                        year,
+                        rec.get("label") or rec.get("category") or _fmt(rec.get("score")),
+                    ])
+        water_blocks = [
+            {"kind": "kvtable", "title": "Baseline Water-Risk Context", "rows": water_rows},
+            {"kind": "table", "title": "Future Water-Stress Scenarios", "headers": ["SCENARIO", "HORIZON", "PROJECTED CATEGORY"], "rows": future_rows or [["—","—","Future values not resolved."]]},
+            {"kind": "flag", "title": "WATER-RISK BOUNDARY", "severe": False, "text": water.get("limitations") or "Aqueduct evidence is unavailable."},
+        ]
+    else:
+        water_blocks = [{
+            "kind": "flag",
+            "title": "WATER-RISK EVIDENCE STATUS — UNRESOLVED",
+            "severe": False,
+            "text": _public_gap_reason("water stress", water.get("reason")),
+        }]
     sections.append({
         "title": "Water Stress & Drought",
         "subtitle": "Basin-level Aqueduct 4.0 baseline and forward-looking water-stress screening.",
-        "blocks": [
-            {"kind": "kvtable", "title": "Baseline Water-Risk Context", "rows": water_rows},
-            {"kind": "table", "title": "Future Water-Stress Scenarios", "headers": ["SCENARIO", "HORIZON", "PROJECTED CATEGORY"], "rows": future_rows or [["—","—","Future water-stress values not resolved."]]},
-            {"kind": "flag", "title": "WATER-RISK BOUNDARY", "severe": False, "text": water.get("limitations") or "Aqueduct evidence is unavailable for this run."},
-        ],
+        "blocks": water_blocks,
     })
 
     t250 = terrain.get("metrics_250m") or {}
@@ -378,20 +443,29 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
         ],
     })
 
-    fire_rows = [
-        ["Thermal anomalies ≤5 km / 5 days", _fmt(fire.get("detection_count_within_5km"))],
-        ["Thermal anomalies ≤10 km / 5 days", _fmt(fire.get("detection_count_within_10km"))],
-        ["Thermal anomalies ≤25 km / 5 days", _fmt(fire.get("detection_count_within_25km"))],
-        ["Nearest thermal anomaly", _fmt((fire.get("nearest_detection") or {}).get("distance_km"), " km")],
-        ["Peak nearby Fire Radiative Power", _fmt((fire.get("peak_frp_detection") or {}).get("frp_mw"), " MW")],
-    ]
+    if fire.get("status") == "ok":
+        fire_rows = [
+            ["Thermal anomalies ≤5 km / 5 days", _fmt(fire.get("detection_count_within_5km"))],
+            ["Thermal anomalies ≤10 km / 5 days", _fmt(fire.get("detection_count_within_10km"))],
+            ["Thermal anomalies ≤25 km / 5 days", _fmt(fire.get("detection_count_within_25km"))],
+            ["Nearest thermal anomaly", _fmt((fire.get("nearest_detection") or {}).get("distance_km"), " km")],
+            ["Peak nearby Fire Radiative Power", _fmt((fire.get("peak_frp_detection") or {}).get("frp_mw"), " MW")],
+        ]
+        fire_blocks = [
+            {"kind": "kvtable", "title": "Operational Fire Context", "rows": fire_rows},
+            {"kind": "flag", "title": "WILDFIRE BOUNDARY", "severe": False, "text": fire.get("limitations") or "Long-horizon wildfire susceptibility remains a separate evidence need."},
+        ]
+    else:
+        fire_blocks = [{
+            "kind": "flag",
+            "title": "WILDFIRE EVIDENCE STATUS — UNRESOLVED",
+            "severe": False,
+            "text": _public_gap_reason("wildfire", fire.get("reason")),
+        }]
     sections.append({
         "title": "Wildfire & Fire Activity",
-        "subtitle": "Current NASA FIRMS thermal-anomaly context with long-horizon wildfire kept separate.",
-        "blocks": [
-            {"kind": "kvtable", "title": "Operational Fire Context", "rows": fire_rows},
-            {"kind": "flag", "title": "WILDFIRE BOUNDARY", "severe": False, "text": fire.get("limitations") or "FIRMS operational fire evidence is not configured or unavailable. Long-horizon wildfire susceptibility remains a separate evidence need."},
-        ],
+        "subtitle": "Current satellite thermal-anomaly context with long-horizon wildfire kept separate.",
+        "blocks": fire_blocks,
     })
 
     action_rows = []
@@ -411,7 +485,7 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
             gap_rows.append([
                 hazard,
                 rec.get("finding_text") or "Evidence unresolved",
-                rec.get("confidence_reason") or "Required evidence unavailable.",
+                _public_gap_reason(rec.get("hazard_type"), rec.get("confidence_reason")),
             ])
 
     sections.append({
@@ -514,6 +588,39 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
         },
     ]
 
+    materiality_rank = {"material": 0, "monitor": 1, "evidence_gap": 2, "low_relevance": 3}
+    finding_records = [spec.get("record") or {} for spec in (risk_findings or [])]
+    priority_findings = sorted(
+        finding_records,
+        key=lambda rec: (
+            materiality_rank.get(str(rec.get("materiality") or "").lower(), 9),
+            str(rec.get("hazard_type") or ""),
+        ),
+    )[:5]
+    if priority_findings:
+        executive_blocks.append({
+            "kind": "table",
+            "title": "Top Physical-Risk Findings",
+            "headers": ["DOMAIN", "MATERIALITY", "CONFIDENCE", "MANAGEMENT READING"],
+            "rows": [[
+                _titleize(rec.get("hazard_type")),
+                _titleize(rec.get("materiality")),
+                _titleize(rec.get("confidence")),
+                rec.get("finding_text") or "—",
+            ] for rec in priority_findings],
+        })
+        priority_actions = [
+            rec for rec in priority_findings
+            if rec.get("recommended_action")
+        ][:3]
+        if priority_actions:
+            executive_blocks.append({
+                "kind": "table",
+                "title": "Priority Due-Diligence Actions",
+                "headers": ["DOMAIN", "NEXT STEP"],
+                "rows": [[_titleize(rec.get("hazard_type")), rec.get("recommended_action")] for rec in priority_actions],
+            })
+
     if official:
         warning_blocks = [
             {"kind": "table", "title": "Current Official Warning Signals", "headers": ["HAZARD", "WARNING / AREA", "TIER", "DISTANCE", "AUTHORITY / SOURCE"], "rows": _hazard_rows(official, 15)},
@@ -564,7 +671,7 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
 
     search_radius = data.get("service_search_radius_km") or 80
     access_rows = [
-        ["Elevation returned for point", _fmt(data.get("elevation_m"), " m"), "Open-Meteo coordinate response; useful terrain context, not a survey."],
+        ["Elevation at assessed point", _fmt(data.get("elevation_m"), " m"), "Copernicus DEM GLO-30 terrain context; not a survey-grade elevation."],
         ["Mapped primary/secondary/tertiary roads within 5 km", str(len(data.get("mapped_primary_roads_5km") or [])), "OpenStreetMap completeness varies by locality."],
         ["Nearest mapped fire station", _service_value(data.get("nearest_fire_station"), search_radius, "fire station"), "Straight-line map distance, not response time."],
         ["Nearest mapped hospital/clinic", _service_value(data.get("nearest_hospital_or_clinic"), search_radius, "hospital/clinic"), "Straight-line map distance, not travel time or service capability."],
