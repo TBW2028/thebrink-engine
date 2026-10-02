@@ -1,5 +1,7 @@
 import os
 import base64
+import hashlib
+import secrets
 import calendar
 from datetime import datetime, timezone, timedelta
 import requests
@@ -19,6 +21,8 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABAS
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 TARGET_SUBSCRIPTION_ID = os.environ.get("TARGET_SUBSCRIPTION_ID", "").strip()
 ADMIN_EMAIL = os.environ.get("COMMERCIAL_REVIEW_EMAIL", "thebrink2028@gmail.com")
+DRAFT_BUCKET = os.environ.get("COMMERCIAL_DRAFT_BUCKET", "commercial-report-drafts")
+REVIEW_BASE_URL = os.environ.get("COMMERCIAL_REVIEW_BASE_URL", "https://thebrink-engine.thebrink2028.workers.dev").rstrip("/")
 
 
 def headers(prefer=None):
@@ -97,7 +101,63 @@ def sb_insert_rows(path, values):
     return rows if isinstance(rows, list) else []
 
 
-def send_admin_draft(pdf_path, ref, facility, subscription):
+def ensure_draft_bucket():
+    """Create the private Supabase Storage bucket once; existing-bucket responses are harmless."""
+    url = f"{SUPABASE_URL}/storage/v1/bucket"
+    payload = {
+        "id": DRAFT_BUCKET,
+        "name": DRAFT_BUCKET,
+        "public": False,
+        "file_size_limit": 25000000,
+        "allowed_mime_types": ["application/pdf"],
+    }
+    response = requests.post(url, headers=headers(), json=payload, timeout=20)
+    if response.status_code in (200, 201):
+        return
+    # Supabase can return 400/409 when the bucket already exists.
+    if response.status_code in (400, 409) and "exist" in response.text.lower():
+        return
+    # Verify the bucket before treating another create response as fatal.
+    check = requests.get(
+        f"{SUPABASE_URL}/storage/v1/bucket/{DRAFT_BUCKET}",
+        headers=headers(),
+        timeout=20,
+    )
+    if check.status_code == 200:
+        return
+    raise RuntimeError(
+        f"Commercial draft storage bucket could not be prepared: "
+        f"{response.status_code} {response.text[:300]}"
+    )
+
+
+def upload_draft_pdf(pdf_path, facility_id, run_id, ref):
+    ensure_draft_bucket()
+    object_path = f"{facility_id}/{run_id}/{ref}.pdf"
+    with open(pdf_path, "rb") as handle:
+        content = handle.read()
+
+    upload_headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/pdf",
+        "x-upsert": "true",
+    }
+    response = requests.post(
+        f"{SUPABASE_URL}/storage/v1/object/{DRAFT_BUCKET}/{object_path}",
+        headers=upload_headers,
+        data=content,
+        timeout=60,
+    )
+    if response.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Commercial draft PDF upload failed ({response.status_code}): "
+            f"{response.text[:400]}"
+        )
+    return object_path
+
+
+def send_admin_draft(pdf_path, ref, facility, subscription, run_id, approval_token):
     if not RESEND_API_KEY:
         raise RuntimeError("RESEND_API_KEY is required for internal draft review delivery.")
 
@@ -107,6 +167,10 @@ def send_admin_draft(pdf_path, ref, facility, subscription):
     product_label = str(subscription.get("product_type") or "commercial report").replace("_", " ").title()
     site_name = facility.get("facility_name") or facility.get("location_label") or "Monitored Facility"
     client_email = facility.get("contact_email") or "Not supplied"
+    review_url = (
+        f"{REVIEW_BASE_URL}/api/commercial/report-review"
+        f"?run={run_id}&token={approval_token}"
+    )
     payload = {
         "from": os.environ.get("DOSSIER_FROM_EMAIL", "The Brink World <intel@thebrinkworld.com>"),
         "to": [ADMIN_EMAIL],
@@ -119,8 +183,11 @@ def send_admin_draft(pdf_path, ref, facility, subscription):
             f"<p><strong>Client recipient after approval:</strong> {client_email}</p>"
             f"<p><strong>Location:</strong> {facility.get('location_label') or 'Not supplied'}</p>"
             "<p><strong>The client has NOT been emailed this report.</strong></p>"
-            "<p>Review the attached PDF for facility details, coordinates, evidence and wording. "
-            "Client delivery remains a separate approval step.</p>"
+            "<p>Review the attached PDF for facility details, coordinates, evidence and wording.</p>"
+            f'<p style="margin:24px 0"><a href="{review_url}" '
+            'style="background:#0b7285;color:white;text-decoration:none;padding:12px 18px;'
+            'border-radius:5px;font-weight:700">REVIEW & APPROVE CLIENT DELIVERY</a></p>'
+            "<p>Opening the review page does not send the report. A second confirmation is required.</p>"
         ),
         "attachments": [{"filename": f"DRAFT_{ref}.pdf", "content": pdf_b64}],
     }
@@ -288,6 +355,16 @@ def main():
                 print(f"[WARN] V2 evidence ledger write failed for {f['facility_name']}: {ledger_exc}")
 
             finished = datetime.now(timezone.utc)
+            approval_token = secrets.token_urlsafe(32)
+            approval_hash = hashlib.sha256(approval_token.encode("utf-8")).hexdigest()
+            approval_expires = finished + timedelta(days=14)
+            object_path = upload_draft_pdf(
+                pdf_path,
+                facility_id=f["id"],
+                run_id=run["id"],
+                ref=ref,
+            )
+
             evidence_summary = {
                 "v2_evidence_items": evidence_count,
                 "v2_risk_findings": finding_count,
@@ -295,28 +372,37 @@ def main():
                 "materiality_rules": MATERIALITY_RULES_VERSION,
                 "confidence_rules": CONFIDENCE_RULES_VERSION,
                 "evidence_schema": EVIDENCE_SCHEMA_VERSION,
+                "draft_bucket": DRAFT_BUCKET,
+                "draft_object_path": object_path,
+                "delivery_approval_hash": approval_hash,
+                "delivery_approval_expires_at": approval_expires.isoformat(),
+                "client_delivery_status": "awaiting_approval",
             }
             if ledger_error:
                 evidence_summary["ledger_error"] = ledger_error
 
-            send_admin_draft(pdf_path, ref, f, sub)
-
+            # Persist the approval gate before sending the review email.
             sb_patch("brink_report_runs", {"id": run["id"]}, {
                 "report_status": "awaiting_approval",
                 "report_ref": ref,
-                "output_location": pdf_path,
+                "output_location": f"supabase://{DRAFT_BUCKET}/{object_path}",
                 "completed_at": finished.isoformat(),
                 "evidence_summary": evidence_summary,
             })
+            sb_patch("brink_monitoring_subscriptions", {"id": sub["id"]}, {
+                "status": "awaiting_report_approval",
+                "next_report_at": None,
+            })
 
-            following = next_due(finished, sub.get("cadence"))
-            sub_update = {
-                "last_report_at": finished.isoformat(),
-                "next_report_at": following.isoformat() if following else None,
-            }
-            if str(sub.get("cadence") or "").lower() == "one_off":
-                sub_update["status"] = "awaiting_report_approval"
-            sb_patch("brink_monitoring_subscriptions", {"id": sub["id"]}, sub_update)
+            send_admin_draft(
+                pdf_path,
+                ref,
+                f,
+                sub,
+                run_id=run["id"],
+                approval_token=approval_token,
+            )
+
             print(
                 f"[DRAFT] {sub['product_type']} generated for {f['facility_name']} · {ref} "
                 f"· admin review required · evidence={evidence_count} findings={finding_count}"
