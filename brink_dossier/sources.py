@@ -1950,6 +1950,61 @@ def fetch_telemetry(lat, lon, context=None):
     days = weather.get("days") or []
 
     live = fetch_live_hazards(lat, lon)
+
+    # For India-facing reports, augment the USGS 24-hour view with NCS India
+    # events already present in the operational hazard layer. Prefer NCS when
+    # the same earthquake is represented by both sources.
+    ncs_events_24h = []
+    cutoff_24h = now - timedelta(hours=24)
+    for hazard in live:
+        if "earth" not in str(hazard.get("category") or "").lower():
+            continue
+        if "ncs" not in str(hazard.get("source") or "").lower():
+            continue
+        try:
+            observed = datetime.fromisoformat(str(hazard.get("observed_at") or "").replace("Z", "+00:00"))
+            magnitude = float(hazard.get("magnitude"))
+            distance = float(hazard.get("distance_km"))
+        except Exception:
+            continue
+        if observed < cutoff_24h or distance > 350 or magnitude < 1.0:
+            continue
+        ncs_events_24h.append({
+            "place": hazard.get("name") or "India region earthquake",
+            "mag": round(magnitude, 1),
+            "depth_km": round(float(hazard.get("depth_km") or 0), 1),
+            "distance_km": round(distance),
+            "observed_at": observed.isoformat(),
+            "source": "NCS India",
+        })
+
+    combined_quakes_24h = list(recent_events_24h)
+    for ncs in ncs_events_24h:
+        try:
+            ncs_time = datetime.fromisoformat(str(ncs.get("observed_at")).replace("Z", "+00:00"))
+        except Exception:
+            ncs_time = None
+        match_index = None
+        for idx, usgs in enumerate(combined_quakes_24h):
+            if usgs.get("source") != "USGS":
+                continue
+            try:
+                usgs_time = datetime.fromisoformat(str(usgs.get("observed_at")).replace("Z", "+00:00"))
+                close_time = ncs_time is not None and abs((usgs_time - ncs_time).total_seconds()) <= 600
+                close_mag = abs(float(usgs.get("mag") or 0) - float(ncs.get("mag") or 0)) <= 0.3
+                close_distance = abs(float(usgs.get("distance_km") or 0) - float(ncs.get("distance_km") or 0)) <= 35
+            except Exception:
+                continue
+            if close_time and close_mag and close_distance:
+                match_index = idx
+                break
+        if match_index is not None:
+            combined_quakes_24h[match_index] = ncs
+        else:
+            combined_quakes_24h.append(ncs)
+
+    combined_quakes_24h.sort(key=lambda q: q.get("observed_at") or "", reverse=True)
+
     local_300 = [h for h in live if h["distance_km"] <= 300]
     nearby_1000 = [h for h in live if h["distance_km"] <= 1000]
     official_local = [h for h in local_300 if h.get("signal_mode") == "official_warning"]
@@ -2004,9 +2059,9 @@ def fetch_telemetry(lat, lon, context=None):
         "terrain": terrain,
         "cyclone_history": cyclone_history,
         "fire_context": fire_context,
-        "recent_quakes": recent_events_24h,
-        "recent_quakes_24h": recent_events_24h,
-        "quake_count_24h_350km_m1": len(recent_events_24h),
+        "recent_quakes": combined_quakes_24h,
+        "recent_quakes_24h": combined_quakes_24h,
+        "quake_count_24h_350km_m1": len(combined_quakes_24h),
         "quake_count_30d_350km": len(quakes_30d_data.get("features", [])),
         "live_hazards_300km": local_300,
         "live_hazards_1000km": nearby_1000,
@@ -2032,7 +2087,7 @@ def fetch_telemetry(lat, lon, context=None):
             {
                 "name": "USGS Earthquake Catalog",
                 "type": "Observed",
-                "note": "Primary operational seismic table: all USGS events returned within 350 km in the latest 24 hours at magnitude 1.0+. A separate 30-day M2.5+ count is retained for broader regional context."
+                "note": "Primary operational seismic table: catalogued M1.0+ events within 350 km in the latest 24 hours, using NCS India where available for India-facing events and USGS as a global source. A separate USGS 30-day M2.5+ count is retained for broader context."
             },
             {
                 "name": "MET Norway Locationforecast 2.0",
@@ -2042,7 +2097,7 @@ def fetch_telemetry(lat, lon, context=None):
             {
                 "name": "Copernicus Climate Change Service (C3S) — ERA5-Land",
                 "type": "Reanalysis / historical climate",
-                "note": "Historical heat baseline derived from ERA5-Land daily statistics via the Copernicus Climate Data Store; CC-BY; DOI 10.24381/cds.e9c9c792."
+                "note": "Historical heat baseline derived by The Brink World from ERA5-Land hourly point time-series, aggregated to daily maxima/minima; CC-BY-4.0; DOI 10.24381/ee82e357."
             } if historical_heat.get("status") == "ok" else None,
             {
                 "name": "Copernicus Climate Change Service (C3S) — ERA5-Land precipitation",
