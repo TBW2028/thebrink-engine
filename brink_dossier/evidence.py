@@ -159,8 +159,8 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
             continue
         items.append(_evidence(
             report_run_id, facility_id, hazard, code, name,
-            "Open-Meteo", "modelled",
-            value_numeric=value, unit=unit, source_dataset="Open-Meteo Forecast API",
+            "MET Norway Locationforecast 2.0", "modelled",
+            value_numeric=value, unit=unit, source_dataset="MET Norway Locationforecast 2.0",
             retrieved_at=retrieved, temporal_resolution="current modelled condition",
             confidence="medium",
             confidence_reason="Established numerical weather source at the assessed coordinate, but not an on-site observation.",
@@ -649,9 +649,9 @@ def build_evidence_items(report_run_id, facility, profile, telemetry):
         items.append(_evidence(
             report_run_id, facility_id, "terrain",
             "elevation_m", "Modelled/mapped elevation at assessed coordinate",
-            "Open-Meteo", "modelled",
+            "MET Norway Locationforecast 2.0", "modelled",
             value_numeric=telemetry.get("elevation_m"), unit="m",
-            source_dataset="Open-Meteo Forecast API", retrieved_at=retrieved,
+            source_dataset="MET Norway Locationforecast 2.0", retrieved_at=retrieved,
             confidence="medium",
             confidence_reason="Coordinate-based elevation returned by the source.",
             limitations="Not survey-grade elevation and not sufficient to establish flood or landslide exposure.",
@@ -901,7 +901,7 @@ def build_risk_findings(report_run_id, facility, profile, telemetry):
             confidence="unresolved",
             confidence_reason=heat_ctx.get("reason") or "Historical heat evidence is unavailable.",
             action_type="verify",
-            action="Configure the commercial historical-weather source and add future scenario evidence before classifying heat materiality.",
+            action="Resolve the ERA5-Land historical heat baseline and add forward-looking climate scenario evidence before classifying heat materiality.",
             support=["historical_heat_baseline_status", "current_temperature_c", "client_cooling_dependency"],
         )
 
