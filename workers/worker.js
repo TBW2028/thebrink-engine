@@ -1684,7 +1684,7 @@ export default {
                     <tr><td style="padding:6px;color:#666">Terms accepted</td><td>${safe(termsVersion)} · ${safe(privacyVersion)}</td></tr>
                   </table>
                   <p><strong>Requested workflow:</strong> ${safe(notes || "Not supplied")}</p>
-                  <p><a href="${reviewUrl.toString()}" style="display:inline-block;background:#0b0d11;color:#fff;padding:12px 18px;text-decoration:none">Review & activate</a></p>
+                  <p><a href="${reviewUrl.toString()}" style="display:inline-block;background:#0b0d11;color:#fff;padding:12px 18px;text-decoration:none">Review request & payment</a></p>
                 </div>
               `
             })
@@ -1796,8 +1796,8 @@ export default {
       <form method="post" action="/api/commercial/activate">
         <input type="hidden" name="subscription" value="${esc(subscriptionId)}">
         <input type="hidden" name="token" value="${esc(token)}">
-        <label style="display:block;margin:14px 0"><input type="checkbox" name="confirmed" value="yes" required> Commercial scope/payment has been approved and reporting may begin.</label>
-        <button type="submit">ACTIVATE & GENERATE FIRST REPORT</button>
+        <label style="display:block;margin:14px 0"><input type="checkbox" name="confirmed" value="yes" required> I have reviewed this request and confirm the commercial scope/payment is approved. Generate the internal draft only; do not send it to the client yet.</label>
+        <button type="submit">APPROVE SCOPE/PAYMENT & GENERATE DRAFT</button>
       </form>`}
       </div></body></html>`;
 
