@@ -226,12 +226,22 @@ def _public_gap_reason(hazard, reason):
 
 
 def _risk_finding_rows(risk_findings):
+    records = [(spec.get("record") or {}) for spec in (risk_findings or [])]
+    hazard_types = {str(rec.get("hazard_type") or "") for rec in records}
     rows = []
-    for spec in risk_findings or []:
-        rec = spec.get("record") or {}
+    for rec in records:
+        hazard = str(rec.get("hazard_type") or "")
+        materiality = str(rec.get("materiality") or "")
+        # Avoid duplicating a resolved/current module and its narrower unresolved
+        # boundary in the headline materiality table. The unresolved boundary
+        # remains visible in Data Gaps & Reliance Conditions.
+        if hazard == "wind" and materiality == "evidence_gap" and "tropical_cyclone" in hazard_types:
+            continue
+        if hazard == "wildfire" and materiality == "evidence_gap" and "wildfire_operational" in hazard_types:
+            continue
         rows.append([
-            _titleize(rec.get("hazard_type")),
-            _titleize(rec.get("materiality")),
+            _titleize(hazard),
+            _titleize(materiality),
             _titleize(rec.get("facility_sensitivity")),
             _titleize(rec.get("confidence")),
             rec.get("finding_text") or "—",
