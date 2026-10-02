@@ -50,6 +50,7 @@
   .cover-classif { font-family: 'IBM Plex Mono', monospace; font-size: 6.6pt; font-weight: 600; color: #C6564E; letter-spacing: 0.12em; }
   .cover-site { font-family: 'Bebas Neue', sans-serif; font-size: 32pt; line-height: 0.98; color: #fff; margin-top: 4px; }
   .cover-client { font-size: 10.5pt; color: #99A0AE; margin-top: 5px; font-weight: 500; }
+  .cover-location { font-family: "IBM Plex Mono", monospace; font-size: 7pt; color: #C1C6D0; margin-top: 7px; }
   .posture-label { font-family: 'IBM Plex Mono', monospace; font-size: 6.2pt; color:#7C8290; letter-spacing:.08em; text-transform:uppercase; }
   .posture-value { font-family: 'Bebas Neue', sans-serif; font-size: 28pt; line-height: 1; color:#fff; margin-top:3px; }
   .posture-grid { display:table; width:100%; margin-top:10px; border-top:.5pt solid #2A2E36; border-bottom:.5pt solid #2A2E36; }
@@ -78,6 +79,7 @@
     <div class="cover-meta">{{ meta.coords_str }} · {{ meta.occupancy_label }} · Ref: {{ meta.ref }}</div>
     <div style="margin-top: 42mm;">
       <div class="cover-site">{{ meta.site_name }}</div>
+      <div class="cover-location">{{ meta.location_label }}</div>
       <div class="cover-client">Prepared for {{ meta.customer_name }}</div>
     </div>
     <div style="margin-top: 14mm;">
