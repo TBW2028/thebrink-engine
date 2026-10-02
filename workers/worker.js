@@ -1791,7 +1791,7 @@ export default {
       <div class="row"><span class="k">Cadence</span><span class="v">${esc(sub.cadence)}</span></div>
       <div class="row"><span class="k">Critical function</span><span class="v">${esc(facility.critical_function || "—")}</span></div>
       <div class="row"><span class="k">Requested workflow</span><span class="v">${esc(sub.commercial_terms?.notes || "—")}</span></div>
-      <div class="warn"><strong>Activation starts reporting.</strong><br>Confirm the commercial scope/payment separately before activating. An active subscription can immediately generate and email the first report.</div>
+      <div class="warn"><strong>Activation starts draft generation.</strong><br>Confirm the commercial scope/payment separately before activating. The generated report is sent to The Brink World for internal review first; client delivery is a separate approval step.</div>
       ${already ? `<p><strong>Status: ${esc(sub.status)}</strong></p>` : `
       <form method="post" action="/api/commercial/activate">
         <input type="hidden" name="subscription" value="${esc(subscriptionId)}">
@@ -1877,7 +1877,7 @@ export default {
         }
 
         return new Response(
-          '<!doctype html><html><body style="font-family:Arial,sans-serif;background:#080b10;color:#eef2f7;padding:40px"><div style="max-width:650px;margin:auto"><h2>Facility monitoring activated.</h2><p>The first commercial report has been queued. Future reporting will follow the approved cadence.</p></div></body></html>',
+          '<!doctype html><html><body style="font-family:Arial,sans-serif;background:#080b10;color:#eef2f7;padding:40px"><div style="max-width:650px;margin:auto"><h2>Facility monitoring activated.</h2><p>The first commercial report has been queued for internal review. The client will not receive the generated report until The Brink World approves client delivery.</p></div></body></html>',
           { headers:{ "Content-Type":"text/html; charset=utf-8" } }
         );
       } catch (err) {
