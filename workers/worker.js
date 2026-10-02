@@ -1885,6 +1885,337 @@ export default {
       }
     }
 
+
+    // Commercial report delivery approval gate.
+    // Draft generation is complete before this stage; GET only displays review metadata.
+    if (url.pathname === "/api/commercial/report-review" && request.method === "GET") {
+      try {
+        const runId = String(url.searchParams.get("run") || "");
+        const token = String(url.searchParams.get("token") || "");
+        const sbUrl = env.SUPABASE_URL;
+        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
+        if (!runId || !token || !sbUrl || !sbKey) {
+          throw new Error("Invalid report-review link.");
+        }
+
+        const runUrl = new URL(`${sbUrl}/rest/v1/brink_report_runs`);
+        runUrl.searchParams.set("id", `eq.${runId}`);
+        runUrl.searchParams.set(
+          "select",
+          "id,facility_id,subscription_id,product_type,report_ref,report_status,evidence_as_of,evidence_summary,output_location,completed_at"
+        );
+        runUrl.searchParams.set("limit", "1");
+        const runRes = await fetch(runUrl.toString(), { headers: sbHeaders(sbKey) });
+        if (!runRes.ok) throw new Error("Report-run lookup failed.");
+        const reportRun = (await runRes.json())[0];
+        if (!reportRun) throw new Error("Report draft not found.");
+
+        const summary = reportRun.evidence_summary || {};
+        const suppliedHash = await sha256Hex(token);
+        const expiresAt = summary.delivery_approval_expires_at
+          ? new Date(summary.delivery_approval_expires_at).getTime()
+          : 0;
+        if (!summary.delivery_approval_hash || suppliedHash !== summary.delivery_approval_hash || expiresAt < Date.now()) {
+          return new Response("This report-review link is invalid or expired.", {
+            status: 403,
+            headers: { "Content-Type": "text/plain; charset=utf-8" }
+          });
+        }
+
+        const fUrl = new URL(`${sbUrl}/rest/v1/brink_facilities`);
+        fUrl.searchParams.set("id", `eq.${reportRun.facility_id}`);
+        fUrl.searchParams.set("select", "*");
+        fUrl.searchParams.set("limit", "1");
+        const facilityRes = await fetch(fUrl.toString(), { headers: sbHeaders(sbKey) });
+        const facility = facilityRes.ok ? (await facilityRes.json())[0] : null;
+        if (!facility) throw new Error("Facility record not found.");
+
+        const subUrl = new URL(`${sbUrl}/rest/v1/brink_monitoring_subscriptions`);
+        subUrl.searchParams.set("id", `eq.${reportRun.subscription_id}`);
+        subUrl.searchParams.set("select", "id,product_type,cadence,status,approved_at,approved_by");
+        subUrl.searchParams.set("limit", "1");
+        const subRes = await fetch(subUrl.toString(), { headers: sbHeaders(sbKey) });
+        const sub = subRes.ok ? (await subRes.json())[0] : null;
+
+        const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
+          "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+        }[ch]));
+        const productLabels = {
+          facility_risk_passport: "Facility Risk Passport",
+          physical_risk_evidence_pack: "Physical Risk Evidence Pack",
+          pre_underwriting_site_intelligence: "Pre-Underwriting Site Intelligence",
+          business_continuity_threat_register: "External Threat Register"
+        };
+        const alreadyDelivered = reportRun.report_status === "delivered";
+        const canDeliver = reportRun.report_status === "awaiting_approval";
+
+        const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Report Delivery Review · The Brink World</title>
+        <style>
+        body{font-family:Arial,sans-serif;background:#080b10;color:#eef2f7;margin:0;padding:28px}
+        .card{max-width:760px;margin:auto;background:#111722;border:1px solid #263348;border-radius:10px;padding:24px}
+        h1{margin:6px 0 18px}.row{display:grid;grid-template-columns:190px 1fr;gap:12px;padding:9px 0;border-bottom:1px solid #202b3a}
+        .k{color:#8fa1b6}.v{font-weight:700}.ok{margin:18px 0;padding:12px;border:1px solid #1c8c61;background:#0f2a22;border-radius:6px;color:#c8f7e6}
+        .warn{margin:18px 0;padding:12px;border:1px solid #a97821;background:#2a2111;border-radius:6px;color:#f2ddb3}
+        button{background:#00f3ff;color:#061018;border:0;border-radius:5px;padding:12px 18px;font-weight:800;cursor:pointer}
+        @media(max-width:560px){.row{grid-template-columns:1fr;gap:3px}}
+        </style></head><body><div class="card">
+        <div style="font-size:12px;color:#8fa1b6;text-transform:uppercase;letter-spacing:.08em">The Brink World · Final Client Delivery Gate</div>
+        <h1>${esc(facility.facility_name)}</h1>
+        <div class="row"><span class="k">Report reference</span><span class="v">${esc(reportRun.report_ref)}</span></div>
+        <div class="row"><span class="k">Organisation</span><span class="v">${esc(facility.organization_name)}</span></div>
+        <div class="row"><span class="k">Client</span><span class="v">${esc(facility.contact_name)} · ${esc(facility.contact_email)}</span></div>
+        <div class="row"><span class="k">Location</span><span class="v">${esc(facility.location_label)}</span></div>
+        <div class="row"><span class="k">Product</span><span class="v">${esc(productLabels[reportRun.product_type] || reportRun.product_type)}</span></div>
+        <div class="row"><span class="k">Cadence</span><span class="v">${esc(sub?.cadence || "—")}</span></div>
+        <div class="row"><span class="k">Draft status</span><span class="v">${esc(reportRun.report_status)}</span></div>
+        ${alreadyDelivered ? '<div class="ok"><strong>Already delivered.</strong> The client-delivery step has already completed.</div>' : ''}
+        ${canDeliver ? `
+          <div class="warn"><strong>Final approval.</strong><br>The PDF attached to your review email is the file that will be sent to the client. Confirm only after checking facility, location, profile, evidence and payment/scope.</div>
+          <form method="post" action="/api/commercial/report-deliver">
+            <input type="hidden" name="run" value="${esc(runId)}">
+            <input type="hidden" name="token" value="${esc(token)}">
+            <label style="display:block;margin:16px 0"><input type="checkbox" name="confirmed" value="yes" required> I reviewed the draft and approve this exact report for delivery to the client.</label>
+            <button type="submit">APPROVE & SEND TO CLIENT</button>
+          </form>` : (!alreadyDelivered ? `<div class="warn">This report is not currently eligible for client delivery. Status: ${esc(reportRun.report_status)}</div>` : '')}
+        </div></body></html>`;
+
+        return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+      } catch (err) {
+        return new Response(`Report review failed: ${err.message}`, {
+          status: 500,
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        });
+      }
+    }
+
+    if (url.pathname === "/api/commercial/report-deliver" && request.method === "POST") {
+      try {
+        const form = await request.formData();
+        const runId = String(form.get("run") || "");
+        const token = String(form.get("token") || "");
+        const confirmed = String(form.get("confirmed") || "") === "yes";
+        if (!runId || !token || !confirmed) throw new Error("Report delivery confirmation is incomplete.");
+
+        const sbUrl = env.SUPABASE_URL;
+        const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
+        if (!sbUrl || !sbKey || !env.RESEND_API_KEY) {
+          throw new Error("Commercial delivery environment is incomplete.");
+        }
+
+        const runUrl = new URL(`${sbUrl}/rest/v1/brink_report_runs`);
+        runUrl.searchParams.set("id", `eq.${runId}`);
+        runUrl.searchParams.set(
+          "select",
+          "id,facility_id,subscription_id,product_type,report_ref,report_status,evidence_summary,output_location"
+        );
+        runUrl.searchParams.set("limit", "1");
+        const runLookup = await fetch(runUrl.toString(), { headers: sbHeaders(sbKey) });
+        if (!runLookup.ok) throw new Error("Report-run lookup failed.");
+        const reportRun = (await runLookup.json())[0];
+        if (!reportRun) throw new Error("Report draft not found.");
+        if (reportRun.report_status === "delivered") {
+          return new Response("This report has already been delivered.", {
+            status: 200,
+            headers: { "Content-Type":"text/plain; charset=utf-8" }
+          });
+        }
+
+        const summary = reportRun.evidence_summary || {};
+        const suppliedHash = await sha256Hex(token);
+        const expiresAt = summary.delivery_approval_expires_at
+          ? new Date(summary.delivery_approval_expires_at).getTime()
+          : 0;
+        if (!summary.delivery_approval_hash || suppliedHash !== summary.delivery_approval_hash || expiresAt < Date.now()) {
+          return new Response("This report-delivery approval is invalid or expired.", {
+            status: 403,
+            headers: { "Content-Type":"text/plain; charset=utf-8" }
+          });
+        }
+        if (reportRun.report_status !== "awaiting_approval") {
+          throw new Error(`Report status is ${reportRun.report_status}; expected awaiting_approval.`);
+        }
+
+        // Atomic status claim prevents duplicate sends from double-clicks or concurrent approvals.
+        const claim = await fetch(
+          `${sbUrl}/rest/v1/brink_report_runs?id=eq.${encodeURIComponent(runId)}&report_status=eq.awaiting_approval`,
+          {
+            method: "PATCH",
+            headers: sbHeaders(sbKey, "return=representation"),
+            body: JSON.stringify({ report_status: "delivering" })
+          }
+        );
+        if (!claim.ok) throw new Error(`Could not claim report for delivery: ${await claim.text()}`);
+        const claimed = await claim.json();
+        if (!Array.isArray(claimed) || claimed.length === 0) {
+          return new Response("This report is already being processed.", {
+            status: 409,
+            headers: { "Content-Type":"text/plain; charset=utf-8" }
+          });
+        }
+
+        const fUrl = new URL(`${sbUrl}/rest/v1/brink_facilities`);
+        fUrl.searchParams.set("id", `eq.${reportRun.facility_id}`);
+        fUrl.searchParams.set("select", "*");
+        fUrl.searchParams.set("limit", "1");
+        const facilityRes = await fetch(fUrl.toString(), { headers: sbHeaders(sbKey) });
+        const facility = facilityRes.ok ? (await facilityRes.json())[0] : null;
+        if (!facility || !facility.contact_email) throw new Error("Client delivery address is unavailable.");
+
+        const subUrl = new URL(`${sbUrl}/rest/v1/brink_monitoring_subscriptions`);
+        subUrl.searchParams.set("id", `eq.${reportRun.subscription_id}`);
+        subUrl.searchParams.set("select", "*");
+        subUrl.searchParams.set("limit", "1");
+        const subRes = await fetch(subUrl.toString(), { headers: sbHeaders(sbKey) });
+        const sub = subRes.ok ? (await subRes.json())[0] : null;
+        if (!sub) throw new Error("Monitoring subscription not found.");
+
+        const bucket = String(summary.draft_bucket || "commercial-report-drafts");
+        const objectPath = String(summary.draft_object_path || "");
+        if (!objectPath) throw new Error("Stored draft PDF path is unavailable.");
+        const encodedPath = objectPath.split("/").map(encodeURIComponent).join("/");
+        const storageHeaders = {
+          "apikey": sbKey,
+          "Authorization": `Bearer ${sbKey}`
+        };
+        let pdfRes = await fetch(
+          `${sbUrl}/storage/v1/object/authenticated/${encodeURIComponent(bucket)}/${encodedPath}`,
+          { headers: storageHeaders }
+        );
+        if (!pdfRes.ok) {
+          pdfRes = await fetch(
+            `${sbUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`,
+            { headers: storageHeaders }
+          );
+        }
+        if (!pdfRes.ok) {
+          throw new Error(`Stored draft PDF could not be retrieved (${pdfRes.status}).`);
+        }
+        const pdfBytes = new Uint8Array(await pdfRes.arrayBuffer());
+
+        // Chunk-safe base64 conversion for Worker runtime.
+        let binary = "";
+        const chunkSize = 0x8000;
+        for (let i = 0; i < pdfBytes.length; i += chunkSize) {
+          binary += String.fromCharCode(...pdfBytes.subarray(i, i + chunkSize));
+        }
+        const pdfB64 = btoa(binary);
+
+        const productLabels = {
+          facility_risk_passport: "Facility Risk Passport",
+          physical_risk_evidence_pack: "Physical Risk Evidence Pack",
+          pre_underwriting_site_intelligence: "Pre-Underwriting Site Intelligence",
+          business_continuity_threat_register: "External Threat Register"
+        };
+        const productTitle = productLabels[reportRun.product_type] || "Facility Risk Report";
+        const siteName = facility.facility_name || facility.location_label || "Monitored Facility";
+        const sender = env.DOSSIER_FROM_EMAIL || "The Brink World <intel@thebrinkworld.com>";
+        const attachment = {
+          filename: `Dossier_${reportRun.report_ref || runId.slice(0,8)}.pdf`,
+          content: pdfB64
+        };
+        const resendHeaders = {
+          "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+          "Content-Type": "application/json"
+        };
+
+        const customerPayload = {
+          from: sender,
+          to: [facility.contact_email],
+          reply_to: "thebrink2028@gmail.com",
+          subject: `Your ${productTitle} — ${siteName} (${reportRun.report_ref})`,
+          html: `
+            <h3>The Brink World — ${productTitle}</h3>
+            <p>Your approved facility risk report for <strong>${siteName}</strong> is attached.</p>
+            <p><strong>Location:</strong> ${facility.location_label || "Not supplied"}</p>
+            <p><strong>Reference:</strong> ${reportRun.report_ref}</p>
+            <p>The evidence classes, confidence notes and reliance limits inside the dossier explain how each finding should be interpreted.</p>
+          `,
+          attachments: [attachment]
+        };
+        const customerMail = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: resendHeaders,
+          body: JSON.stringify(customerPayload)
+        });
+        if (!customerMail.ok) {
+          await fetch(`${sbUrl}/rest/v1/brink_report_runs?id=eq.${encodeURIComponent(runId)}`, {
+            method: "PATCH",
+            headers: sbHeaders(sbKey, "return=minimal"),
+            body: JSON.stringify({ report_status: "delivery_failed" })
+          });
+          throw new Error(`Client email failed (${customerMail.status}): ${await customerMail.text()}`);
+        }
+
+        // Internal archive copy is best-effort after successful client delivery.
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: resendHeaders,
+          body: JSON.stringify({
+            from: sender,
+            to: ["thebrink2028@gmail.com"],
+            reply_to: facility.contact_email,
+            subject: `[REPORT DELIVERED] ${productTitle} · ${siteName} · ${reportRun.report_ref}`,
+            html: `
+              <h3>The Brink World — Delivery Record</h3>
+              <p><strong>Client:</strong> ${facility.contact_name || "—"} · ${facility.contact_email}</p>
+              <p><strong>Facility:</strong> ${siteName}</p>
+              <p><strong>Location:</strong> ${facility.location_label || "—"}</p>
+              <p><strong>Reference:</strong> ${reportRun.report_ref}</p>
+              <p>The exact PDF delivered to the client is attached.</p>
+            `,
+            attachments: [attachment]
+          })
+        }).catch(() => {});
+
+        const deliveredAt = new Date();
+        const addMonths = (date, months) => {
+          const d = new Date(date.getTime());
+          const originalDay = d.getUTCDate();
+          d.setUTCDate(1);
+          d.setUTCMonth(d.getUTCMonth() + months);
+          const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+          d.setUTCDate(Math.min(originalDay, lastDay));
+          return d;
+        };
+        let nextReportAt = null;
+        const cadence = String(sub.cadence || "monthly").toLowerCase();
+        if (cadence === "weekly") nextReportAt = new Date(deliveredAt.getTime() + 7 * 86400000);
+        else if (cadence === "quarterly") nextReportAt = addMonths(deliveredAt, 3);
+        else if (cadence === "annual") nextReportAt = addMonths(deliveredAt, 12);
+        else if (cadence !== "one_off") nextReportAt = addMonths(deliveredAt, 1);
+
+        await fetch(`${sbUrl}/rest/v1/brink_report_runs?id=eq.${encodeURIComponent(runId)}`, {
+          method: "PATCH",
+          headers: sbHeaders(sbKey, "return=minimal"),
+          body: JSON.stringify({
+            report_status: "delivered",
+            completed_at: deliveredAt.toISOString()
+          })
+        });
+
+        await fetch(`${sbUrl}/rest/v1/brink_monitoring_subscriptions?id=eq.${encodeURIComponent(sub.id)}`, {
+          method: "PATCH",
+          headers: sbHeaders(sbKey, "return=minimal"),
+          body: JSON.stringify({
+            status: cadence === "one_off" ? "completed" : "active",
+            last_report_at: deliveredAt.toISOString(),
+            next_report_at: nextReportAt ? nextReportAt.toISOString() : null
+          })
+        });
+
+        return new Response(
+          '<!doctype html><html><body style="font-family:Arial,sans-serif;background:#080b10;color:#eef2f7;padding:40px"><div style="max-width:650px;margin:auto"><h2>Report delivered.</h2><p>The approved PDF has now been sent to the client and the delivery record has been updated.</p></div></body></html>',
+          { headers: { "Content-Type":"text/html; charset=utf-8" } }
+        );
+      } catch (err) {
+        return new Response(`Report delivery failed: ${err.message}`, {
+          status: 500,
+          headers: { "Content-Type":"text/plain; charset=utf-8" }
+        });
+      }
+    }
+
     // 9. Server-Side Supabase Auth Proxy
 
 
