@@ -584,7 +584,7 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
             "rows": [
                 ["Official warnings within 300 km", str(len(official)), "A warning count describes what participating authorities currently publish and what the system can geolocate; zero does not prove zero hazard."],
                 ["Resolved live signals within 300 km", str(len(local)), "Includes monitored event and warning feeds with usable coordinates."],
-                ["Earthquakes, last 24 hours / 350 km", str(data.get("quake_count_24h_350km_m1", 0)), "All USGS catalog events returned at M1.0+ in the latest 24 hours within 350 km. A separate 30-day M2.5+ count is retained for broader context."],
+                ["Earthquakes, last 24 hours / 350 km", str(data.get("quake_count_24h_350km_m1", 0)), "All catalogued M1.0+ events resolved in the latest 24 hours within 350 km, using NCS India where available for India-facing events and USGS for global coverage. A separate 30-day USGS M2.5+ count is retained for broader context."],
             ],
         },
     ]
@@ -647,8 +647,8 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
         "figure": str(data.get("quake_count_24h_350km_m1", 0)),
         "conf": "OBSERVED",
         "conf_class": "c-obs",
-        "label": "USGS earthquakes in the last 24 hours within 350 km (M1.0+)",
-        "what": "All USGS events returned within 350 km during the latest 24 hours at magnitude 1.0 and above.",
+        "label": "Earthquakes in the last 24 hours within 350 km (M1.0+)",
+        "what": "All catalogued events resolved within 350 km during the latest 24 hours at magnitude 1.0 and above, using NCS India where available and USGS for global coverage.",
         "why": "This is the live operational seismic picture. Small events are included for awareness; magnitude, distance, depth and site vulnerability must be considered separately.",
     }]
     if quakes:
