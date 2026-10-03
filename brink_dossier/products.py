@@ -45,7 +45,7 @@ PRODUCTS = {
     "pre_underwriting_site_intelligence": {
         "title": "Pre-Underwriting Site Intelligence",
         "tier": "Commercial Property Evidence",
-        "short_name": "Pre-Risk Site Intelligence",
+        "short_name": "Pre-Underwriting Site Intelligence",
         "recurring": False,
         "intended_use": (
             "Sourced external-hazard context for brokers, risk surveyors, insureds "
