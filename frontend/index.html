@@ -188,6 +188,16 @@
   .contents li span:last-child { color: var(--muted); text-align: right; }
   .fine { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-top: 18px; max-width: 34em; }
 
+  /* Commercial decision offer */
+  .commercial-offer { background: linear-gradient(180deg, rgba(0,243,255,.045), rgba(12,18,27,.98)); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .offer-card { border: 1px solid rgba(0,243,255,.28); border-radius: 10px; padding: 24px; background: rgba(12,18,27,.9); }
+  .offer-eyebrow { font-family: var(--font-mono); font-size: 11px; color: var(--accent); letter-spacing: .1em; font-weight: 800; text-transform: uppercase; }
+  .offer-question { font-size: 1.15rem; font-weight: 700; color: #fff; margin-top: 10px; max-width: 42em; }
+  .offer-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .offer-pill { border:1px solid var(--border); border-radius:999px; padding:7px 10px; font:700 11px var(--font-mono); color:var(--dim); text-transform:uppercase; }
+  .offer-deliverables { margin-top: 16px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 18px; color:var(--dim); font-size:.95rem; }
+  .offer-deliverables span::before { content:"✓ "; color:var(--emerald); font-weight:800; }
+
   /* Philosophy */
   .philosophy { text-align: center; max-width: 800px; margin: 0 auto; padding: clamp(48px, 8vw, 96px) 16px; }
   .philosophy h2 { font-size: clamp(2rem, 4vw, 3rem); margin-bottom: 16px; }
@@ -325,6 +335,7 @@
 
   @media (max-width: 900px) {
     .hero-grid, .split, .reading { grid-template-columns: 1fr; }
+    .offer-deliverables { grid-template-columns: 1fr; }
     .win { grid-template-columns: 1fr; gap: 8px; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -372,7 +383,7 @@
 
           <div class="hero-cta">
             <a href="/watch.html" class="btn btn-solid">Open Earth Watch</a>
-            <a href="/contact.html?subject=dossier" class="btn">Request a site service</a>
+            <a href="/facility-risk.html#location-dossier" class="btn">Order a Threat Dossier</a>
           </div>
         </div>
 
@@ -484,27 +495,35 @@
       </div>
     </section>
 
-    <!-- DOSSIER -->
-    <section class="dossier" id="dossier">
-      <div class="wrap split">
-        <div>
-          <h2>Need it for one specific site?</h2>
-          <p class="section-lead">
-            A Threat Report is an 8-page report on a house, village, facility, port, warehouse or route.
-            It is built for people and enterprises who run assets exposed to physical risk and need risk assesments early.
-          </p>
-          <div class="hero-cta">
-            <a href="/contact.html?subject=dossier" class="btn btn-solid">Request a sample service</a>
+    <!-- COMMERCIAL LOCATION DOSSIER -->
+    <section class="commercial-offer" id="dossier">
+      <div class="wrap">
+        <div class="offer-card">
+          <div class="offer-eyebrow">// LOCATION THREAT DOSSIER</div>
+          <h2 style="margin-top:8px;">Know what could affect a location before you commit.</h2>
+          <p class="offer-question">What risks could affect this location, asset, project or route — and what should we investigate before buying, leasing, financing, insuring, building or relying on it?</p>
+          <p class="section-lead">The Brink World combines current hazard signals, historical climate evidence, flood, seismic, terrain, water-stress, cyclone, wildfire and operational-access data into a sourced decision dossier for one location.</p>
+          <div class="offer-meta">
+            <span class="offer-pill">₹12,500 + GST · India</span>
+            <span class="offer-pill">2 business days</span>
+            <span class="offer-pill">1 location · PDF dossier</span>
           </div>
+          <div class="offer-deliverables">
+            <span>Current monitored hazard posture</span>
+            <span>Earthquake and seismic context</span>
+            <span>Heat, rainfall and flood evidence</span>
+            <span>Water stress and drought context</span>
+            <span>Cyclone, wind and severe-weather history</span>
+            <span>Terrain, landslide and access sensitivity</span>
+            <span>Wildfire / fire activity context</span>
+            <span>Priority due-diligence actions and evidence gaps</span>
+          </div>
+          <div class="hero-cta">
+            <a href="/facility-risk.html#location-dossier" class="btn btn-solid">Order a Threat Dossier</a>
+            <a href="https://rzp.io/rzp/AhpsFTfU" target="_blank" rel="noopener" class="btn">Pay ₹12,500 + GST</a>
+          </div>
+          <p class="fine">For international buyers, USDT payment and institutional invoicing are available through the order page. The Brink reviews every generated report before client delivery.</p>
         </div>
-        <ul class="contents">
-          <li><span>Brink Score</span><span>A 0 to 100 score for your location/site</span></li>
-          <li><span>Seismic activity</span><span>Within 350 km, against the normal rate</span></li>
-          <li><span>Storms and rainfall</span><span>Nearest systems and the anomaly against climate norms</span></li>
-          <li><span>Logistics exposure</span><span>Routes and infrastructure around your location/site</span></li>
-          <li><span>Compound risk</span><span>Where two or more hazards can hit together</span></li>
-          <li><span>10 to 30-day trend</span><span>Which way the risk is moving</span></li>
-        </ul>
       </div>
     </section>
 
