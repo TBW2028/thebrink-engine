@@ -3,7 +3,7 @@ from datetime import datetime
 
 def _fmt(value, suffix=""):
     if value is None or value == "":
-        return "Not resolved from current source"
+        return "No defensible value returned by source"
     return f"{value}{suffix}"
 
 
@@ -467,41 +467,62 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
         "blocks": water_blocks,
     })
 
-    t250 = terrain.get("metrics_250m") or {}
-    t1k = terrain.get("metrics_1km") or {}
-    terrain_rows = [
-        ["Point elevation", _fmt(terrain.get("point_elevation_m"), " m")],
-        ["250 m mean slope", _fmt(t250.get("slope_mean_deg"), "°")],
-        ["250 m P95 slope", _fmt(t250.get("slope_p95_deg"), "°")],
-        ["250 m relief", _fmt(t250.get("relief_m"), " m")],
-        ["1 km mean slope", _fmt(t1k.get("slope_mean_deg"), "°")],
-        ["1 km P95 slope", _fmt(t1k.get("slope_p95_deg"), "°")],
-        ["1 km maximum slope", _fmt(t1k.get("slope_max_deg"), "°")],
-        ["1 km relief", _fmt(t1k.get("relief_m"), " m")],
-    ]
+    if terrain.get("status") == "ok":
+        t250 = terrain.get("metrics_250m") or {}
+        t1k = terrain.get("metrics_1km") or {}
+        terrain_rows = [
+            ["Point elevation", _fmt(terrain.get("point_elevation_m"), " m")],
+            ["250 m mean slope", _fmt(t250.get("slope_mean_deg"), "°")],
+            ["250 m P95 slope", _fmt(t250.get("slope_p95_deg"), "°")],
+            ["250 m relief", _fmt(t250.get("relief_m"), " m")],
+            ["1 km mean slope", _fmt(t1k.get("slope_mean_deg"), "°")],
+            ["1 km P95 slope", _fmt(t1k.get("slope_p95_deg"), "°")],
+            ["1 km maximum slope", _fmt(t1k.get("slope_max_deg"), "°")],
+            ["1 km relief", _fmt(t1k.get("relief_m"), " m")],
+        ]
+        terrain_blocks = [
+            {"kind": "kvtable", "title": "Terrain Evidence", "rows": terrain_rows},
+            {"kind": "flag", "title": "LANDSLIDE BOUNDARY", "severe": False, "text": terrain.get("limitations") or "DEM slope and relief do not establish landslide probability."},
+        ]
+    else:
+        terrain_blocks = [{
+            "kind": "flag",
+            "title": "TERRAIN SOURCE STATUS — UNRESOLVED",
+            "severe": False,
+            "text": _public_gap_reason("terrain", terrain.get("reason")),
+        }]
     sections.append({
         "title": "Terrain, Landslide & Access",
         "subtitle": "DEM-derived terrain characterization and access sensitivity.",
-        "blocks": [
-            {"kind": "kvtable", "title": "Terrain Evidence", "rows": terrain_rows},
-            {"kind": "flag", "title": "LANDSLIDE BOUNDARY", "severe": False, "text": terrain.get("limitations") or "Terrain evidence is unavailable. DEM slope and relief do not establish landslide probability."},
-        ],
+        "blocks": terrain_blocks,
     })
 
-    cyclone_rows = [
-        ["Storm tracks within 100 km since 1980", _fmt(cyclone.get("storm_count_within_100km"))],
-        ["Storm tracks within 250 km since 1980", _fmt(cyclone.get("storm_count_within_250km"))],
-        ["Storm tracks within 500 km since 1980", _fmt(cyclone.get("storm_count_within_500km"))],
-        ["Nearest historical track", _fmt((cyclone.get("nearest_storm") or {}).get("nearest_distance_km"), " km")],
-        ["Peak reported WMO storm intensity within 250 km", _fmt(cyclone.get("max_reported_wmo_wind_within_250km_kt"), " kt")],
-    ]
+    if cyclone.get("status") == "ok":
+        count500 = cyclone.get("storm_count_within_500km") or 0
+        nearest_value = (cyclone.get("nearest_storm") or {}).get("nearest_distance_km")
+        peak_value = cyclone.get("max_reported_wmo_wind_within_250km_kt")
+        cyclone_rows = [
+            ["Storm tracks within 100 km since 1980", cyclone.get("storm_count_within_100km") or 0],
+            ["Storm tracks within 250 km since 1980", cyclone.get("storm_count_within_250km") or 0],
+            ["Storm tracks within 500 km since 1980", count500],
+            ["Nearest historical track", f"{nearest_value} km" if nearest_value is not None else ("No track within 500 km in the screened record" if count500 == 0 else "No defensible distance returned")],
+            ["Peak reported WMO storm intensity within 250 km", f"{peak_value} kt" if peak_value is not None else ("No track within 250 km in the screened record" if (cyclone.get("storm_count_within_250km") or 0) == 0 else "No defensible wind value returned")],
+        ]
+        cyclone_blocks = [
+            {"kind": "kvtable", "title": "Tropical-Cyclone History", "rows": cyclone_rows},
+            {"kind": "flag", "title": "WIND BOUNDARY", "severe": False, "text": cyclone.get("limitations") or "Historical track proximity is not a structural design-wind assessment."},
+        ]
+    else:
+        cyclone_blocks = [{
+            "kind": "flag",
+            "title": "TROPICAL-CYCLONE SOURCE STATUS — UNRESOLVED",
+            "severe": False,
+            "text": _public_gap_reason("tropical cyclone", cyclone.get("reason")),
+        }]
     sections.append({
         "title": "Wind, Cyclone & Severe Weather",
         "subtitle": "Historical tropical-cyclone track context, separate from structural design-wind assessment.",
-        "blocks": [
-            {"kind": "kvtable", "title": "Tropical-Cyclone History", "rows": cyclone_rows},
-            {"kind": "flag", "title": "WIND BOUNDARY", "severe": False, "text": cyclone.get("limitations") or "Historical tropical-cyclone evidence is unavailable. Non-tropical severe wind and structural design loads remain separate evidence needs."},
-        ],
+        "blocks": cyclone_blocks,
     })
 
     if fire.get("status") == "ok":
@@ -553,7 +574,7 @@ def _v2_institutional_sections(meta, data, answers, risk_findings):
         "title": "Resilience & Due-Diligence Action Register",
         "subtitle": "Actions generated from current findings; these are decision-support priorities, not engineering instructions.",
         "blocks": [
-            {"kind": "table", "title": "Action Register", "headers": ["DOMAIN", "ACTION TYPE", "RECOMMENDED NEXT STEP", "SPECIALIST REVIEW"], "rows": action_rows or [["—","—","No action generated.","—"]]},
+            {"kind": "table", "title": "Action Register", "headers": ["DOMAIN", "ACTION TYPE", "RECOMMENDED NEXT STEP", "SPECIALIST REVIEW"], "rows": action_rows or [["—","—","No additional action was generated by the current decision rules.","—"]]},
         ],
     })
 
@@ -593,13 +614,13 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
     weather = data.get("weather_current") or {}
     forecast = data.get("forecast_days") or []
 
-    posture = strongest.get("severity_tier") if strongest else "No Current Resolved Signal"
+    posture = strongest.get("severity_tier") if strongest else "No Current Signal Resolved"
     posture_color = {
         "Critical": "#9E2B25",
         "Severe": "#B44A32",
         "Significant": "#B8892B",
         "Monitor": "#496A86",
-        "No Current Resolved Signal": "#3F6B4A",
+        "No Current Signal Resolved": "#5C6472",
     }.get(posture, "#5C6472")
 
     if strongest:
@@ -609,7 +630,7 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
             f"{strongest.get('severity_tier', 'Monitor')} · {strongest.get('distance_km', '—')} km"
         )
     else:
-        summary_line = "No currently active geolocated signal is resolved within 300 km in the configured operational feeds."
+        summary_line = "No active geolocated signal is currently resolved within 300 km in the configured operational feeds. This is an observation about the current feed state, not a finding of low underlying hazard."
 
     cover = {
         "posture": posture,
@@ -718,17 +739,25 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
             "rows": [[q.get("place"), f"M{q.get('mag')}", f"{q.get('depth_km')} km", f"{q.get('distance_km')} km", _when(q.get("observed_at"))] for q in quakes[:12]],
         })
 
-    weather_blocks = [
-        {"kind": "trio", "figure": _fmt(weather.get("temperature_c"), "°C"), "conf": "MODELLED", "conf_class": "c-mod", "label": "Current near-surface temperature", "what": "Current atmospheric estimate returned for the analysed coordinates.", "why": "Useful as present weather context; it is not a long-term climate-normal comparison."},
-        {"kind": "trio", "figure": _fmt(weather.get("precipitation_mm"), " mm"), "conf": "MODELLED", "conf_class": "c-mod", "label": "Current precipitation", "what": "Modelled/current precipitation at the selected point.", "why": "A point value should be read alongside official rain/flood warnings and local observations, particularly in complex terrain."},
-        {"kind": "trio", "figure": _fmt(weather.get("wind_kmh"), " km/h"), "conf": "MODELLED", "conf_class": "c-mod", "label": "Current 10 m wind speed", "what": "Near-surface wind estimate at the selected coordinates.", "why": "Local gusts and terrain effects can differ materially from a grid-point model value."},
-    ]
-    if forecast:
-        weather_blocks.append({
-            "kind": "table", "title": "Seven-Day Weather Outlook",
-            "headers": ["DATE", "MAX / MIN", "PRECIPITATION", "MAX WIND"],
-            "rows": [[d.get("date"), f"{_fmt(d.get('tmax_c'), '°C')} / {_fmt(d.get('tmin_c'), '°C')}", _fmt(d.get("precip_mm"), " mm"), _fmt(d.get("wind_max_kmh"), " km/h")] for d in forecast[:7]],
-        })
+    if weather.get("status") == "ok" or any(weather.get(k) is not None for k in ("temperature_c", "precipitation_mm", "wind_kmh")):
+        weather_blocks = [
+            {"kind": "trio", "figure": _fmt(weather.get("temperature_c"), "°C"), "conf": "MODELLED", "conf_class": "c-mod", "label": "Current near-surface temperature", "what": "Current atmospheric estimate returned for the analysed coordinates.", "why": "Useful as present weather context; it is not a long-term climate-normal comparison."},
+            {"kind": "trio", "figure": _fmt(weather.get("precipitation_mm"), " mm"), "conf": "MODELLED", "conf_class": "c-mod", "label": "Current precipitation", "what": "Modelled/current precipitation at the selected point.", "why": "A point value should be read alongside official rain/flood warnings and local observations, particularly in complex terrain."},
+            {"kind": "trio", "figure": _fmt(weather.get("wind_kmh"), " km/h"), "conf": "MODELLED", "conf_class": "c-mod", "label": "Current 10 m wind speed", "what": "Near-surface wind estimate at the selected coordinates.", "why": "Local gusts and terrain effects can differ materially from a grid-point model value."},
+        ]
+        if forecast:
+            weather_blocks.append({
+                "kind": "table", "title": "Seven-Day Weather Outlook",
+                "headers": ["DATE", "MAX / MIN", "PRECIPITATION", "MAX WIND"],
+                "rows": [[d.get("date"), f"{_fmt(d.get('tmax_c'), '°C')} / {_fmt(d.get('tmin_c'), '°C')}", _fmt(d.get("precip_mm"), " mm"), _fmt(d.get("wind_max_kmh"), " km/h")] for d in forecast[:7]],
+            })
+    else:
+        weather_blocks = [{
+            "kind": "flag",
+            "title": "NEAR-TERM WEATHER SOURCE STATUS",
+            "severe": False,
+            "text": "The configured near-term weather source did not return a defensible site-level reading for this reporting cycle. No current-weather conclusion has been inferred from the missing response."
+        }]
 
     search_radius = data.get("service_search_radius_km") or 80
     access_rows = [
@@ -765,7 +794,7 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
         {"kind": "glossary", "term": "Distance", "def": "Unless otherwise stated, hazard and service distances are straight-line great-circle distances from the analysed coordinates, not road distance."},
         {"kind": "glossary", "term": "Official Warning", "def": "A warning published by a participating national authority or authoritative warning aggregation. Coverage differs between jurisdictions."},
         {"kind": "glossary", "term": "Modelled", "def": "A value generated by a numerical model or gridded dataset rather than directly measured at the exact site."},
-        {"kind": "glossary", "term": "Not resolved from current source", "def": "The source queried did not return a defensible value. This wording does not mean the facility, hazard or condition does not exist."},
+        {"kind": "glossary", "term": "No defensible value returned by source", "def": "The configured source did not return a value that can be used responsibly for this field. It is an evidence limitation, not evidence that the hazard or condition is absent."},
         {"kind": "flag", "title": "IMPORTANT LIMITATION", "severe": False, "text": (
             (meta.get("product_limitation") or "Decision-support intelligence only.") +
             " It is not an emergency alerting service or guarantee of future conditions. "
@@ -777,7 +806,7 @@ def build_report_blocks(meta, data, answers, risk_findings=None):
         {"title": "Executive Brief", "subtitle": "The management-level reading of current conditions.", "blocks": executive_blocks},
         {"title": "Official Warning Environment", "subtitle": "Active authoritative warnings resolved near the analysed point.", "blocks": warning_blocks},
         {"title": "Regional Hazard Signals", "subtitle": "Nearest current monitored signals across the operational feed.", "blocks": regional_blocks},
-        {"title": "Seismic Context", "subtitle": "Observed USGS earthquake activity in the regional window.", "blocks": seismic_blocks},
+        {"title": "Seismic Context", "subtitle": "Observed earthquake activity from NCS India where available and USGS global catalog coverage.", "blocks": seismic_blocks},
         {"title": "Weather & Near-Term Conditions", "subtitle": "Current modelled atmospheric context and seven-day outlook.", "blocks": weather_blocks},
     ]
 
