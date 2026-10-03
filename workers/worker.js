@@ -2005,15 +2005,23 @@ export default {
     }
 
     if (url.pathname === "/api/commercial/report-deliver" && request.method === "POST") {
+      let deliveryClaimed = false;
+      let customerSent = false;
+      let activeRunId = "";
+      let activeSbUrl = "";
+      let activeSbKey = "";
       try {
         const form = await request.formData();
         const runId = String(form.get("run") || "");
+        activeRunId = runId;
         const token = String(form.get("token") || "");
         const confirmed = String(form.get("confirmed") || "") === "yes";
         if (!runId || !token || !confirmed) throw new Error("Report delivery confirmation is incomplete.");
 
         const sbUrl = env.SUPABASE_URL;
         const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY;
+        activeSbUrl = sbUrl || "";
+        activeSbKey = sbKey || "";
         if (!sbUrl || !sbKey || !env.RESEND_API_KEY) {
           throw new Error("Commercial delivery environment is incomplete.");
         }
@@ -2049,24 +2057,6 @@ export default {
         }
         if (reportRun.report_status !== "awaiting_approval") {
           throw new Error(`Report status is ${reportRun.report_status}; expected awaiting_approval.`);
-        }
-
-        // Atomic status claim prevents duplicate sends from double-clicks or concurrent approvals.
-        const claim = await fetch(
-          `${sbUrl}/rest/v1/brink_report_runs?id=eq.${encodeURIComponent(runId)}&report_status=eq.awaiting_approval`,
-          {
-            method: "PATCH",
-            headers: sbHeaders(sbKey, "return=representation"),
-            body: JSON.stringify({ report_status: "delivering" })
-          }
-        );
-        if (!claim.ok) throw new Error(`Could not claim report for delivery: ${await claim.text()}`);
-        const claimed = await claim.json();
-        if (!Array.isArray(claimed) || claimed.length === 0) {
-          return new Response("This report is already being processed.", {
-            status: 409,
-            headers: { "Content-Type":"text/plain; charset=utf-8" }
-          });
         }
 
         const fUrl = new URL(`${sbUrl}/rest/v1/brink_facilities`);
@@ -2118,6 +2108,37 @@ export default {
         }
         const pdfB64 = btoa(binary);
 
+        if (summary.draft_sha256) {
+          const digest = await crypto.subtle.digest("SHA-256", pdfBytes);
+          const actualHash = Array.from(new Uint8Array(digest))
+            .map(b => b.toString(16).padStart(2, "0"))
+            .join("");
+          if (actualHash !== String(summary.draft_sha256)) {
+            throw new Error("Stored draft integrity check failed. Client delivery has been blocked.");
+          }
+        }
+
+        // Claim only after all pre-send checks and draft-integrity verification pass.
+        const claim = await fetch(
+          `${sbUrl}/rest/v1/brink_report_runs?id=eq.${encodeURIComponent(runId)}&report_status=eq.awaiting_approval`,
+          {
+            method: "PATCH",
+            headers: sbHeaders(sbKey, "return=representation"),
+            body: JSON.stringify({ report_status: "delivering" })
+          }
+        );
+        if (!claim.ok) throw new Error(`Could not claim report for delivery: ${await claim.text()}`);
+        const claimed = await claim.json();
+        if (!Array.isArray(claimed) || claimed.length === 0) {
+          return new Response("This report is already being processed.", {
+            status: 409,
+            headers: { "Content-Type":"text/plain; charset=utf-8" }
+          });
+        }
+        deliveryClaimed = true;
+
+
+
         const productLabels = {
           location_dossier: "Location Threat Dossier",
           facility_risk_passport: "Facility Risk Passport",
@@ -2164,6 +2185,7 @@ export default {
           });
           throw new Error(`Client email failed (${customerMail.status}): ${await customerMail.text()}`);
         }
+        customerSent = true;
 
         // Internal archive copy is best-effort after successful client delivery.
         await fetch("https://api.resend.com/emails", {
@@ -2227,6 +2249,15 @@ export default {
           { headers: { "Content-Type":"text/html; charset=utf-8" } }
         );
       } catch (err) {
+        if (deliveryClaimed && !customerSent && activeRunId && activeSbUrl && activeSbKey) {
+          try {
+            await fetch(`${activeSbUrl}/rest/v1/brink_report_runs?id=eq.${encodeURIComponent(activeRunId)}&report_status=eq.delivering`, {
+              method: "PATCH",
+              headers: sbHeaders(activeSbKey, "return=minimal"),
+              body: JSON.stringify({ report_status: "awaiting_approval" })
+            });
+          } catch (_) {}
+        }
         return new Response(`Report delivery failed: ${err.message}`, {
           status: 500,
           headers: { "Content-Type":"text/plain; charset=utf-8" }
