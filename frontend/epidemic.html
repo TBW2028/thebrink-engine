@@ -1133,8 +1133,10 @@ function tileHtml(color, tagBg, tag, title, desc, meta) {
 }
 
 async function fetchSignals() {
-  const cols = "kind,entity,entity_group,geo_scope,geo_code,geo_name,value,unit,value_text,trend,tier,headline,detail,source_name,source_url,as_of,published_at,fetched_at,change_type";
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/outbreak_signals?select=${cols}&order=as_of.desc&limit=600`, { headers: SB_HEADERS });
+  const cols = "kind,entity,entity_group,geo_scope,geo_code,geo_name,value,unit,value_text,trend,tier,headline,detail,source_name,source_url,as_of,published_at,fetched_at,change_type,expires_at";
+  const nowIso = new Date().toISOString();
+  const url = `${SUPABASE_URL}/rest/v1/outbreak_signals?select=${cols}&is_active=eq.true&expires_at=gt.${encodeURIComponent(nowIso)}&order=as_of.desc&limit=800`;
+  const res = await fetch(url, { headers: SB_HEADERS });
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
   const rows = await res.json();
   return Array.isArray(rows) ? rows : [];
@@ -1160,16 +1162,19 @@ function renderSourceCoverage(signals) {
     ["Western Pacific", [SRC_WHO_WPRO]],
     ["Eastern Mediterranean", [SRC_WHO_EMRO]]
   ];
+  const now = Date.now();
   grid.innerHTML = groups.map(([label, sources]) => {
     const rows = signals.filter(x => sources.includes(x.source_name));
-    const newest = rows.length ? Math.max(...rows.map(x => Date.parse(x.fetched_at) || Date.parse(x.published_at) || Date.parse(x.as_of) || 0)) : 0;
-    const status = rows.length ? "LIVE" : "NO CURRENT RECORD";
-    const statusColor = rows.length ? "var(--accent-green)" : "var(--accent-amber)";
+    const newest = rows.length ? Math.max(...rows.map(x => Date.parse(x.fetched_at) || 0)) : 0;
+    const expectedAgeMs = Math.max(...sources.map(src => (SOURCE_MAX_AGE_H[src] || 168) * 3600e3));
+    const stale = rows.length && newest && (now - newest > expectedAgeMs);
+    const status = !rows.length ? "NO CURRENT RECORD" : stale ? "STALE / CHECK SOURCE" : "LIVE";
+    const statusColor = !rows.length ? "var(--accent-amber)" : stale ? "var(--accent-red)" : "var(--accent-green)";
     return `<div class="ws-tile">
       <div class="ws-name">${escapeHtml(label)}</div>
       <div style="font-family:var(--font-mono);font-size:12px;color:${statusColor};font-weight:800">${status}</div>
       <div class="ws-meta">${rows.length} current signal${rows.length===1?"":"s"}</div>
-      <div class="ws-asof">${newest ? "Latest sync " + fmtDate(new Date(newest).toISOString()) : "No current record from configured regional layer"}</div>
+      <div class="ws-asof">${newest ? "Latest ingest " + new Date(newest).toISOString().slice(0,16).replace("T"," ") + " UTC" : "No current record from configured regional layer"}</div>
     </div>`;
   }).join("");
 }
