@@ -12,7 +12,7 @@
 a{color:var(--accent)}header{padding:18px 6%;border-bottom:1px solid var(--line);background:rgba(6,9,14,.97)}.brand{font-family:"Archivo Black";font-size:24px;color:#fff;text-decoration:none}.brand span{color:#ef4444}.brandline{margin-left:14px;font:600 10px "JetBrains Mono";letter-spacing:.04em;color:var(--muted)}
 main{max-width:1120px;margin:auto;padding:46px 18px 72px}.eyebrow{font:700 11px "JetBrains Mono";letter-spacing:.11em;color:var(--accent);text-transform:uppercase}
 h1{font-family:"Archivo Black";font-size:clamp(2rem,5vw,3.7rem);line-height:1.03;margin:10px 0 14px;max-width:900px}.lead{font-size:1.08rem;color:var(--soft);max-width:820px}
-.product-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:26px 0 22px}.product{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px}.product b{display:block;color:#fff;margin-bottom:5px}.product span{font-size:12.5px;color:var(--muted)}
+.offer{background:linear-gradient(180deg,rgba(0,243,255,.07),rgba(12,18,27,.96));border:1px solid rgba(0,243,255,.35);border-radius:14px;padding:24px;margin:26px 0}.offer h2{font:400 clamp(1.5rem,3vw,2.3rem) "Archivo Black";margin:0 0 8px}.offer-q{font-size:1.06rem;color:#fff;font-weight:700;max-width:820px}.offer-copy{margin-top:8px;color:var(--soft);max-width:880px}.offer-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{font:700 11px "JetBrains Mono";letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:7px 10px;color:var(--soft);background:rgba(17,26,38,.7)}.pill strong{color:#fff}.buy-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.buy{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border-radius:6px;padding:12px 16px;font:800 11px "JetBrains Mono";text-transform:uppercase;letter-spacing:.05em;background:var(--accent);color:#061018;border:1px solid var(--accent)}.buy.secondary{background:transparent;color:var(--accent)}.deliverables{display:grid;grid-template-columns:repeat(2,1fr);gap:7px 18px;margin-top:16px;color:var(--soft);font-size:13.5px}.deliverables span:before{content:"✓ ";color:var(--ok);font-weight:800}.product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:26px 0 22px}.product{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px}.product b{display:block;color:#fff;margin-bottom:5px}.product span{font-size:12.5px;color:var(--muted)}
 .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:22px}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}.card h2{margin:0 0 12px;font-size:1.12rem}
 label{display:block;font:700 10.5px "JetBrains Mono";letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
 input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:#fff;padding:11px 12px;font:14px inherit;outline:none}textarea{min-height:88px;resize:vertical}input:focus,select:focus,textarea:focus{border-color:var(--accent)}
@@ -26,20 +26,48 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
 <body>
 <header><a class="brand" href="/">THE BRINK <span>WORLD</span></a><span class="brandline">Intelligence powered by The Brink World.</span></header>
 <main>
-<div class="eyebrow">// FACILITY & ENTERPRISE RISK INTELLIGENCE</div>
-<h1>Turn a location into a monitored risk record.</h1>
-<p class="lead">Register a facility once. The Brink World can maintain sourced external-risk evidence for facility management, physical-risk assessment, underwriting review or business-continuity workflows.</p>
+<div class="eyebrow">// LOCATION & FACILITY RISK INTELLIGENCE</div>
+<h1>Know what could affect a location before you commit.</h1>
+<p class="lead">The Brink World turns public hazard, climate and operational data into a sourced decision dossier for a specific site, asset, project or route.</p>
+
+<section class="offer" id="location-dossier">
+  <div class="eyebrow">// START HERE</div>
+  <h2>Location Threat Dossier</h2>
+  <div class="offer-q">What risks could affect this location, asset, project or route — and what should we investigate before committing?</div>
+  <p class="offer-copy">Built for property buyers, investors, developers, operators, brokers, lenders, consultants and project teams that need a fast, evidence-led external physical-risk screen before a decision.</p>
+  <div class="offer-meta">
+    <span class="pill"><strong>₹12,500 + GST</strong> · India</span>
+    <span class="pill"><strong>2 business days</strong> · Standard turnaround</span>
+    <span class="pill"><strong>1 location</strong> · PDF decision dossier</span>
+  </div>
+  <div class="deliverables">
+    <span>Current monitored hazard posture</span>
+    <span>Earthquake and seismic context</span>
+    <span>Extreme heat and rainfall evidence</span>
+    <span>Riverine flood screening</span>
+    <span>Water-stress and drought context</span>
+    <span>Cyclone, wind and severe-weather history</span>
+    <span>Terrain, landslide and access sensitivity</span>
+    <span>Wildfire / fire activity context</span>
+    <span>Materiality and facility-sensitivity screen</span>
+    <span>Priority due-diligence actions and evidence gaps</span>
+  </div>
+  <div class="buy-row">
+    <a class="buy" href="https://rzp.io/rzp/AhpsFTfU" target="_blank" rel="noopener">Pay ₹12,500 + GST</a>
+    <a class="buy secondary" href="#request-form" onclick="selectThreatDossier()">Submit location details</a>
+  </div>
+  <div class="note">India payment uses Razorpay. International / USDT payment is available; submit the request below and choose USDT so we can match your payment reference to the dossier.</div>
+</section>
 
 <div class="product-grid">
-  <div class="product"><b>Facility Risk Passport</b><span>Recurring monitoring and material-change evidence for one site.</span></div>
-  <div class="product"><b>Physical Risk Evidence Pack</b><span>Structured evidence for climate, sustainability and enterprise-risk workflows.</span></div>
-  <div class="product"><b>Pre-Underwriting Site Intelligence</b><span>External-hazard evidence for commercial property and broker review.</span></div>
-  <div class="product"><b>External Threat Register</b><span>Maintained external-threat input for business-continuity programmes.</span></div>
+  <div class="product"><b>Facility Risk Passport</b><span>For operating facilities that need recurring external-risk monitoring and material-change evidence.</span></div>
+  <div class="product"><b>Pre-Underwriting Site Intelligence</b><span>For brokers, insureds and risk teams preparing for commercial property underwriting or renewal.</span></div>
+  <div class="product"><b>External Threat Register</b><span>For business-continuity and operational-resilience teams that need a maintained external-threat register.</span></div>
 </div>
 
 <div class="grid">
-<section class="card">
-<h2>Request a facility pilot / proposal</h2>
+<section class="card" id="request-form">
+<h2>Submit your location / facility details</h2>
 <div class="two">
   <div><label>Contact name *</label><input id="contactName" placeholder="Name"></div>
   <div><label>Business email *</label><input id="email" type="email" placeholder="name@company.com"></div>
@@ -65,6 +93,7 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
   <div>
     <label>Product *</label>
     <select id="productType" onchange="syncCadence()">
+      <option value="location_dossier">Location Threat Dossier</option>
       <option value="facility_risk_passport">Facility Risk Passport</option>
       <option value="physical_risk_evidence_pack">Physical Risk Evidence Pack</option>
       <option value="pre_underwriting_site_intelligence">Pre-Underwriting Site Intelligence</option>
@@ -85,7 +114,22 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
   </div>
 </div>
 <label>What decision or workflow should this support?</label>
-<textarea id="notes" placeholder="Insurance renewal, facility risk review, ESG evidence, ISO 22301 register, site acquisition, board risk review, etc."></textarea>
+<textarea id="notes" placeholder="Property purchase, site acquisition, project due diligence, insurance renewal, facility risk review, lending decision, route review, board risk review, etc."></textarea>
+<div class="two">
+  <div>
+    <label>Payment method</label>
+    <select id="paymentMethod">
+      <option value="">Select</option>
+      <option value="razorpay_inr">Razorpay / INR</option>
+      <option value="usdt">USDT / international</option>
+      <option value="bank_transfer">Institutional bank transfer / invoice</option>
+    </select>
+  </div>
+  <div>
+    <label>Payment reference / transaction ID</label>
+    <input id="paymentReference" placeholder="Razorpay payment ID, USDT tx hash, or PO/reference">
+  </div>
+</div>
 
 <details class="profile">
   <summary>Facility vulnerability profile · Institutional assessment</summary>
@@ -157,8 +201,8 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
 <div class="consent"><input id="authorityConfirmed" type="checkbox"><label for="authorityConfirmed">I confirm that I am authorised to provide this information for the organisation and that, to the best of my knowledge, the information supplied is accurate.</label></div>
 <div class="consent"><input id="termsAccepted" type="checkbox"><label for="termsAccepted">I have read and agree to the <a href="/terms.html" target="_blank" rel="noopener">Commercial Terms of Service</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Notice</a>, including the limits on reliance and the use of third-party, modelled and automated risk information.</label></div>
 <div class="legal-version">Terms: TBW-TOS-2026-10-01 · Privacy: TBW-PRIVACY-2026-10-01</div>
-<button class="btn" id="submitBtn" onclick="submitRequest()">Submit facility for review</button>
-<div class="note">Submitting this form does not start paid monitoring automatically. The Brink World reviews the requested scope before activation.</div>
+<button class="btn" id="submitBtn" onclick="submitRequest()">Submit location for review</button>
+<div class="note">For paid Location Threat Dossiers, submit the payment reference so we can match the order. Report generation begins only after The Brink World verifies scope/payment. The client receives the report only after internal review.</div>
 <div id="notice" class="notice"></div>
 </section>
 
@@ -175,10 +219,11 @@ input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(-
 </main>
 <script>
 const API=window.BACKEND_API||"https://thebrink-engine.thebrink2028.workers.dev";
+function selectThreatDossier(){document.getElementById("productType").value="location_dossier";syncCadence();}
 function syncCadence(){
   const p=document.getElementById("productType").value;
   const c=document.getElementById("cadence");
-  if(p==="pre_underwriting_site_intelligence") c.value="one_off";
+  if(p==="location_dossier"||p==="pre_underwriting_site_intelligence") c.value="one_off";
   else if(p==="physical_risk_evidence_pack" && c.value==="monthly") c.value="annual";
   else if(p==="facility_risk_passport" && c.value==="one_off") c.value="monthly";
 }
@@ -195,6 +240,9 @@ async function submitRequest(){
     cadence:document.getElementById("cadence").value,
     critical_function:document.getElementById("criticalFunction").value.trim(),
     notes:document.getElementById("notes").value.trim(),
+    payment_method:document.getElementById("paymentMethod").value,
+    payment_reference:document.getElementById("paymentReference").value.trim(),
+    source_page:"facility-risk.html",
     construction_type:document.getElementById("constructionType").value,
     year_built:document.getElementById("yearBuilt").value,
     floors_above_ground:document.getElementById("floorsAboveGround").value,
@@ -225,10 +273,10 @@ async function submitRequest(){
     const t=await r.text();let d={};try{d=t?JSON.parse(t):{}}catch{}
     if(!r.ok) throw new Error(d.error||"Could not submit facility.");
     n.className="notice ok";
-    n.innerHTML="<strong>Facility request received.</strong><br>Reference: "+d.reference+". The Brink World will review the scope before activation.";
+    n.innerHTML="<strong>Request received.</strong><br>Reference: "+d.reference+". The Brink World will verify the scope/payment and then generate the draft for internal review before client delivery.";
     b.textContent="REQUEST RECEIVED";
   }catch(e){
-    n.className="notice err";n.textContent=e.message;b.disabled=false;b.textContent="Submit facility for review";
+    n.className="notice err";n.textContent=e.message;b.disabled=false;b.textContent="Submit location for review";
   }
 }
 syncCadence();
