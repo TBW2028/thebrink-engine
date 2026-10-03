@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
 <title>Health & Outbreak Radar · The Brink World</title>
-<meta name="description" content="Global disease outbreak screener, localized bio-hazard surveillance, verified infection counts, and pharmacy inventory forecasting."/>
+<meta name="description" content="Global official-source outbreak intelligence, regional health alerts, early indicators and clinical supply-readiness decision support from The Brink World."/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
@@ -442,6 +442,7 @@
     <a href="/news.html" class="menu-item">NEWS</a>
     <a href="/watch.html" class="menu-item">EARTH &amp; CLIMATE</a>
     <a href="/epidemic.html" class="menu-item active">HEALTH &amp; OUTBREAKS</a>
+    <a href="/facility-risk.html#location-dossier" class="menu-item">RISK REPORTS</a>
     <a href="/about.html" class="menu-item">ABOUT</a>
     <a href="/contact.html" class="menu-item">CONTACT</a>
   </nav>
@@ -451,12 +452,12 @@
   <header class="page-header">
     <div>
       <h1>Health &amp; Outbreak Radar</h1>
-      <p class="sub">Global planetary pathogen screener, regional syndromic alerts, and localized pharmacy inventory forecasting.</p>
+      <p class="sub">Official-source outbreak intelligence, regional epidemic signals, early indicators and operational health-readiness context.</p>
     </div>
   </header>
 
   <div class="legal-banner">
-    <strong>STATUTORY RISK &amp; MEDICAL DISCLAIMER:</strong> The Brink World is an independent computational hazard analytics platform. We do not provide clinical medical advice, treatment diagnosis, or physician consultations. Outbreak registers are compiled from verified public health authorities (WHO DON, ECDC, US CDC, and India NCDC/IDSP) for corporate supply-chain planning and emergency preparedness. Always consult licensed medical practitioners for clinical treatment.
+    <strong>STATUTORY RISK &amp; MEDICAL DISCLAIMER:</strong> The Brink World is an independent computational hazard analytics platform. We do not provide clinical medical advice, treatment diagnosis, or physician consultations. Outbreak intelligence is compiled from official public-health sources including WHO global and regional channels, Africa CDC, ECDC, PAHO, US CDC and India NCDC/IDSP. Coverage varies by geography and reporting cadence; absence from this page is not evidence that no local event exists. Always consult licensed medical practitioners for clinical treatment.
   </div>
 
   <!-- Localized Health Perimeter -->
@@ -480,7 +481,36 @@
     </div>
   </div>
 
-  <div class="section-label">Standing advisories · seasonal guidance, not live data</div>
+  <div class="card" id="coverageCard">
+    <div class="panel-header">
+      <div class="panel-title">Official Coverage Network</div>
+      <span class="mono" style="font-size:12px;color:var(--text-muted)">GLOBAL BASELINE + REGIONAL DEPTH</span>
+    </div>
+    <p class="note-line">The radar now combines a global WHO baseline with regional official-source layers. Coverage is broad, but not every country publishes equally fast or in machine-readable form.</p>
+    <div class="ws-grid" id="sourceCoverageGrid">
+      <div class="ws-tile"><div class="ws-name">Loading source coverage…</div></div>
+    </div>
+  </div>
+
+  <div class="card" id="activeEmergencyCard">
+    <div class="panel-header">
+      <div class="panel-title">Major Active Health Emergencies</div>
+      <span class="mono" style="font-size:12px;color:var(--accent-red)">PERSISTENT · NOT JUST LATEST HEADLINES</span>
+    </div>
+    <p class="note-line">Ongoing WHO emergency records remain visible while active, even when newer bulletins are published.</p>
+    <div id="activeEmergencyBody"><p class="note-line">Loading ongoing official emergency records…</p></div>
+  </div>
+
+  <div class="card" id="regionalIntelCard">
+    <div class="panel-header">
+      <div class="panel-title">Regional Official Intelligence</div>
+      <span class="mono" style="font-size:12px;color:var(--accent-cyan)">INDIA · ASIA · AFRICA · EU · AMERICAS · US · PACIFIC</span>
+    </div>
+    <p class="note-line">Regional bulletins and alerts supplement WHO global notices so important events are less likely to disappear between major international updates.</p>
+    <div id="regionalIntelBody"><p class="note-line">Loading regional official-source intelligence…</p></div>
+  </div>
+
+  <div class="section-label">Standing advisories · general preparedness guidance, not live outbreak claims</div>
   <div class="warning-stack">
     <div class="warn-box" style="border-top: 3px solid var(--accent-cyan);">
       <div>
@@ -490,10 +520,7 @@
           Do not consume unpasteurized raw milk or raw/runny eggs. Avoid live bird markets, domestic poultry culls, and contact with dead wild fowl.
         </p>
       </div>
-      <div class="warn-meta mono">
-        <strong>Active Corridor:</strong> US Dairy Belts, EU Poultry Clusters, East Asia<br/>
-        <strong>Timeline:</strong> Spring/Autumn Wild Bird Migration Waves (Active 2026)
-      </div>
+      <div class="warn-meta mono"><strong>Use:</strong> General food-safety and animal-exposure preparedness guidance. Check live official signals above for current geographic relevance.</div>
     </div>
 
     <div class="warn-box" style="border-top: 3px solid var(--accent-amber);">
@@ -504,10 +531,7 @@
           Boil all drinking water vigorously for &gt;1 minute or use certified RO filtration. Never consume cut roadside fruits, raw salads, or untreated ice.
         </p>
       </div>
-      <div class="warn-meta mono">
-        <strong>Active Corridor:</strong> South Asia (Maharashtra/Gujarat/Assam), Horn of Africa<br/>
-        <strong>Timeline:</strong> Active Monsoon/Flood Window (June through October)
-      </div>
+      <div class="warn-meta mono"><strong>Use:</strong> General water- and food-safety preparedness guidance. Current outbreaks must be confirmed from the live official-source sections above.</div>
     </div>
 
     <div class="warn-box" style="border-top: 3px solid var(--accent-red);">
@@ -518,33 +542,33 @@
           Wear a fitted N95 or multi-layer mask in crowded public transit, clinics, and unventilated rooms. Self-isolate immediately upon onset of high fever and dry cough.
         </p>
       </div>
-      <div class="warn-meta mono">
-        <strong>Active Corridor:</strong> Dense Metro Transit Hubs, North &amp; West India<br/>
-        <strong>Timeline:</strong> Post-Monsoon Transition &amp; Winter Onset (Aug to Feb)
-      </div>
+      <div class="warn-meta mono"><strong>Use:</strong> General respiratory-infection preparedness guidance. It is not a claim that H1N1 is currently surging in a specific city or region.</div>
     </div>
   </div>
 
-  <!-- Doctor & Pharmacy Portal -->
+  <!-- Clinical supply-readiness service -->
   <div class="pro-medical-bar">
     <div>
       <div style="font-size:1.2rem; font-weight:750; color:#fff;">
-        Clinical &amp; Pharmacy Early-Warning Portal (B2B Inventory Desk)
+        Clinical Supply Early-Warning Brief
       </div>
-      <div style="font-size:0.96rem; color:var(--text-secondary); margin-top:6px; max-width:48rem; line-height:1.5;">
-        Forecast medication demand 14 days ahead of official municipal notices. Designed for hospital directors, clinical practices, and pharmacy retail chains to prevent wholesale stockouts of IV fluids, Oseltamivir, Doxycycline, and Rapid Antigen Diagnostic Kits.
+      <div style="font-size:0.96rem; color:var(--text-secondary); margin-top:6px; max-width:50rem; line-height:1.55;">
+        For hospital operations, clinic groups and pharmacy chains that need to know which current official health signals could create pressure on local preparedness, diagnostics, protective equipment or medicine supply. The brief converts outbreak evidence into a sourced operational watchlist — it does not claim to predict prescriptions or guarantee future demand.
+      </div>
+      <div style="font-size:0.9rem;color:var(--text-soft);margin-top:10px;line-height:1.5;">
+        <strong style="color:#fff">Includes:</strong> relevant official events · regional signal context · supply categories to review · client-declared stock/lead-time exposure · priority procurement questions · evidence gaps · source register.
       </div>
       <div style="font-size:0.92rem; color:var(--accent-purple); margin-top:8px;" class="mono">
-        Pricing: $49 / ₹3,999 (City Audit) · $159/mo (Monthly Clinic Watch)
+        Pilot: $49 / ₹3,999 single-city brief · Monthly watch available after scope review
       </div>
     </div>
-    <button class="btn-medical" onclick="openModal('modalMedical')">Access Clinical Portal (USD / INR) →</button>
+    <button class="btn-medical" onclick="openModal('modalMedical')">Request Clinical Supply Brief →</button>
   </div>
 
   <!-- Global Outbreak Screener -->
   <div class="card">
     <div class="panel-header">
-      <div class="panel-title">Global Pathogen Screener &amp; Outbreak Register</div>
+      <div class="panel-title">Global Outbreak &amp; Health Event Register</div>
       <span class="mono" id="healthSyncStatus" style="font-size:13px; color:var(--accent-cyan); cursor:pointer;">
         ℹ️ CLICK ANY BADGE FOR EXPLANATION
       </span>
@@ -555,7 +579,7 @@
       ← SWIPE HORIZONTALLY TO VIEW ALL METRICS →
     </div>
 
-    <div class="note-line" id="registerNote">Official notices from WHO Disease Outbreak News. Case counts and detail are in each linked notice.</div>
+    <div class="note-line" id="registerNote">Official WHO Disease Outbreak News remains the core global bulletin layer; regional official-source alerts are shown separately above.</div>
 
     <div class="table-scroll-wrapper">
       <table class="table-custom mono">
@@ -753,11 +777,11 @@
 <div class="modal" id="modalMedical">
   <div class="modal-card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <h3 style="font-size:1.25rem; color:#fff;">Doctor &amp; Pharmacy Intelligence Portal</h3>
+      <h3 style="font-size:1.25rem; color:#fff;">Clinical Supply Early-Warning Brief</h3>
       <button onclick="closeModal('modalMedical')" style="background:transparent; border:none; color:#fff; font-size:1.4rem; cursor:pointer;">✕</button>
     </div>
     <p style="font-size:0.95rem; color:var(--text-secondary); margin-bottom:16px; line-height:1.5;">
-      Syndromic early-warning reports correlate municipal water tables and hospital triage admissions to project 14-day medication demand for your specific city.
+      An analyst-reviewed operational brief that maps current official outbreak and early-indicator evidence to the supply categories your facility depends on. It does not forecast prescriptions or replace your own procurement, pharmacy or clinical governance.
     </p>
 
     <!-- EXPLICIT BILLING CURRENCY SELECTOR -->
@@ -782,6 +806,11 @@
       <input type="email" id="medDoctorEmail" class="input-dark" placeholder="Professional Clinic / Hospital Email Address" required/>
       <input type="text" id="medFacilityName" class="input-dark" placeholder="Hospital, Clinic Chain, or Pharmacy Name" required/>
       <input type="text" id="medCityLocation" class="input-dark" placeholder="Target City / Operational Sector (e.g. Navsari, Pune, Mumbai, London)" required/>
+      <input type="text" id="medCriticalItems" class="input-dark" placeholder="Critical stock categories/items (e.g. PPE, IV fluids, antivirals, test kits)"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <input type="number" min="0" id="medLeadTimeDays" class="input-dark" placeholder="Typical supplier lead time (days)"/>
+        <input type="number" min="0" id="medCoverDays" class="input-dark" placeholder="Approx. current stock cover (days)"/>
+      </div>
       
       <div>
         <label style="font-size:0.85rem; color:var(--text-muted); font-family:var(--font-mono); display:block; margin-bottom:6px;">
@@ -791,7 +820,7 @@
       </div>
 
       <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.4; margin:4px 0;">
-        * Upon submitting, the system synthesizes your target city audit and directs you to checkout.
+        * Single-city briefs are analyst-reviewed before delivery. Monthly watch requests are scoped first; no automated demand forecast is represented as fact.
       </div>
 
       <button type="submit" id="btnMedSubmit" class="btn-medical" style="margin-top:6px;justify-content:center;padding:14px;">Proceed to Payment →</button>
@@ -873,8 +902,8 @@ function onCurrencySelect(curr) {
     labelUSD.style.background = "var(--bg-card-alt)";
 
     planSelect.innerHTML = `
-      <option value="INR_3999" data-label="₹3,999">Single City Pathogen Audit — ₹3,999 INR (UPI / Indian Cards)</option>
-      <option value="INR_11999" data-label="₹11,999">Monthly Clinic Watch Desk — ₹11,999/mo INR</option>
+      <option value="INR_3999" data-label="₹3,999">Single City Clinical Supply Brief — ₹3,999 INR</option>
+      <option value="MONTHLY_SCOPE" data-label="Scope review">Monthly Clinical Supply Watch — scope review first</option>
     `;
   } else {
     labelUSD.style.borderColor = "var(--accent-purple)";
@@ -883,8 +912,8 @@ function onCurrencySelect(curr) {
     labelINR.style.background = "var(--bg-card-alt)";
 
     planSelect.innerHTML = `
-      <option value="USD_49" data-label="$49">Single City Pathogen Audit — $49 USD (Global Cards)</option>
-      <option value="USD_159" data-label="$159">Monthly Clinic Watch Desk — $159/mo USD</option>
+      <option value="USD_49" data-label="$49">Single City Clinical Supply Brief — $49 USD</option>
+      <option value="MONTHLY_SCOPE" data-label="Scope review">Monthly Clinical Supply Watch — scope review first</option>
     `;
   }
   updatePayButtonLabel();
@@ -894,7 +923,9 @@ function updatePayButtonLabel() {
   const planSelect = document.getElementById("medPlanTier");
   const selectedOption = planSelect.options[planSelect.selectedIndex];
   const priceTag = selectedOption ? selectedOption.getAttribute("data-label") : (currentSelectedCurrency === "INR" ? "₹3,999" : "$49");
-  document.getElementById("btnMedSubmit").innerText = `Proceed to Payment (${priceTag}) →`;
+  document.getElementById("btnMedSubmit").innerText = selectedOption && selectedOption.value === "MONTHLY_SCOPE"
+    ? "Request Monthly Scope Review →"
+    : `Proceed to Payment (${priceTag}) →`;
 }
 
 function initCurrencyPreference(isInIndia) {
@@ -1033,8 +1064,22 @@ document.getElementById("btnChangeLocal").addEventListener("click", () => {
    This page never calls those agencies directly and never invents a figure:
    if a source has no current data, its section says so instead of showing old numbers. */
 const SB_HEADERS = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
-const SRC_WHO = "WHO Disease Outbreak News", SRC_ECDC = "ECDC", SRC_CDC = "US CDC NWSS";
-const SOURCE_MAX_AGE_H = { [SRC_WHO]: 72, [SRC_ECDC]: 72, [SRC_CDC]: 216 };
+const SRC_WHO = "WHO Disease Outbreak News";
+const SRC_WHO_ACTIVE = "WHO Ongoing Health Emergencies";
+const SRC_WHO_SEAR = "WHO South-East Asia Epidemiological Bulletin";
+const SRC_WHO_WPRO = "WHO Western Pacific Surveillance";
+const SRC_AFRICA_CDC = "Africa CDC Epidemic Intelligence";
+const SRC_ECDC = "ECDC";
+const SRC_ECDC_CDTR = "ECDC Communicable Disease Threats Report";
+const SRC_CDC = "US CDC NWSS";
+const SRC_CDC_HAN = "US CDC Health Alert Network";
+const SRC_PAHO = "PAHO Epidemiological Alerts";
+const SRC_INDIA_NCDC = "India NCDC / IDSP";
+const SOURCE_MAX_AGE_H = {
+  [SRC_WHO]: 72, [SRC_WHO_ACTIVE]: 240, [SRC_WHO_SEAR]: 840, [SRC_WHO_WPRO]: 336,
+  [SRC_AFRICA_CDC]: 336, [SRC_ECDC]: 168, [SRC_ECDC_CDTR]: 336,
+  [SRC_CDC]: 216, [SRC_CDC_HAN]: 840, [SRC_PAHO]: 840, [SRC_INDIA_NCDC]: 2880
+};
 const CAT_LABEL = { VOC: "variant of concern", VOI: "variant of interest", VUM: "variant under monitoring" };
 
 const EXPLAIN = {
@@ -1101,6 +1146,69 @@ function dominantVariants(signals) {
   return signals.filter(s => s.kind === "variant_status" && (s.detail || {}).transmission_in_eu_eea === "Dominant");
 }
 
+function renderSourceCoverage(signals) {
+  const grid = $("sourceCoverageGrid");
+  if (!grid) return;
+  const groups = [
+    ["Global", [SRC_WHO, SRC_WHO_ACTIVE]],
+    ["India / South-East Asia", [SRC_INDIA_NCDC, SRC_WHO_SEAR]],
+    ["Africa", [SRC_AFRICA_CDC]],
+    ["EU / EEA", [SRC_ECDC_CDTR, SRC_ECDC]],
+    ["Americas", [SRC_PAHO]],
+    ["United States", [SRC_CDC_HAN, SRC_CDC]],
+    ["Western Pacific", [SRC_WHO_WPRO]]
+  ];
+  grid.innerHTML = groups.map(([label, sources]) => {
+    const rows = signals.filter(x => sources.includes(x.source_name));
+    const newest = rows.length ? Math.max(...rows.map(x => Date.parse(x.fetched_at) || Date.parse(x.published_at) || Date.parse(x.as_of) || 0)) : 0;
+    const status = rows.length ? "LIVE" : "NO CURRENT RECORD";
+    const statusColor = rows.length ? "var(--accent-green)" : "var(--accent-amber)";
+    return `<div class="ws-tile">
+      <div class="ws-name">${escapeHtml(label)}</div>
+      <div style="font-family:var(--font-mono);font-size:12px;color:${statusColor};font-weight:800">${status}</div>
+      <div class="ws-meta">${rows.length} current signal${rows.length===1?"":"s"}</div>
+      <div class="ws-asof">${newest ? "Latest sync " + fmtDate(new Date(newest).toISOString()) : "No current record from configured regional layer"}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderActiveEmergencies(signals) {
+  const box = $("activeEmergencyBody");
+  if (!box) return;
+  const active = signals.filter(s => s.kind === "active_emergency")
+    .sort((a,b) => String(b.published_at || b.as_of).localeCompare(String(a.published_at || a.as_of)));
+  if (!active.length) {
+    box.innerHTML = '<p class="note-line">No current WHO ongoing-emergency records are resolved in this feed. This is a source-coverage statement, not evidence that no emergencies exist.</p>';
+    return;
+  }
+  box.innerHTML = '<div class="ws-grid">' + active.slice(0,12).map(x => `
+    <div class="ws-tile">
+      <div class="ws-name">${escapeHtml(x.entity || x.headline)}</div>
+      <span class="badge badge-red static">ACTIVE WHO EMERGENCY</span>
+      <div class="ws-meta">${escapeHtml(shorten((x.detail||{}).coverage_note || x.headline, 180))}</div>
+      <div class="ws-asof">${srcLink(x, "WHO situation page")}</div>
+    </div>`).join("") + '</div>';
+}
+
+function renderRegionalIntelligence(signals) {
+  const box = $("regionalIntelBody");
+  if (!box) return;
+  const rows = signals.filter(s => s.kind === "regional_bulletin" || s.kind === "health_alert")
+    .sort((a,b) => String(b.published_at || b.as_of).localeCompare(String(a.published_at || a.as_of)))
+    .slice(0,24);
+  if (!rows.length) {
+    box.innerHTML = '<p class="note-line">No regional official bulletins are currently resolved in the configured feed. Global WHO notices remain available below where present.</p>';
+    return;
+  }
+  box.innerHTML = '<div class="table-scroll-wrapper"><table class="table-custom mono"><thead><tr><th>Region</th><th>Official update</th><th>Source</th><th>As of</th></tr></thead><tbody>' +
+    rows.map(x => `<tr>
+      <td>${escapeHtml(x.geo_name || "Regional")}</td>
+      <td><strong style="color:#fff">${escapeHtml(shorten(x.headline || x.entity, 190))}</strong><div style="font-family:var(--font-body);font-size:12.5px;color:var(--text-muted);margin-top:4px">${escapeHtml(shorten((x.detail||{}).coverage_note || "", 190))}</div></td>
+      <td>${srcLink(x, x.source_name || "Official source")}</td>
+      <td>${fmtDate(x.published_at || x.as_of)}</td>
+    </tr>`).join("") + '</tbody></table></div>';
+}
+
 function renderLiveSummary(signals) {
   const box = $("liveSummary");
   if (!signals.length) {
@@ -1109,18 +1217,25 @@ function renderLiveSummary(signals) {
   }
   const tiles = [];
 
-  // 1. newest WHO notice
+  // 1. persistent WHO emergency if available; otherwise newest WHO notice
+  const emergencies = signals.filter(s => s.kind === "active_emergency");
   const notices = signals.filter(s => s.kind === "outbreak_notice")
     .sort((a, b) => String(b.published_at || b.as_of).localeCompare(String(a.published_at || a.as_of)));
-  if (notices.length) {
+  if (emergencies.length) {
+    const n = emergencies[0];
+    tiles.push(tileHtml("var(--accent-red)", "rgba(239,68,68,0.15)", "ONGOING WHO EMERGENCY",
+      escapeHtml(n.entity || n.headline),
+      escapeHtml(shorten((n.detail || {}).coverage_note || n.headline, 200)),
+      `<strong>Source:</strong> ${srcLink(n, "WHO ongoing emergency")}`));
+  } else if (notices.length) {
     const n = notices[0];
     tiles.push(tileHtml("var(--accent-cyan)", "rgba(6,182,212,0.15)", "LATEST WHO NOTICE",
       escapeHtml(n.headline),
       escapeHtml(shorten((n.detail || {}).summary_excerpt, 200)),
       `<strong>Published:</strong> ${fmtDate(n.published_at || n.as_of)}<br/><strong>Source:</strong> ${srcLink(n, "WHO Disease Outbreak News")}`));
   } else {
-    tiles.push(tileHtml("var(--accent-cyan)", "rgba(6,182,212,0.15)", "LATEST WHO NOTICE", "No recent notices",
-      "No WHO Disease Outbreak News items in the last 60 days.", `<strong>Source:</strong> WHO Disease Outbreak News`));
+    tiles.push(tileHtml("var(--accent-cyan)", "rgba(6,182,212,0.15)", "GLOBAL WHO LAYER", "No current record resolved",
+      "No current WHO emergency or Disease Outbreak News record is resolved in this feed. This is not evidence that no outbreak exists.", `<strong>Source:</strong> WHO`));
   }
 
   // 2. dominant SARS-CoV-2 lineage in EU/EEA
@@ -1262,7 +1377,7 @@ function checkFreshness(signals) {
 function updateSyncStatus(signals) {
   const newest = Math.max(...signals.map(s => Date.parse(s.fetched_at) || 0));
   const stamp = newest ? new Date(newest).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "n/a";
-  $("healthSyncStatus").textContent = `SYNCHRONIZED: ${stamp} · ${signals.length} LIVE SIGNALS (CLICK A BADGE FOR EXPLANATION)`;
+  $("healthSyncStatus").textContent = `LATEST INGEST: ${stamp} · ${signals.length} CURRENT OFFICIAL SIGNALS · COVERAGE VARIES BY SOURCE`;
   $("footerSyncStamp").textContent = `LAST DATA SYNC: ${stamp}`;
 }
 
@@ -1278,6 +1393,9 @@ async function loadLiveHealthScreener() {
   }
 
   renderLiveSummary(signals);
+  renderSourceCoverage(signals);
+  renderActiveEmergencies(signals);
+  renderRegionalIntelligence(signals);
   renderVariantTracker(signals);
   renderWastewater(signals);
   renderLocalHealthFromSignals(signals);
@@ -1333,24 +1451,31 @@ document.getElementById("formMedicalIntake").addEventListener("submit", async e 
   const clientName = document.getElementById("medDoctorName").value.trim();
   const facility = document.getElementById("medFacilityName").value.trim();
   const selectedPlan = document.getElementById("medPlanTier").value;
-  
-  const payUrl = RZP_LINKS[selectedPlan] || (currentSelectedCurrency === "INR" ? RZP_LINKS["INR_3999"] : RZP_LINKS["USD_49"]);
+  const criticalItems = document.getElementById("medCriticalItems").value.trim();
+  const leadTimeDays = document.getElementById("medLeadTimeDays").value.trim();
+  const coverDays = document.getElementById("medCoverDays").value.trim();
+  const isMonthlyScope = selectedPlan === "MONTHLY_SCOPE";
+  const payUrl = isMonthlyScope ? "" : (RZP_LINKS[selectedPlan] || (currentSelectedCurrency === "INR" ? RZP_LINKS["INR_3999"] : RZP_LINKS["USD_49"]));
 
   const fd = new FormData();
-  fd.append("plan", selectedPlan.includes("159") || selectedPlan.includes("11999") ? "monthly_clinic_watch" : "medical_pharmacy_audit");
+  fd.append("plan", isMonthlyScope ? "monthly_clinical_supply_watch_scope" : "clinical_supply_brief");
   fd.append("name", clientName);
   fd.append("email", clientEmail);
   fd.append("company", facility);
   fd.append("asset_name", targetCity);
-  fd.append("reason", `Currency: ${currentSelectedCurrency} | Selected Tier: ${selectedPlan}`);
+  fd.append("reason", `Currency: ${currentSelectedCurrency} | Selected Tier: ${selectedPlan} | Critical items: ${criticalItems || "not supplied"} | Supplier lead time days: ${leadTimeDays || "unknown"} | Current stock cover days: ${coverDays || "unknown"}`);
 
   try {
     await fetch(`${API}/api/lead/capture`, { method: "POST", body: fd });
-    window.open(payUrl, "_blank");
-    alert(`Audit intake registered. Complete your payment via secure Razorpay checkout (${currentSelectedCurrency}). Your verified report will be dispatched to ${clientEmail} upon confirmation.`);
+    if (isMonthlyScope) {
+      alert(`Monthly Clinical Supply Watch request received for ${facility}. The Brink World will review geography, stock categories and reporting scope before proposing the recurring service.`);
+    } else {
+      window.open(payUrl, "_blank");
+      alert(`Clinical Supply Brief request registered. Complete payment via secure checkout (${currentSelectedCurrency}). The brief is analyst-reviewed before delivery to ${clientEmail}.`);
+    }
     closeModal("modalMedical");
   } catch(err) {
-    window.open(payUrl, "_blank");
+    if (!isMonthlyScope && payUrl) window.open(payUrl, "_blank");
   } finally {
     btn.disabled = false;
     updatePayButtonLabel();
