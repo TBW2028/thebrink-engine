@@ -1,21 +1,19 @@
-name: Generate and Dispatch Dossier
+name: Legacy Dossier Preview (Retired Checkout)
 
 on:
-  repository_dispatch:
-    types: [order_paid]
   workflow_dispatch:
     inputs:
       product_type:
-        description: Commercial report type
+        description: Report type for internal preview
         required: true
         type: choice
         options:
+          - location_dossier
           - facility_risk_passport
           - physical_risk_evidence_pack
           - pre_underwriting_site_intelligence
           - business_continuity_threat_register
-          - location_dossier
-        default: facility_risk_passport
+        default: location_dossier
       location:
         description: Location or coordinates to analyse
         required: true
@@ -24,12 +22,8 @@ on:
         description: Facility / site name
         required: true
         type: string
-      customer_email:
-        description: Report delivery email
-        required: true
-        type: string
       customer_name:
-        description: Client/contact name
+        description: Client/contact name shown in preview
         required: false
         type: string
       occupancy:
@@ -38,94 +32,56 @@ on:
         type: string
         default: Commercial property / facility
 
+permissions:
+  contents: read
+
 jobs:
-  build-and-send:
+  preview-only:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install System Libraries for WeasyPrint
+      - name: Install system libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libjpeg-dev libopenjp2-7-dev libffi-dev fonts-inter fonts-liberation
 
-      - name: Install Python Dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Engine & Dispatch
+      - name: Generate internal preview only
         env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          PAYLOAD: ${{ toJson(github.event.client_payload) }}
-          WORKFLOW_INPUTS: ${{ toJson(github.event.inputs) }}
+          INPUTS_JSON: ${{ toJson(github.event.inputs) }}
         run: |
-          python -c '
-          import os, json
+          python - <<'PY'
+          import json, os
           from brink_dossier.render import produce
 
-          payload = json.loads(os.environ.get("PAYLOAD", "{}"))
-          event_name = os.environ.get("GITHUB_EVENT_NAME", "")
-          if event_name == "workflow_dispatch":
-              inputs = json.loads(os.environ.get("WORKFLOW_INPUTS", "{}"))
-              payload = {
-                  "product_type": inputs.get("product_type", "facility_risk_passport"),
-                  "location": inputs.get("location"),
-                  "site_name": inputs.get("site_name"),
-                  "customer_email": inputs.get("customer_email"),
-                  "answers": {
-                      "customer_name": inputs.get("customer_name") or "Operations Lead",
-                      "occupancy": inputs.get("occupancy") or "Commercial property / facility"
-                  }
-              }
-          print(f"[*] Fulfilling report request: {payload}")
+          inputs = json.loads(os.environ.get("INPUTS_JSON", "{}"))
+          pdf_path, ref = produce(
+              location=inputs["location"],
+              answers={
+                  "customer_name": inputs.get("customer_name") or "Internal Preview",
+                  "occupancy": inputs.get("occupancy") or "Commercial property / facility",
+                  "location_label": inputs["location"],
+              },
+              site_name=inputs["site_name"],
+              customer_email=None,
+              product_type=inputs.get("product_type") or "location_dossier",
+          )
+          print(f"Internal preview generated: {pdf_path} · {ref}")
+          print("No client email is sent and no order is marked delivered by this retired workflow.")
+          PY
 
-          order_code = payload.get("order_code")
-          sb_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-          sb_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
-
-          def update_order(values):
-              if not order_code or not sb_url or not sb_key:
-                  return
-              import requests
-              r = requests.patch(
-                  f"{sb_url}/rest/v1/dossier_requests?order_code=eq.{order_code}",
-                  headers={
-                      "apikey": sb_key,
-                      "Authorization": f"Bearer {sb_key}",
-                      "Content-Type": "application/json",
-                      "Prefer": "return=minimal"
-                  },
-                  json=values,
-                  timeout=15
-              )
-              print(f"[*] Order status update: {r.status_code}")
-
-          try:
-              pdf_path, ref = produce(
-                  location=payload.get("location", "18.516958, 73.666824"),
-                  answers=payload.get("answers", {}),
-                  site_name=payload.get("site_name", "Monitored Location"),
-                  customer_email=payload.get("customer_email", "thebrink2028@gmail.com"),
-                  product_type=payload.get("product_type", "location_dossier")
-              )
-
-              import datetime
-              update_order({
-                  "status": "delivered",
-                  "payment_status": "verified",
-                  "report_ref": ref,
-                  "fulfilled_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-              })
-          except Exception:
-              update_order({"status": "delivery_failed"})
-              raise
-          '
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: internal-dossier-preview
+          path: reports/*.pdf
+          if-no-files-found: error
