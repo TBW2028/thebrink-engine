@@ -314,7 +314,6 @@ def main():
 
             evidence_count = 0
             finding_count = 0
-            ledger_error = None
             try:
                 evidence_payloads = build_evidence_items(
                     report_run_id=run["id"],
@@ -356,8 +355,16 @@ def main():
                 if bridges:
                     sb_insert_rows("brink_risk_finding_evidence", bridges)
             except Exception as ledger_exc:
-                ledger_error = str(ledger_exc)[:800]
-                print(f"[WARN] V2 evidence ledger write failed for {f['facility_name']}: {ledger_exc}")
+                raise RuntimeError(
+                    f"Evidence-ledger persistence failed; commercial delivery is blocked until the "
+                    f"evidence record is complete: {str(ledger_exc)[:500]}"
+                ) from ledger_exc
+
+            if evidence_count == 0 or finding_count == 0:
+                raise RuntimeError(
+                    "Evidence-ledger validation failed; no commercial draft can proceed without "
+                    "persisted evidence items and risk findings."
+                )
 
             finished = datetime.now(timezone.utc)
             approval_token = secrets.token_urlsafe(32)
@@ -389,9 +396,6 @@ def main():
                 "facility_name": f.get("facility_name"),
                 "location_label": f.get("location_label"),
             }
-            if ledger_error:
-                evidence_summary["ledger_error"] = ledger_error
-
             # Persist the approval gate before sending the review email.
             sb_patch("brink_report_runs", {"id": run["id"]}, {
                 "report_status": "awaiting_approval",
