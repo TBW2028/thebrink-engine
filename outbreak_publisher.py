@@ -48,17 +48,33 @@ UA = "TheBrinkWorld-OutbreakRadar/1.0 (+https://thebrinkworld.com)"
 TIMEOUT = 30
 
 SRC_WHO = "WHO Disease Outbreak News"
+SRC_WHO_ACTIVE = "WHO Ongoing Health Emergencies"
+SRC_WHO_SEAR = "WHO South-East Asia Epidemiological Bulletin"
+SRC_WHO_WPRO = "WHO Western Pacific Surveillance"
+SRC_AFRICA_CDC = "Africa CDC Epidemic Intelligence"
 SRC_ECDC = "ECDC"
+SRC_ECDC_CDTR = "ECDC Communicable Disease Threats Report"
 SRC_CDC = "US CDC NWSS"
-OFFICIAL_SOURCES = {SRC_WHO, SRC_ECDC, SRC_CDC}
+SRC_CDC_HAN = "US CDC Health Alert Network"
+SRC_PAHO = "PAHO Epidemiological Alerts"
 
-KINDS = {"variant_status", "variant_share", "wastewater", "outbreak_notice", "system_stress"}
+OFFICIAL_SOURCES = {
+    SRC_WHO, SRC_WHO_ACTIVE, SRC_WHO_SEAR, SRC_WHO_WPRO, SRC_AFRICA_CDC,
+    SRC_ECDC, SRC_ECDC_CDTR, SRC_CDC, SRC_CDC_HAN, SRC_PAHO, "India NCDC / IDSP",
+}
+
+KINDS = {
+    "variant_status", "variant_share", "wastewater", "outbreak_notice",
+    "system_stress", "active_emergency", "regional_bulletin", "health_alert",
+}
 TRENDS = {"rising", "falling", "flat", "unknown"}
 TIERS = {"confirmed", "reported", "early_signal"}
 
 WHO_TTL_DAYS = 60
 ECDC_TTL_DAYS = 45
 CDC_TTL_DAYS = 14
+REGIONAL_TTL_DAYS = 35
+ACTIVE_EMERGENCY_TTL_DAYS = 10
 CHANGE_BADGE_DAYS = 14
 
 
@@ -495,6 +511,358 @@ def collect_cdc_wastewater() -> list[Signal]:
     return cdc_signals(normalize_cdc(cdc_fetch_recent()), date.today())
 
 
+
+# --------------------------------------------------------------------------
+# Collector 4+ — regional official-source intelligence
+# --------------------------------------------------------------------------
+MONTHS = "January February March April May June July August September October November December"
+
+
+def _abs_url(base: str, href: str) -> str:
+    from urllib.parse import urljoin
+    return urljoin(base, href)
+
+
+def _date_from_text(text: str, fallback: date | None = None) -> date:
+    text = re.sub(r"\s+", " ", text or "")
+    patterns = [
+        r"\b(\d{1,2}\s+(?:" + "|".join(MONTHS.split()) + r")\s+\d{4})\b",
+        r"\b((?:" + "|".join(MONTHS.split()) + r")\s+\d{1,2},\s+\d{4})\b",
+    ]
+    for p in patterns:
+        m = re.search(p, text, re.I)
+        if not m:
+            continue
+        for fmt in ("%d %B %Y", "%B %d, %Y"):
+            try:
+                return datetime.strptime(m.group(1), fmt).date()
+            except ValueError:
+                pass
+    return fallback or date.today()
+
+
+def _signal_from_link(
+    *,
+    key_prefix: str,
+    kind: str,
+    entity: str,
+    headline: str,
+    source_name: str,
+    source_url: str,
+    as_of: date,
+    geo_scope: str,
+    geo_name: str,
+    detail: dict | None = None,
+    ttl_days: int = REGIONAL_TTL_DAYS,
+    confidence: float = 0.95,
+) -> Signal:
+    slug = re.sub(r"[^a-z0-9]+", "-", source_url.lower()).strip("-")[-140:]
+    return Signal(
+        signal_key=f"{key_prefix}|{slug}",
+        kind=kind,
+        entity=entity[:180],
+        headline=headline[:300],
+        tier="confirmed",
+        confidence=confidence,
+        source_name=source_name,
+        source_url=source_url,
+        as_of=as_of,
+        expires_at=datetime.combine(as_of, datetime.min.time(), timezone.utc) + timedelta(days=ttl_days),
+        geo_scope=geo_scope,
+        geo_name=geo_name,
+        detail=detail or {},
+        published_at=datetime.combine(as_of, datetime.min.time(), timezone.utc),
+    )
+
+
+WHO_ACTIVE_URL = "https://www.who.int/emergencies/situations"
+
+
+def collect_who_active_emergencies() -> list[Signal]:
+    soup = BeautifulSoup(http_get(WHO_ACTIVE_URL).text, "html.parser")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        href = str(a.get("href") or "")
+        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
+        if "/emergencies/situations/" not in href or not title or title.lower() in {"all", "read more"}:
+            continue
+        url = _abs_url(WHO_ACTIVE_URL, href)
+        if url in seen:
+            continue
+        seen.add(url)
+        out.append(_signal_from_link(
+            key_prefix="who_active",
+            kind="active_emergency",
+            entity=title,
+            headline=f"WHO ongoing health emergency: {title}",
+            source_name=SRC_WHO_ACTIVE,
+            source_url=url,
+            as_of=date.today(),
+            geo_scope="global",
+            geo_name="Global / affected countries",
+            detail={
+                "coverage_note": "Listed by WHO as an ongoing health emergency. Follow the linked WHO situation page for event-specific geography and updates."
+            },
+            ttl_days=ACTIVE_EMERGENCY_TTL_DAYS,
+        ))
+    if not out:
+        raise RuntimeError("WHO ongoing-emergencies page parsed but no active situation links were found")
+    return out[:20]
+
+
+WHO_SEAR_URL = "https://www.who.int/southeastasia/outbreaks-and-emergencies/health-emergency-information-risk-assessment/sear-epi-bulletins"
+
+
+def collect_who_sear_bulletins() -> list[Signal]:
+    soup = BeautifulSoup(http_get(WHO_SEAR_URL).text, "html.parser")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        href = str(a.get("href") or "")
+        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
+        if "epidemiological bulletin" not in title.lower() or "/item/" not in href:
+            continue
+        url = _abs_url(WHO_SEAR_URL, href)
+        if url in seen:
+            continue
+        seen.add(url)
+        parent_text = a.parent.get_text(" ", strip=True) if a.parent else title
+        as_of = _date_from_text(parent_text)
+        out.append(_signal_from_link(
+            key_prefix="who_sear",
+            kind="regional_bulletin",
+            entity="South-East Asia regional epidemiological bulletin",
+            headline=title,
+            source_name=SRC_WHO_SEAR,
+            source_url=url,
+            as_of=as_of,
+            geo_scope="region",
+            geo_name="WHO South-East Asia Region",
+            detail={
+                "coverage_note": "Official WHO South-East Asia regional bulletin; includes India and other SEAR Member States when relevant."
+            },
+        ))
+    if not out:
+        raise RuntimeError("WHO SEAR bulletin page parsed but no bulletin links were found")
+    return sorted(out, key=lambda x: x.as_of, reverse=True)[:4]
+
+
+AFRICA_CDC_URL = "https://africacdc.org/pillar/surveillance/"
+
+
+def collect_africa_cdc_intelligence() -> list[Signal]:
+    soup = BeautifulSoup(http_get(AFRICA_CDC_URL).text, "html.parser")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        href = str(a.get("href") or "")
+        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
+        if "epidemic intelligence weekly report" not in title.lower():
+            continue
+        url = _abs_url(AFRICA_CDC_URL, href)
+        if url in seen:
+            continue
+        seen.add(url)
+        as_of = _date_from_text((a.parent.get_text(" ", strip=True) if a.parent else title))
+        out.append(_signal_from_link(
+            key_prefix="africa_cdc",
+            kind="regional_bulletin",
+            entity="Africa CDC epidemic intelligence",
+            headline=title,
+            source_name=SRC_AFRICA_CDC,
+            source_url=url,
+            as_of=as_of,
+            geo_scope="region",
+            geo_name="Africa",
+            detail={
+                "coverage_note": "Africa CDC event-based surveillance highlights moderate to very high-risk public-health events with new updates."
+            },
+        ))
+    if not out:
+        raise RuntimeError("Africa CDC surveillance page parsed but no epidemic-intelligence reports were found")
+    return out[:4]
+
+
+ECDC_CDTR_URL = "https://www.ecdc.europa.eu/en/publications-and-data/monitoring/weekly-threats-reports"
+
+
+def collect_ecdc_cdtr() -> list[Signal]:
+    soup = BeautifulSoup(http_get(ECDC_CDTR_URL).text, "html.parser")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        href = str(a.get("href") or "")
+        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
+        if "communicable disease threats report" not in title.lower():
+            continue
+        url = _abs_url(ECDC_CDTR_URL, href)
+        if url in seen:
+            continue
+        seen.add(url)
+        as_of = _date_from_text(a.parent.get_text(" ", strip=True) if a.parent else title)
+        out.append(_signal_from_link(
+            key_prefix="ecdc_cdtr",
+            kind="regional_bulletin",
+            entity="EU/EEA communicable disease threats",
+            headline=title,
+            source_name=SRC_ECDC_CDTR,
+            source_url=url,
+            as_of=as_of,
+            geo_scope="region",
+            geo_name="EU/EEA",
+            detail={
+                "coverage_note": "ECDC weekly epidemic-intelligence summary of communicable-disease threats relevant to the EU/EEA, including global events with European relevance."
+            },
+        ))
+    if not out:
+        raise RuntimeError("ECDC CDTR page parsed but no weekly reports were found")
+    return sorted(out, key=lambda x: x.as_of, reverse=True)[:4]
+
+
+CDC_HAN_URL = "https://www.cdc.gov/han/php/notices/index.html"
+
+
+def collect_cdc_han() -> list[Signal]:
+    soup = BeautifulSoup(http_get(CDC_HAN_URL).text, "html.parser")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        href = str(a.get("href") or "")
+        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
+        if "/han/php/notices/han" not in href or not title:
+            continue
+        url = _abs_url(CDC_HAN_URL, href)
+        if url in seen:
+            continue
+        seen.add(url)
+        parent_text = a.parent.get_text(" ", strip=True) if a.parent else title
+        as_of = _date_from_text(parent_text)
+        out.append(_signal_from_link(
+            key_prefix="cdc_han",
+            kind="health_alert",
+            entity=title,
+            headline=title,
+            source_name=SRC_CDC_HAN,
+            source_url=url,
+            as_of=as_of,
+            geo_scope="country",
+            geo_name="United States / international relevance where stated",
+            detail={
+                "coverage_note": "CDC Health Alert Network message. HAN includes alerts, advisories and updates for clinicians and public-health authorities."
+            },
+        ))
+    if not out:
+        raise RuntimeError("CDC HAN archive parsed but no current notice links were found")
+    return sorted(out, key=lambda x: x.as_of, reverse=True)[:12]
+
+
+PAHO_ALERTS_URL = "https://www.paho.org/en/epidemiological-alerts-and-updates"
+
+
+def collect_paho_alerts() -> list[Signal]:
+    soup = BeautifulSoup(http_get(PAHO_ALERTS_URL).text, "html.parser")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
+        href = str(a.get("href") or "")
+        if not title or not re.search(r"epidemiological (alert|update)", title, re.I):
+            continue
+        url = _abs_url(PAHO_ALERTS_URL, href)
+        if url in seen:
+            continue
+        seen.add(url)
+        as_of = _date_from_text(a.parent.get_text(" ", strip=True) if a.parent else title)
+        out.append(_signal_from_link(
+            key_prefix="paho",
+            kind="regional_bulletin",
+            entity="PAHO epidemiological alert/update",
+            headline=title,
+            source_name=SRC_PAHO,
+            source_url=url,
+            as_of=as_of,
+            geo_scope="region",
+            geo_name="Americas",
+            detail={
+                "coverage_note": "Official PAHO epidemiological alert or update for the Region of the Americas."
+            },
+        ))
+    if not out:
+        raise RuntimeError("PAHO epidemiological-alerts page parsed but no alerts were found")
+    return sorted(out, key=lambda x: x.as_of, reverse=True)[:12]
+
+
+WHO_WPRO_URL = "https://www.who.int/westernpacific/wpro-emergencies/surveillance/pacific-islands"
+
+
+def collect_who_wpro_surveillance() -> list[Signal]:
+    soup = BeautifulSoup(http_get(WHO_WPRO_URL).text, "html.parser")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
+        href = str(a.get("href") or "")
+        if "pacific syndromic surveillance system weekly bulletin" not in title.lower():
+            continue
+        url = _abs_url(WHO_WPRO_URL, href)
+        if url in seen:
+            continue
+        seen.add(url)
+        as_of = _date_from_text(a.parent.get_text(" ", strip=True) if a.parent else title)
+        out.append(_signal_from_link(
+            key_prefix="who_wpro",
+            kind="regional_bulletin",
+            entity="Western Pacific syndromic surveillance",
+            headline=title,
+            source_name=SRC_WHO_WPRO,
+            source_url=url,
+            as_of=as_of,
+            geo_scope="region",
+            geo_name="Western Pacific / Pacific island countries and areas",
+            detail={
+                "coverage_note": "WHO Pacific Syndromic Surveillance System weekly bulletin; an early-warning layer for participating Pacific island countries and areas."
+            },
+        ))
+    if not out:
+        raise RuntimeError("WHO Western Pacific surveillance page parsed but no weekly bulletins were found")
+    return sorted(out, key=lambda x: x.as_of, reverse=True)[:6]
+
+
+NCDC_ALERT_INDEX = "https://ncdc.mohfw.gov.in/uploads/glimpse_pdfs/"
+
+
+def collect_india_ncdc_alerts() -> list[Signal]:
+    soup = BeautifulSoup(http_get(NCDC_ALERT_INDEX).text, "html.parser")
+    out = []
+    for a in soup.find_all("a", href=True):
+        href = str(a.get("href") or "")
+        name = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
+        if not href.lower().endswith(".pdf"):
+            continue
+        if not re.search(r"(alert|nipah|ebola|marburg|cchf|chandipura|yellow.?fever)", name, re.I):
+            continue
+        url = _abs_url(NCDC_ALERT_INDEX, href)
+        row_text = a.parent.get_text(" ", strip=True) if a.parent else name
+        m = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", row_text)
+        try:
+            as_of = datetime.strptime(m.group(1), "%Y-%m-%d").date() if m else date.today()
+        except ValueError:
+            as_of = date.today()
+        entity = re.sub(r"^\d+_", "", name).replace(".pdf", "").replace("-", " ").replace("_", " ")
+        out.append(_signal_from_link(
+            key_prefix="india_ncdc",
+            kind="health_alert",
+            entity=entity,
+            headline=f"India NCDC alert: {entity}",
+            source_name="India NCDC / IDSP",
+            source_url=url,
+            as_of=as_of,
+            geo_scope="country",
+            geo_name="India",
+            detail={
+                "coverage_note": "Official NCDC/IDSP communicable-disease alert document. India also operates weekly outbreak surveillance through IDSP/IHIP."
+            },
+            ttl_days=120,
+        ))
+    if not out:
+        raise RuntimeError("India NCDC alert index parsed but no communicable-disease alert PDFs were found")
+    return sorted(out, key=lambda x: x.as_of, reverse=True)[:12]
+
+
 # --------------------------------------------------------------------------
 # Storage (Supabase PostgREST) + dry-run
 # --------------------------------------------------------------------------
@@ -552,8 +920,16 @@ class DryStore:
 # --------------------------------------------------------------------------
 COLLECTORS = {
     "who": (collect_who_don, "outbreak_notice", SRC_WHO),
+    "who_active": (collect_who_active_emergencies, "active_emergency", SRC_WHO_ACTIVE),
+    "who_sear": (collect_who_sear_bulletins, "regional_bulletin", SRC_WHO_SEAR),
+    "who_wpro": (collect_who_wpro_surveillance, "regional_bulletin", SRC_WHO_WPRO),
+    "africa_cdc": (collect_africa_cdc_intelligence, "regional_bulletin", SRC_AFRICA_CDC),
     "ecdc": (collect_ecdc_variants, "variant_status", SRC_ECDC),
+    "ecdc_cdtr": (collect_ecdc_cdtr, "regional_bulletin", SRC_ECDC_CDTR),
     "cdc": (collect_cdc_wastewater, "wastewater", SRC_CDC),
+    "cdc_han": (collect_cdc_han, "health_alert", SRC_CDC_HAN),
+    "paho": (collect_paho_alerts, "regional_bulletin", SRC_PAHO),
+    "india_ncdc": (collect_india_ncdc_alerts, "health_alert", "India NCDC / IDSP"),
 }
 
 
@@ -573,12 +949,16 @@ def run_source(name: str, store, dry: bool) -> bool:
                 log.warning("rejected %s: %s", s.signal_key, "; ".join(errs))
             else:
                 good.append(s)
+        existing_rows = store.existing(kind, source)
         gone: list[str] = []
         if name == "ecdc" and good:
-            gone = apply_variant_deltas(good, store.existing(kind, source), date.today())
+            gone = apply_variant_deltas(good, existing_rows, date.today())
+        elif good:
+            current_keys = {sig.signal_key for sig in good}
+            gone = [row["signal_key"] for row in existing_rows if row.get("signal_key") not in current_keys]
         if good:
-            store.upsert([s.to_row(now) for s in good])
-            store.history([s.to_history_row() for s in good])
+            store.upsert([sig.to_row(now) for sig in good])
+            store.history([sig.to_history_row() for sig in good])
         store.deactivate(gone)
         published = len(good)
         if dry:
@@ -606,7 +986,11 @@ def probe_cdc():
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--only", default="who,ecdc,cdc", help="comma list of: who,ecdc,cdc")
+    ap.add_argument(
+        "--only",
+        default="who,who_active,who_sear,who_wpro,africa_cdc,ecdc,ecdc_cdtr,cdc,cdc_han,paho,india_ncdc",
+        help="comma list of configured official health-intelligence collectors",
+    )
     ap.add_argument("--dry-run", action="store_true", help="fetch and validate; write nothing")
     ap.add_argument("--probe", choices=["cdc"], help="print the source dataset's real columns")
     ap.add_argument("-v", "--verbose", action="store_true")
