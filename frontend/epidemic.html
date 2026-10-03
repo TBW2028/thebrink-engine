@@ -1068,6 +1068,7 @@ const SRC_WHO = "WHO Disease Outbreak News";
 const SRC_WHO_ACTIVE = "WHO Ongoing Health Emergencies";
 const SRC_WHO_SEAR = "WHO South-East Asia Epidemiological Bulletin";
 const SRC_WHO_WPRO = "WHO Western Pacific Surveillance";
+const SRC_WHO_EMRO = "WHO Eastern Mediterranean Outbreaks";
 const SRC_AFRICA_CDC = "Africa CDC Epidemic Intelligence";
 const SRC_ECDC = "ECDC";
 const SRC_ECDC_CDTR = "ECDC Communicable Disease Threats Report";
@@ -1077,7 +1078,7 @@ const SRC_PAHO = "PAHO Epidemiological Alerts";
 const SRC_INDIA_NCDC = "India NCDC / IDSP";
 const SOURCE_MAX_AGE_H = {
   [SRC_WHO]: 72, [SRC_WHO_ACTIVE]: 240, [SRC_WHO_SEAR]: 840, [SRC_WHO_WPRO]: 336,
-  [SRC_AFRICA_CDC]: 336, [SRC_ECDC]: 168, [SRC_ECDC_CDTR]: 336,
+  [SRC_AFRICA_CDC]: 336, [SRC_WHO_EMRO]: 336, [SRC_ECDC]: 168, [SRC_ECDC_CDTR]: 336,
   [SRC_CDC]: 216, [SRC_CDC_HAN]: 840, [SRC_PAHO]: 840, [SRC_INDIA_NCDC]: 2880
 };
 const CAT_LABEL = { VOC: "variant of concern", VOI: "variant of interest", VUM: "variant under monitoring" };
@@ -1156,7 +1157,8 @@ function renderSourceCoverage(signals) {
     ["EU / EEA", [SRC_ECDC_CDTR, SRC_ECDC]],
     ["Americas", [SRC_PAHO]],
     ["United States", [SRC_CDC_HAN, SRC_CDC]],
-    ["Western Pacific", [SRC_WHO_WPRO]]
+    ["Western Pacific", [SRC_WHO_WPRO]],
+    ["Eastern Mediterranean", [SRC_WHO_EMRO]]
   ];
   grid.innerHTML = groups.map(([label, sources]) => {
     const rows = signals.filter(x => sources.includes(x.source_name));
