@@ -51,6 +51,7 @@ SRC_WHO = "WHO Disease Outbreak News"
 SRC_WHO_ACTIVE = "WHO Ongoing Health Emergencies"
 SRC_WHO_SEAR = "WHO South-East Asia Epidemiological Bulletin"
 SRC_WHO_WPRO = "WHO Western Pacific Surveillance"
+SRC_WHO_EMRO = "WHO Eastern Mediterranean Outbreaks"
 SRC_AFRICA_CDC = "Africa CDC Epidemic Intelligence"
 SRC_ECDC = "ECDC"
 SRC_ECDC_CDTR = "ECDC Communicable Disease Threats Report"
@@ -59,7 +60,7 @@ SRC_CDC_HAN = "US CDC Health Alert Network"
 SRC_PAHO = "PAHO Epidemiological Alerts"
 
 OFFICIAL_SOURCES = {
-    SRC_WHO, SRC_WHO_ACTIVE, SRC_WHO_SEAR, SRC_WHO_WPRO, SRC_AFRICA_CDC,
+    SRC_WHO, SRC_WHO_ACTIVE, SRC_WHO_SEAR, SRC_WHO_WPRO, SRC_WHO_EMRO, SRC_AFRICA_CDC,
     SRC_ECDC, SRC_ECDC_CDTR, SRC_CDC, SRC_CDC_HAN, SRC_PAHO, "India NCDC / IDSP",
 }
 
@@ -822,6 +823,44 @@ def collect_who_wpro_surveillance() -> list[Signal]:
     return sorted(out, key=lambda x: x.as_of, reverse=True)[:6]
 
 
+
+WHO_EMRO_URL = "https://www.emro.who.int/home-page/outbreaks/"
+
+
+def collect_who_emro_outbreaks() -> list[Signal]:
+    soup = BeautifulSoup(http_get(WHO_EMRO_URL).text, "html.parser")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=True):
+        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
+        href = str(a.get("href") or "")
+        if not title or len(title) < 5:
+            continue
+        if not re.search(r"(outbreak|cholera|dengue|measles|polio|mpox|mers|fever|disease|emergency)", title, re.I):
+            continue
+        url = _abs_url(WHO_EMRO_URL, href)
+        if "emro.who.int" not in url or url in seen:
+            continue
+        seen.add(url)
+        as_of = _date_from_text(a.parent.get_text(" ", strip=True) if a.parent else title)
+        out.append(_signal_from_link(
+            key_prefix="who_emro",
+            kind="regional_bulletin",
+            entity="Eastern Mediterranean public-health event",
+            headline=title,
+            source_name=SRC_WHO_EMRO,
+            source_url=url,
+            as_of=as_of,
+            geo_scope="region",
+            geo_name="WHO Eastern Mediterranean Region",
+            detail={
+                "coverage_note": "WHO Eastern Mediterranean regional outbreak/emergency information covering Member States across the Middle East, North Africa and parts of South/Central Asia."
+            },
+        ))
+    if not out:
+        raise RuntimeError("WHO EMRO outbreak page parsed but no outbreak links were found")
+    return sorted(out, key=lambda x: x.as_of, reverse=True)[:12]
+
+
 NCDC_ALERT_INDEX = "https://ncdc.mohfw.gov.in/uploads/glimpse_pdfs/"
 
 
@@ -923,6 +962,7 @@ COLLECTORS = {
     "who_active": (collect_who_active_emergencies, "active_emergency", SRC_WHO_ACTIVE),
     "who_sear": (collect_who_sear_bulletins, "regional_bulletin", SRC_WHO_SEAR),
     "who_wpro": (collect_who_wpro_surveillance, "regional_bulletin", SRC_WHO_WPRO),
+    "who_emro": (collect_who_emro_outbreaks, "regional_bulletin", SRC_WHO_EMRO),
     "africa_cdc": (collect_africa_cdc_intelligence, "regional_bulletin", SRC_AFRICA_CDC),
     "ecdc": (collect_ecdc_variants, "variant_status", SRC_ECDC),
     "ecdc_cdtr": (collect_ecdc_cdtr, "regional_bulletin", SRC_ECDC_CDTR),
@@ -988,7 +1028,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument(
         "--only",
-        default="who,who_active,who_sear,who_wpro,africa_cdc,ecdc,ecdc_cdtr,cdc,cdc_han,paho,india_ncdc",
+        default="who,who_active,who_sear,who_wpro,who_emro,africa_cdc,ecdc,ecdc_cdtr,cdc,cdc_han,paho,india_ncdc",
         help="comma list of configured official health-intelligence collectors",
     )
     ap.add_argument("--dry-run", action="store_true", help="fetch and validate; write nothing")
