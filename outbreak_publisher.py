@@ -582,10 +582,22 @@ WHO_ACTIVE_URL = "https://www.who.int/emergencies/situations"
 def collect_who_active_emergencies() -> list[Signal]:
     soup = BeautifulSoup(http_get(WHO_ACTIVE_URL).text, "html.parser")
     out, seen = [], set()
-    for a in soup.find_all("a", href=True):
-        href = str(a.get("href") or "")
-        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
-        if "/emergencies/situations/" not in href or not title or title.lower() in {"all", "read more"}:
+
+    outbreak_heading = next(
+        (h for h in soup.find_all(["h2", "h3"]) if h.get_text(" ", strip=True).lower() == "outbreaks"),
+        None,
+    )
+    if outbreak_heading is None:
+        raise RuntimeError("WHO ongoing-emergencies page parsed but the Outbreaks section was not found")
+
+    for node in outbreak_heading.find_all_next(["a", "h2", "h3"]):
+        if node.name in {"h2", "h3"} and node is not outbreak_heading:
+            break
+        if node.name != "a":
+            continue
+        href = str(node.get("href") or "")
+        title = re.sub(r"\s+", " ", node.get_text(" ", strip=True))
+        if "/emergencies/situations/" not in href or not title:
             continue
         url = _abs_url(WHO_ACTIVE_URL, href)
         if url in seen:
@@ -595,19 +607,19 @@ def collect_who_active_emergencies() -> list[Signal]:
             key_prefix="who_active",
             kind="active_emergency",
             entity=title,
-            headline=f"WHO ongoing health emergency: {title}",
+            headline=f"WHO ongoing disease outbreak: {title}",
             source_name=SRC_WHO_ACTIVE,
             source_url=url,
             as_of=date.today(),
             geo_scope="global",
             geo_name="Global / affected countries",
             detail={
-                "coverage_note": "Listed by WHO as an ongoing health emergency. Follow the linked WHO situation page for event-specific geography and updates."
+                "coverage_note": "Listed by WHO in the current Outbreaks section of its ongoing health-emergencies page. Follow the linked WHO situation page for event-specific geography and updates."
             },
             ttl_days=ACTIVE_EMERGENCY_TTL_DAYS,
         ))
     if not out:
-        raise RuntimeError("WHO ongoing-emergencies page parsed but no active situation links were found")
+        raise RuntimeError("WHO Outbreaks section parsed but no current disease-outbreak links were found")
     return out[:20]
 
 
