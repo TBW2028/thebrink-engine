@@ -2119,7 +2119,10 @@ export default {
         }
         const pdfB64 = btoa(binary);
 
-        if (summary.draft_sha256) {
+        if (!summary.draft_sha256) {
+          throw new Error("Draft integrity metadata is missing. Regenerate the draft before client delivery.");
+        }
+        {
           const digest = await crypto.subtle.digest("SHA-256", pdfBytes);
           const actualHash = Array.from(new Uint8Array(digest))
             .map(b => b.toString(16).padStart(2, "0"))
@@ -2157,8 +2160,11 @@ export default {
           pre_underwriting_site_intelligence: "Pre-Underwriting Site Intelligence",
           business_continuity_threat_register: "External Threat Register"
         };
-        const productTitle = productLabels[reportRun.product_type] || "Facility Risk Report";
-        const siteName = facility.facility_name || facility.location_label || "Monitored Facility";
+        const productTitle = productLabels[reportRun.product_type] || "Risk Report";
+        const siteName = facility.facility_name || facility.location_label || "Monitored Location";
+        const mailEsc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
+          "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+        }[ch]));
         const sender = env.DOSSIER_FROM_EMAIL || "The Brink World <intel@thebrinkworld.com>";
         const attachment = {
           filename: `Dossier_${reportRun.report_ref || runId.slice(0,8)}.pdf`,
@@ -2175,10 +2181,10 @@ export default {
           reply_to: "thebrink2028@gmail.com",
           subject: `Your ${productTitle} — ${siteName} (${reportRun.report_ref})`,
           html: `
-            <h3>The Brink World — ${productTitle}</h3>
-            <p>Your approved facility risk report for <strong>${siteName}</strong> is attached.</p>
-            <p><strong>Location:</strong> ${facility.location_label || "Not supplied"}</p>
-            <p><strong>Reference:</strong> ${reportRun.report_ref}</p>
+            <h3>The Brink World — ${mailEsc(productTitle)}</h3>
+            <p>Your reviewed <strong>${mailEsc(productTitle)}</strong> for <strong>${mailEsc(siteName)}</strong> is attached.</p>
+            <p><strong>Location:</strong> ${mailEsc(facility.location_label || "Not supplied")}</p>
+            <p><strong>Reference:</strong> ${mailEsc(reportRun.report_ref)}</p>
             <p>The evidence classes, confidence notes and reliance limits inside the dossier explain how each finding should be interpreted.</p>
           `,
           attachments: [attachment]
@@ -2209,10 +2215,10 @@ export default {
             subject: `[REPORT DELIVERED] ${productTitle} · ${siteName} · ${reportRun.report_ref}`,
             html: `
               <h3>The Brink World — Delivery Record</h3>
-              <p><strong>Client:</strong> ${deliveryName || "—"} · ${deliveryEmail}</p>
-              <p><strong>Facility:</strong> ${siteName}</p>
-              <p><strong>Location:</strong> ${facility.location_label || "—"}</p>
-              <p><strong>Reference:</strong> ${reportRun.report_ref}</p>
+              <p><strong>Client:</strong> ${mailEsc(deliveryName || "—")} · ${mailEsc(deliveryEmail)}</p>
+              <p><strong>Facility:</strong> ${mailEsc(siteName)}</p>
+              <p><strong>Location:</strong> ${mailEsc(facility.location_label || "—")}</p>
+              <p><strong>Reference:</strong> ${mailEsc(reportRun.report_ref)}</p>
               <p>The exact PDF delivered to the client is attached.</p>
             `,
             attachments: [attachment]
