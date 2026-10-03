@@ -1443,6 +1443,9 @@ export default {
         const cadence = String(body.cadence || "monthly").trim().toLowerCase();
         const criticalFunction = String(body.critical_function || "").trim();
         const notes = String(body.notes || "").trim();
+        const paymentMethod = String(body.payment_method || "").trim().toLowerCase();
+        const paymentReference = String(body.payment_reference || "").trim();
+        const sourcePage = String(body.source_page || "facility-risk.html").trim();
 
         const termsVersion = "TBW-TOS-2026-10-01";
         const privacyVersion = "TBW-PRIVACY-2026-10-01";
@@ -1473,6 +1476,7 @@ export default {
         const resilienceMeasures = String(body.resilience_measures || "").trim();
 
         const allowedProducts = new Set([
+          "location_dossier",
           "facility_risk_passport",
           "physical_risk_evidence_pack",
           "pre_underwriting_site_intelligence",
@@ -1556,7 +1560,9 @@ export default {
             notes: notes || null,
             requested_product: productType,
             requested_cadence: cadence,
-            source: "facility-risk.html",
+            source: sourcePage,
+            payment_method: paymentMethod || null,
+            payment_reference: paymentReference || null,
             terms_version: termsVersion,
             privacy_version: privacyVersion,
             facility_profile_schema: "TBW-FACILITY-PROFILE-v1"
@@ -1627,8 +1633,10 @@ export default {
           client_declaration_confirmed: true,
           accepted_at: now,
           acceptance_context: {
-            source: "facility-risk.html",
+            source: sourcePage,
             product_type: productType,
+            payment_method: paymentMethod || null,
+            payment_reference: paymentReference || null,
             cadence,
             facility_profile_schema: "TBW-FACILITY-PROFILE-v1"
           }
@@ -1655,6 +1663,7 @@ export default {
         if (env.RESEND_API_KEY) {
           const safe = x => String(x || "").replace(/[<>&"]/g, "");
           const productLabels = {
+            location_dossier: "Location Threat Dossier",
             facility_risk_passport: "Facility Risk Passport",
             physical_risk_evidence_pack: "Physical Risk Evidence Pack",
             pre_underwriting_site_intelligence: "Pre-Underwriting Site Intelligence",
@@ -1681,6 +1690,8 @@ export default {
                     <tr><td style="padding:6px;color:#666">Cadence</td><td>${safe(cadence)}</td></tr>
                     <tr><td style="padding:6px;color:#666">Critical function</td><td>${safe(criticalFunction || "—")}</td></tr>
                     <tr><td style="padding:6px;color:#666">Facility profile</td><td>Client-declared V2 profile captured</td></tr>
+                    <tr><td style="padding:6px;color:#666">Payment method</td><td>${safe(paymentMethod || "Not supplied")}</td></tr>
+                    <tr><td style="padding:6px;color:#666">Payment reference</td><td>${safe(paymentReference || "Not supplied")}</td></tr>
                     <tr><td style="padding:6px;color:#666">Terms accepted</td><td>${safe(termsVersion)} · ${safe(privacyVersion)}</td></tr>
                   </table>
                   <p><strong>Requested workflow:</strong> ${safe(notes || "Not supplied")}</p>
@@ -1768,6 +1779,7 @@ export default {
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
       }[ch]));
       const labels = {
+        location_dossier: "Location Threat Dossier",
         facility_risk_passport: "Facility Risk Passport",
         physical_risk_evidence_pack: "Physical Risk Evidence Pack",
         pre_underwriting_site_intelligence: "Pre-Underwriting Site Intelligence",
@@ -1791,6 +1803,8 @@ export default {
       <div class="row"><span class="k">Cadence</span><span class="v">${esc(sub.cadence)}</span></div>
       <div class="row"><span class="k">Critical function</span><span class="v">${esc(facility.critical_function || "—")}</span></div>
       <div class="row"><span class="k">Requested workflow</span><span class="v">${esc(sub.commercial_terms?.notes || "—")}</span></div>
+      <div class="row"><span class="k">Payment method</span><span class="v">${esc(sub.commercial_terms?.payment_method || "Not supplied")}</span></div>
+      <div class="row"><span class="k">Payment reference</span><span class="v">${esc(sub.commercial_terms?.payment_reference || "Not supplied")}</span></div>
       <div class="warn"><strong>Activation starts draft generation.</strong><br>Confirm the commercial scope/payment separately before activating. The generated report is sent to The Brink World for internal review first; client delivery is a separate approval step.</div>
       ${already ? `<p><strong>Status: ${esc(sub.status)}</strong></p>` : `
       <form method="post" action="/api/commercial/activate">
@@ -1941,6 +1955,7 @@ export default {
           "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
         }[ch]));
         const productLabels = {
+          location_dossier: "Location Threat Dossier",
           facility_risk_passport: "Facility Risk Passport",
           physical_risk_evidence_pack: "Physical Risk Evidence Pack",
           pre_underwriting_site_intelligence: "Pre-Underwriting Site Intelligence",
@@ -2104,6 +2119,7 @@ export default {
         const pdfB64 = btoa(binary);
 
         const productLabels = {
+          location_dossier: "Location Threat Dossier",
           facility_risk_passport: "Facility Risk Passport",
           physical_risk_evidence_pack: "Physical Risk Evidence Pack",
           pre_underwriting_site_intelligence: "Pre-Underwriting Site Intelligence",
