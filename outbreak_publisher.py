@@ -61,7 +61,7 @@ SRC_PAHO = "PAHO Epidemiological Alerts"
 
 OFFICIAL_SOURCES = {
     SRC_WHO, SRC_WHO_ACTIVE, SRC_WHO_SEAR, SRC_WHO_WPRO, SRC_WHO_EMRO, SRC_AFRICA_CDC,
-    SRC_ECDC, SRC_ECDC_CDTR, SRC_CDC, SRC_CDC_HAN, SRC_PAHO, "India NCDC / IDSP",
+    SRC_ECDC, SRC_ECDC_CDTR, SRC_CDC, SRC_CDC_HAN, SRC_PAHO, "India NCDC / IDSP Weekly Outbreaks",
 }
 
 KINDS = {
@@ -74,7 +74,7 @@ TIERS = {"confirmed", "reported", "early_signal"}
 WHO_TTL_DAYS = 60
 ECDC_TTL_DAYS = 45
 CDC_TTL_DAYS = 14
-REGIONAL_TTL_DAYS = 35
+REGIONAL_TTL_DAYS = 75
 ACTIVE_EMERGENCY_TTL_DAYS = 10
 CHANGE_BADGE_DAYS = 14
 
@@ -558,9 +558,14 @@ def _signal_from_link(
     confidence: float = 0.95,
 ) -> Signal:
     slug = re.sub(r"[^a-z0-9]+", "-", source_url.lower()).strip("-")[-140:]
+    logical_kind = kind
+    storage_kind = "outbreak_notice" if logical_kind in {"active_emergency", "regional_bulletin", "health_alert"} else logical_kind
+    detail_payload = dict(detail or {})
+    if storage_kind != logical_kind:
+        detail_payload["signal_class"] = logical_kind
     return Signal(
         signal_key=f"{key_prefix}|{slug}",
-        kind=kind,
+        kind=storage_kind,
         entity=entity[:180],
         headline=headline[:300],
         tier="confirmed",
@@ -571,7 +576,7 @@ def _signal_from_link(
         expires_at=datetime.combine(as_of, datetime.min.time(), timezone.utc) + timedelta(days=ttl_days),
         geo_scope=geo_scope,
         geo_name=geo_name,
-        detail=detail or {},
+        detail=detail_payload,
         published_at=datetime.combine(as_of, datetime.min.time(), timezone.utc),
     )
 
@@ -632,7 +637,9 @@ def collect_who_sear_bulletins() -> list[Signal]:
     for a in soup.find_all("a", href=True):
         href = str(a.get("href") or "")
         title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
-        if "epidemiological bulletin" not in title.lower() or "/item/" not in href:
+        if "epidemiological bulletin" not in title.lower():
+            continue
+        if not (href.startswith("http") or href.startswith("/")):
             continue
         url = _abs_url(WHO_SEAR_URL, href)
         if url in seen:
@@ -729,39 +736,46 @@ def collect_ecdc_cdtr() -> list[Signal]:
     return sorted(out, key=lambda x: x.as_of, reverse=True)[:4]
 
 
-CDC_HAN_URL = "https://www.cdc.gov/han/php/notices/index.html"
+CDC_HAN_URL = "https://www.cdc.gov/han/site.html"
 
 
 def collect_cdc_han() -> list[Signal]:
     soup = BeautifulSoup(http_get(CDC_HAN_URL).text, "html.parser")
-    out, seen = [], set()
+    candidates, seen = [], set()
     for a in soup.find_all("a", href=True):
         href = str(a.get("href") or "")
-        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
-        if "/han/php/notices/han" not in href or not title:
-            continue
+        label = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
         url = _abs_url(CDC_HAN_URL, href)
+        if "/han/php/notices/han" not in url:
+            continue
         if url in seen:
             continue
         seen.add(url)
-        parent_text = a.parent.get_text(" ", strip=True) if a.parent else title
-        as_of = _date_from_text(parent_text)
+        candidates.append((label, url))
+
+    out = []
+    for label, url in candidates[:12]:
+        detail_soup = BeautifulSoup(http_get(url).text, "html.parser")
+        page_text = detail_soup.get_text(" ", strip=True)
+        as_of = _date_from_text(page_text)
+        h1 = detail_soup.find("h1")
+        headline = re.sub(r"\s+", " ", h1.get_text(" ", strip=True)) if h1 else (label or "CDC Health Alert Network notice")
         out.append(_signal_from_link(
             key_prefix="cdc_han",
             kind="health_alert",
-            entity=title,
-            headline=title,
+            entity=headline,
+            headline=headline,
             source_name=SRC_CDC_HAN,
             source_url=url,
             as_of=as_of,
             geo_scope="country",
             geo_name="United States / international relevance where stated",
             detail={
-                "coverage_note": "CDC Health Alert Network message. HAN includes alerts, advisories and updates for clinicians and public-health authorities."
+                "coverage_note": "CDC Health Alert Network message for clinicians and public-health authorities."
             },
         ))
     if not out:
-        raise RuntimeError("CDC HAN archive parsed but no current notice links were found")
+        raise RuntimeError("CDC HAN site index parsed but no HAN notice pages were found")
     return sorted(out, key=lambda x: x.as_of, reverse=True)[:12]
 
 
@@ -873,45 +887,48 @@ def collect_who_emro_outbreaks() -> list[Signal]:
     return sorted(out, key=lambda x: x.as_of, reverse=True)[:12]
 
 
-NCDC_ALERT_INDEX = "https://ncdc.mohfw.gov.in/uploads/glimpse_pdfs/"
+INDIA_IDSP_WEEKLY_URL = "https://ncdc.mohfw.gov.in/includes/WeeklyOutbreaks.php"
 
 
 def collect_india_ncdc_alerts() -> list[Signal]:
-    soup = BeautifulSoup(http_get(NCDC_ALERT_INDEX).text, "html.parser")
-    out = []
+    soup = BeautifulSoup(http_get(INDIA_IDSP_WEEKLY_URL).text, "html.parser")
+    out, seen = [], set()
+    current_year = date.today().year
+
     for a in soup.find_all("a", href=True):
+        title = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
         href = str(a.get("href") or "")
-        name = re.sub(r"\s+", " ", a.get_text(" ", strip=True))
-        if not href.lower().endswith(".pdf"):
+        m = re.fullmatch(r"Week\s+(\d{1,2})", title, re.I)
+        if not m:
             continue
-        if not re.search(r"(alert|nipah|ebola|marburg|cchf|chandipura|yellow.?fever)", name, re.I):
+        week = int(m.group(1))
+        url = _abs_url(INDIA_IDSP_WEEKLY_URL, href)
+        if str(current_year) not in url or url in seen:
             continue
-        url = _abs_url(NCDC_ALERT_INDEX, href)
-        row_text = a.parent.get_text(" ", strip=True) if a.parent else name
-        m = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", row_text)
+        seen.add(url)
         try:
-            as_of = datetime.strptime(m.group(1), "%Y-%m-%d").date() if m else date.today()
+            as_of = date.fromisocalendar(current_year, week, 7)
         except ValueError:
-            as_of = date.today()
-        entity = re.sub(r"^\d+_", "", name).replace(".pdf", "").replace("-", " ").replace("_", " ")
+            continue
         out.append(_signal_from_link(
-            key_prefix="india_ncdc",
-            kind="health_alert",
-            entity=entity,
-            headline=f"India NCDC alert: {entity}",
-            source_name="India NCDC / IDSP",
+            key_prefix="india_idsp_weekly",
+            kind="regional_bulletin",
+            entity=f"India IDSP weekly outbreak report · Week {week}",
+            headline=f"India IDSP Weekly Outbreak Report · Week {week}, {current_year}",
+            source_name="India NCDC / IDSP Weekly Outbreaks",
             source_url=url,
             as_of=as_of,
             geo_scope="country",
             geo_name="India",
             detail={
-                "coverage_note": "Official NCDC/IDSP communicable-disease alert document. India also operates weekly outbreak surveillance through IDSP/IHIP."
+                "coverage_note": "Official weekly district-level disease alerts/outbreaks reported and responded to through India's IDSP/NCDC."
             },
-            ttl_days=120,
+            ttl_days=35,
         ))
+
     if not out:
-        raise RuntimeError("India NCDC alert index parsed but no communicable-disease alert PDFs were found")
-    return sorted(out, key=lambda x: x.as_of, reverse=True)[:12]
+        raise RuntimeError("India NCDC Weekly Outbreaks page parsed but no current-year weekly reports were found")
+    return sorted(out, key=lambda x: x.as_of, reverse=True)[:6]
 
 
 # --------------------------------------------------------------------------
@@ -971,17 +988,17 @@ class DryStore:
 # --------------------------------------------------------------------------
 COLLECTORS = {
     "who": (collect_who_don, "outbreak_notice", SRC_WHO),
-    "who_active": (collect_who_active_emergencies, "active_emergency", SRC_WHO_ACTIVE),
-    "who_sear": (collect_who_sear_bulletins, "regional_bulletin", SRC_WHO_SEAR),
-    "who_wpro": (collect_who_wpro_surveillance, "regional_bulletin", SRC_WHO_WPRO),
-    "who_emro": (collect_who_emro_outbreaks, "regional_bulletin", SRC_WHO_EMRO),
-    "africa_cdc": (collect_africa_cdc_intelligence, "regional_bulletin", SRC_AFRICA_CDC),
+    "who_active": (collect_who_active_emergencies, "outbreak_notice", SRC_WHO_ACTIVE),
+    "who_sear": (collect_who_sear_bulletins, "outbreak_notice", SRC_WHO_SEAR),
+    "who_wpro": (collect_who_wpro_surveillance, "outbreak_notice", SRC_WHO_WPRO),
+    "who_emro": (collect_who_emro_outbreaks, "outbreak_notice", SRC_WHO_EMRO),
+    "africa_cdc": (collect_africa_cdc_intelligence, "outbreak_notice", SRC_AFRICA_CDC),
     "ecdc": (collect_ecdc_variants, "variant_status", SRC_ECDC),
-    "ecdc_cdtr": (collect_ecdc_cdtr, "regional_bulletin", SRC_ECDC_CDTR),
+    "ecdc_cdtr": (collect_ecdc_cdtr, "outbreak_notice", SRC_ECDC_CDTR),
     "cdc": (collect_cdc_wastewater, "wastewater", SRC_CDC),
-    "cdc_han": (collect_cdc_han, "health_alert", SRC_CDC_HAN),
-    "paho": (collect_paho_alerts, "regional_bulletin", SRC_PAHO),
-    "india_ncdc": (collect_india_ncdc_alerts, "health_alert", "India NCDC / IDSP"),
+    "cdc_han": (collect_cdc_han, "outbreak_notice", SRC_CDC_HAN),
+    "paho": (collect_paho_alerts, "outbreak_notice", SRC_PAHO),
+    "india_ncdc": (collect_india_ncdc_alerts, "outbreak_notice", "India NCDC / IDSP Weekly Outbreaks"),
 }
 
 
