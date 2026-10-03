@@ -9,7 +9,7 @@ on:
   repository_dispatch:
     types: [outbreak_tick]
   schedule:
-    - cron: '23 */6 * * *'
+    - cron: '23 */3 * * *'
   workflow_dispatch:
 
 permissions:
