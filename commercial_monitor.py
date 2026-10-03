@@ -136,6 +136,8 @@ def upload_draft_pdf(pdf_path, facility_id, run_id, ref):
     object_path = f"{facility_id}/{run_id}/{ref}.pdf"
     with open(pdf_path, "rb") as handle:
         content = handle.read()
+    content_sha256 = hashlib.sha256(content).hexdigest()
+    content_size = len(content)
 
     upload_headers = {
         "apikey": SUPABASE_KEY,
@@ -154,7 +156,7 @@ def upload_draft_pdf(pdf_path, facility_id, run_id, ref):
             f"Commercial draft PDF upload failed ({response.status_code}): "
             f"{response.text[:400]}"
         )
-    return object_path
+    return object_path, content_sha256, content_size
 
 
 def send_admin_draft(pdf_path, ref, facility, subscription, run_id, approval_token):
@@ -174,7 +176,7 @@ def send_admin_draft(pdf_path, ref, facility, subscription, run_id, approval_tok
     payload = {
         "from": os.environ.get("DOSSIER_FROM_EMAIL", "The Brink World <intel@thebrinkworld.com>"),
         "to": [ADMIN_EMAIL],
-        "reply_to": client_email if "@" in client_email else ADMIN_EMAIL,
+        "reply_to": ADMIN_EMAIL,
         "subject": f"[DRAFT REVIEW REQUIRED] {product_label} · {site_name} · {ref}",
         "html": (
             "<h3>The Brink World — Commercial Report Draft</h3>"
@@ -223,6 +225,8 @@ def main():
     if not due:
         print("No active commercial subscriptions due.")
         return
+
+    failures = []
 
     for sub in due:
         facility_rows = sb_get(
@@ -291,6 +295,7 @@ def main():
             answers = {
                 "customer_name": f.get("contact_name") or "Operations Lead",
                 "occupancy": f.get("facility_type") or "Commercial property / facility",
+                "location_label": f.get("location_label"),
                 "country": f.get("country"),
                 "country_code": f.get("country_code"),
                 "critical_function": f.get("critical_function"),
@@ -358,7 +363,7 @@ def main():
             approval_token = secrets.token_urlsafe(32)
             approval_hash = hashlib.sha256(approval_token.encode("utf-8")).hexdigest()
             approval_expires = finished + timedelta(days=14)
-            object_path = upload_draft_pdf(
+            object_path, draft_sha256, draft_size_bytes = upload_draft_pdf(
                 pdf_path,
                 facility_id=f["id"],
                 run_id=run["id"],
@@ -374,6 +379,8 @@ def main():
                 "evidence_schema": EVIDENCE_SCHEMA_VERSION,
                 "draft_bucket": DRAFT_BUCKET,
                 "draft_object_path": object_path,
+                "draft_sha256": draft_sha256,
+                "draft_size_bytes": draft_size_bytes,
                 "delivery_approval_hash": approval_hash,
                 "delivery_approval_expires_at": approval_expires.isoformat(),
                 "client_delivery_status": "awaiting_approval",
@@ -418,7 +425,15 @@ def main():
                     "completed_at": datetime.now(timezone.utc).isoformat(),
                     "evidence_summary": {"error": str(exc)[:800]},
                 })
-            print(f"[FAIL] subscription={sub['id']} facility={f.get('facility_name')}: {exc}")
+            failure = f"subscription={sub['id']} facility={f.get('facility_name')}: {exc}"
+            failures.append(failure)
+            print(f"[FAIL] {failure}")
+
+    if failures:
+        raise RuntimeError(
+            f"{len(failures)} commercial report generation task(s) failed. "
+            + " | ".join(failures[:5])
+        )
 
 
 if __name__ == "__main__":
