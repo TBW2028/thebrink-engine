@@ -898,7 +898,7 @@ export default {
             error: "free_sample_limit_reached",
             message: "You have used both complimentary Location Threat Snapshots.",
             remaining_free: 0,
-            paid_price: { usd: 29, inr: 2499, usdt: 29 }
+            paid_price: { inr: 12500, gst_extra: true, international: "USD / USDT available" }
           }, 402, corsHeaders);
         }
 
@@ -1039,7 +1039,7 @@ export default {
               error: "free_sample_limit_reached",
               message: "You have used both complimentary Location Threat Snapshots.",
               remaining_free: 0,
-              paid_price: { usd: 29, inr: 2499, usdt: 29 }
+              paid_price: { inr: 12500, gst_extra: true, international: "USD / USDT available" }
             }, 402, corsHeaders);
           }
           throw new Error(`Sample claim failed: ${detail}`);
@@ -1081,7 +1081,7 @@ export default {
         return jsonResponse({
           ok: true,
           snapshot,
-          paid_price: { usd: 29, inr: 2499, usdt: 29 }
+          paid_price: { inr: 12500, gst_extra: true, international: "USD / USDT available" }
         }, 200, corsHeaders);
       } catch (err) {
         return jsonResponse({ error: err.message }, 500, corsHeaders);
@@ -1089,8 +1089,17 @@ export default {
     }
 
 
-    // 8. Paid Location Threat Dossier — manual payment verification
+    // 8. Legacy paid dossier checkout retired. New professional orders use /api/commercial/request.
     if (url.pathname === "/api/dossier/payment-submit" && request.method === "POST") {
+      return jsonResponse({
+        error: "legacy_checkout_retired",
+        message: "This earlier checkout has been retired. Use the current Location Threat Dossier order page.",
+        order_page: "/facility-risk.html#location-dossier"
+      }, 410, corsHeaders);
+    }
+
+    // Historical legacy endpoint retained only so previously submitted orders can still be reviewed.
+    if (false && url.pathname === "/api/dossier/payment-submit" && request.method === "POST") {
       try {
         const body = await request.json();
         const email = normalizeEmail(body.email);
