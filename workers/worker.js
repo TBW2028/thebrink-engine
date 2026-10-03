@@ -1955,7 +1955,7 @@ export default {
 
         const subUrl = new URL(`${sbUrl}/rest/v1/brink_monitoring_subscriptions`);
         subUrl.searchParams.set("id", `eq.${reportRun.subscription_id}`);
-        subUrl.searchParams.set("select", "id,product_type,cadence,status,approved_at,approved_by");
+        subUrl.searchParams.set("select", "id,product_type,cadence,status,approved_at,approved_by,commercial_terms");
         subUrl.searchParams.set("limit", "1");
         const subRes = await fetch(subUrl.toString(), { headers: sbHeaders(sbKey) });
         const sub = subRes.ok ? (await subRes.json())[0] : null;
@@ -1992,6 +1992,8 @@ export default {
         <div class="row"><span class="k">Location</span><span class="v">${esc(facility.location_label)}</span></div>
         <div class="row"><span class="k">Product</span><span class="v">${esc(productLabels[reportRun.product_type] || reportRun.product_type)}</span></div>
         <div class="row"><span class="k">Cadence</span><span class="v">${esc(sub?.cadence || "—")}</span></div>
+        <div class="row"><span class="k">Payment method</span><span class="v">${esc(sub?.commercial_terms?.payment_method || "Not supplied")}</span></div>
+        <div class="row"><span class="k">Payment reference</span><span class="v">${esc(sub?.commercial_terms?.payment_reference || "Not supplied")}</span></div>
         <div class="row"><span class="k">Draft status</span><span class="v">${esc(reportRun.report_status)}</span></div>
         ${alreadyDelivered ? '<div class="ok"><strong>Already delivered.</strong> The client-delivery step has already completed.</div>' : ''}
         ${canDeliver ? `
