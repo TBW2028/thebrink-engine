@@ -1142,6 +1142,10 @@ async function fetchSignals() {
   return Array.isArray(rows) ? rows : [];
 }
 
+function logicalKind(s) {
+  return (s && s.detail && s.detail.signal_class) || s.kind;
+}
+
 function nationalWastewater(signals, pathogen) {
   return signals.find(s => s.kind === "wastewater" && s.entity === pathogen && s.geo_scope === "country");
 }
@@ -1182,7 +1186,7 @@ function renderSourceCoverage(signals) {
 function renderActiveEmergencies(signals) {
   const box = $("activeEmergencyBody");
   if (!box) return;
-  const active = signals.filter(s => s.kind === "active_emergency")
+  const active = signals.filter(s => logicalKind(s) === "active_emergency")
     .sort((a,b) => String(b.published_at || b.as_of).localeCompare(String(a.published_at || a.as_of)));
   if (!active.length) {
     box.innerHTML = '<p class="note-line">No current WHO ongoing-emergency records are resolved in this feed. This is a source-coverage statement, not evidence that no emergencies exist.</p>';
@@ -1200,7 +1204,7 @@ function renderActiveEmergencies(signals) {
 function renderRegionalIntelligence(signals) {
   const box = $("regionalIntelBody");
   if (!box) return;
-  const rows = signals.filter(s => s.kind === "regional_bulletin" || s.kind === "health_alert")
+  const rows = signals.filter(s => logicalKind(s) === "regional_bulletin" || logicalKind(s) === "health_alert")
     .sort((a,b) => String(b.published_at || b.as_of).localeCompare(String(a.published_at || a.as_of)))
     .slice(0,24);
   if (!rows.length) {
@@ -1225,7 +1229,7 @@ function renderLiveSummary(signals) {
   const tiles = [];
 
   // 1. persistent WHO emergency if available; otherwise newest WHO notice
-  const emergencies = signals.filter(s => s.kind === "active_emergency");
+  const emergencies = signals.filter(s => logicalKind(s) === "active_emergency");
   const notices = signals.filter(s => s.kind === "outbreak_notice")
     .sort((a, b) => String(b.published_at || b.as_of).localeCompare(String(a.published_at || a.as_of)));
   if (emergencies.length) {
@@ -1408,7 +1412,7 @@ async function loadLiveHealthScreener() {
   renderLocalHealthFromSignals(signals);
 
   if (signals.length) {
-    renderOutbreakRegister(signals.filter(s => s.kind === "outbreak_notice"));
+    renderOutbreakRegister(signals.filter(s => s.kind === "outbreak_notice" && s.source_name === SRC_WHO));
     checkFreshness(signals);
     updateSyncStatus(signals);
     return;
